@@ -39,8 +39,7 @@ pub struct LastRecentlyUsedList {
 
 impl LastRecentlyUsedList {
     /// Takes the entry and moves it to the front.
-    pub fn touch(&mut self, value: u64) {
-        let index = self.forward_map[&value];
+    fn touch(&mut self, index: u32) {
         // When we are the first in the list there is nothing to touch.
         let Some(previous) = get_u32(self.entry_list[index as usize].previous) else {
             debug_assert_eq!(
@@ -79,7 +78,7 @@ impl LastRecentlyUsedList {
     }
 
     /// Generates a new entry at the top and returns the storage entry.
-    pub fn generate_new_entry(&mut self, data: u64)  {
+    fn generate_new_entry(&mut self, data: u64)  {
         // First we have to eventually add a new entry.
         let space = match self.open_spaces.pop() {
             Some(n) => n,
@@ -101,7 +100,20 @@ impl LastRecentlyUsedList {
         self.forward_map.insert(data, space);
     }
 
+
+    /// Touches the data if existing or generates a new entry,
+    /// Either way the entry will always be on the top.
+    pub fn touch_or_insert(&mut self, data: u64) {
+        if let Some(index) = self.forward_map.get(&data) {
+            self.touch(*index);
+        } else {
+            self.generate_new_entry(data);
+        }
+    }
+
     /// Frees elements from the Cache and returns the freed elements.
+    /// If the element does not exist anymore a size of zero should be returned.
+    /// It will get cued up in the deletion list anyway and should be ignored from the caller.
     pub fn free_elements(
         &mut self,
         mut amount_to_free: f32,
@@ -185,17 +197,17 @@ mod tests {
     fn fill_test() {
         let mut cand = LastRecentlyUsedList::default();
         for i in (0..5).rev() {
-            cand.generate_new_entry(i);
+            cand.touch_or_insert(i);
         }
 
         let usage_list = cand.generate_usage_list();
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
-        cand.touch(0);
+        cand.touch_or_insert(0);
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
-        cand.touch(4);
+        cand.touch_or_insert(4);
          assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
         cand = LastRecentlyUsedList::new(&usage_list);
-        cand.touch(2);
+        cand.touch_or_insert(2);
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
     }
 
