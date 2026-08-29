@@ -1,5 +1,6 @@
 //! This module contains as a pseudo double linked list the entries of the data in least recently used priority que.
 
+use crate::add;
 use std::num::NonZeroU32;
 
 fn get_u32(x: Option<NonZeroU32>) -> Option<u32> {
@@ -38,7 +39,11 @@ impl LastRecentlyUsedList {
     pub fn touch(&mut self, index: u32) {
         // When we are the first in the list there is nothing to touch.
         let Some(previous) = get_u32(self.entry_list[index as usize].previous) else {
-            debug_assert_eq!(Some(index), self.first_entry,"Counter check that we are the first entry." );
+            debug_assert_eq!(
+                Some(index),
+                self.first_entry,
+                "Counter check that we are the first entry."
+            );
             return;
         };
 
@@ -55,7 +60,11 @@ impl LastRecentlyUsedList {
             self.entry_list[next as usize].previous = self.entry_list[index as usize].previous;
         } else {
             // In this case we were at the end of the list and the new last entry becomes our previous.
-            debug_assert_eq!(Some(index), self.last_entry,"Counter check that we are the last entry." );
+            debug_assert_eq!(
+                Some(index),
+                self.last_entry,
+                "Counter check that we are the last entry."
+            );
             self.last_entry = Some(previous);
         }
 
@@ -79,7 +88,11 @@ impl LastRecentlyUsedList {
         element.hash_content = data;
         element.previous = None;
         element.next = map_u32(self.first_entry);
+        if let Some(entry) = self.first_entry {
+            self.entry_list[entry as usize].previous = set_u32(space);
+        }
         self.first_entry = Some(space);
+        if self.last_entry.is_none() {self.last_entry = self.first_entry;}
 
         space
     }
@@ -120,7 +133,6 @@ impl LastRecentlyUsedList {
         result
     }
 
-    
     /// Generates an LRU inviction system from an u64 slice handed over.
     pub fn new(content_slice: &[u64]) -> Self {
         let mut result = Self::default();
@@ -134,16 +146,68 @@ impl LastRecentlyUsedList {
             .iter()
             .enumerate()
             .map(|(i, x)| LRUEntry {
-                previous: set_u32(i as u32 - 1),
+                previous: (i > 0).then(|| set_u32(i as u32 - 1).unwrap()),
                 next: (i < last_element).then(|| set_u32(i as u32 + 1).unwrap()),
                 hash_content: *x,
             })
             .collect();
-        
+
         result.entry_list = content;
         result.first_entry = Some(0);
         result.last_entry = Some(last_element as u32);
-        
+
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn weight_function(_: u64) -> f32 {
+        1.0
+    }
+    #[test]
+    fn empty_test() {
+        let mut cand = LastRecentlyUsedList::default();
+        assert_eq!(cand.generate_usage_list(), Vec::new());
+        cand.free_elements(10.0, weight_function);
+    }
+
+    #[test]
+    fn fill_test() {
+        let mut cand = LastRecentlyUsedList::default();
+        let pos: Vec<_> = (0..5)
+            .into_iter()
+            .rev()
+            .map(|x|  cand.generate_new_entry(x))
+            .collect();
+
+        let usage_list = cand.generate_usage_list();
+        assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
+        cand.touch(pos[4]);
+        assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
+        cand.touch(pos[0]);
+         assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
+        cand = LastRecentlyUsedList::new(&usage_list);
+        cand.touch(pos[2]);
+        assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
+    }
+
+    #[test]
+    fn removal_test() {
+        let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3, 4]);
+        let data = cand.free_elements(2.0, weight_function);
+        assert_eq!(data, vec![4, 3]);
+        assert_eq!(cand.generate_usage_list(), vec![0, 1, 2]);
+        cand.generate_new_entry(42);
+        assert_eq!(cand.generate_usage_list(), vec![42, 0, 1, 2]);
+    }
+
+    #[test]
+    fn reconstruct_test() {
+        let cand = LastRecentlyUsedList::new(&[0,1,2,3,4,5]);
+        let list = cand.generate_usage_list();
+        assert_eq!(list, vec![0,1,2,3,4,5]);
     }
 }
