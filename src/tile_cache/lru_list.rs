@@ -2,6 +2,7 @@
 
 use crate::add;
 use std::num::NonZeroU32;
+use fxhash::FxHashMap;
 
 fn get_u32(x: Option<NonZeroU32>) -> Option<u32> {
     x.map(|x| x.get() - 1)
@@ -32,11 +33,14 @@ pub struct LastRecentlyUsedList {
     first_entry: Option<u32>,
     /// The last entry in the list.
     last_entry: Option<u32>,
+    /// The hashmap with all the entries.
+    forward_map : FxHashMap<u64, u32>,
 }
 
 impl LastRecentlyUsedList {
     /// Takes the entry and moves it to the front.
-    pub fn touch(&mut self, index: u32) {
+    pub fn touch(&mut self, value: u64) {
+        let index = self.forward_map[&value];
         // When we are the first in the list there is nothing to touch.
         let Some(previous) = get_u32(self.entry_list[index as usize].previous) else {
             debug_assert_eq!(
@@ -75,7 +79,7 @@ impl LastRecentlyUsedList {
     }
 
     /// Generates a new entry at the top and returns the storage entry.
-    pub fn generate_new_entry(&mut self, data: u64) -> u32 {
+    pub fn generate_new_entry(&mut self, data: u64)  {
         // First we have to eventually add a new entry.
         let space = match self.open_spaces.pop() {
             Some(n) => n,
@@ -94,7 +98,7 @@ impl LastRecentlyUsedList {
         self.first_entry = Some(space);
         if self.last_entry.is_none() {self.last_entry = self.first_entry;}
 
-        space
+        self.forward_map.insert(data, space);
     }
 
     /// Frees elements from the Cache and returns the freed elements.
@@ -103,13 +107,14 @@ impl LastRecentlyUsedList {
         mut amount_to_free: f32,
         weight_function: impl Fn(u64) -> f32,
     ) -> Vec<u64> {
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(self.forward_map.len());
         while let Some(scan) = self.last_entry
             && amount_to_free > 0.0
         {
             let element = &self.entry_list[scan as usize];
             let content = element.hash_content;
             result.push(content);
+            self.forward_map.remove(&content);
             amount_to_free -= weight_function(content);
             self.open_spaces.push(scan);
             self.last_entry = get_u32(element.previous);
@@ -141,10 +146,12 @@ impl LastRecentlyUsedList {
         }
 
         let last_element = content_slice.len() - 1;
+        result.forward_map.reserve(last_element + 1);
 
         let content = content_slice
             .iter()
             .enumerate()
+            .inspect(|(i,x)| {result.forward_map.insert(**x, *i as u32);})
             .map(|(i, x)| LRUEntry {
                 previous: (i > 0).then(|| set_u32(i as u32 - 1).unwrap()),
                 next: (i < last_element).then(|| set_u32(i as u32 + 1).unwrap()),
@@ -177,20 +184,18 @@ mod tests {
     #[test]
     fn fill_test() {
         let mut cand = LastRecentlyUsedList::default();
-        let pos: Vec<_> = (0..5)
-            .into_iter()
-            .rev()
-            .map(|x|  cand.generate_new_entry(x))
-            .collect();
+        for i in (0..5).rev() {
+            cand.generate_new_entry(i);
+        }
 
         let usage_list = cand.generate_usage_list();
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
-        cand.touch(pos[4]);
+        cand.touch(0);
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
-        cand.touch(pos[0]);
+        cand.touch(4);
          assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
         cand = LastRecentlyUsedList::new(&usage_list);
-        cand.touch(pos[2]);
+        cand.touch(2);
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
     }
 
