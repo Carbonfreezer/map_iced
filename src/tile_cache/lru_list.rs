@@ -1,8 +1,8 @@
 //! This module contains as a pseudo double linked list the entries of the data in least recently used priority que.
 
 use crate::add;
-use std::num::NonZeroU32;
 use fxhash::FxHashMap;
+use std::num::NonZeroU32;
 
 fn get_u32(x: Option<NonZeroU32>) -> Option<u32> {
     x.map(|x| x.get() - 1)
@@ -34,7 +34,7 @@ pub struct LastRecentlyUsedList {
     /// The last entry in the list.
     last_entry: Option<u32>,
     /// The hashmap with all the entries.
-    forward_map : FxHashMap<u64, u32>,
+    forward_map: FxHashMap<u64, u32>,
 }
 
 impl LastRecentlyUsedList {
@@ -78,7 +78,7 @@ impl LastRecentlyUsedList {
     }
 
     /// Generates a new entry at the top and returns the storage entry.
-    fn generate_new_entry(&mut self, data: u64)  {
+    fn generate_new_entry(&mut self, data: u64) {
         // First we have to eventually add a new entry.
         let space = match self.open_spaces.pop() {
             Some(n) => n,
@@ -95,11 +95,12 @@ impl LastRecentlyUsedList {
             self.entry_list[entry as usize].previous = set_u32(space);
         }
         self.first_entry = Some(space);
-        if self.last_entry.is_none() {self.last_entry = self.first_entry;}
+        if self.last_entry.is_none() {
+            self.last_entry = self.first_entry;
+        }
 
         self.forward_map.insert(data, space);
     }
-
 
     /// Touches the data if existing or generates a new entry,
     /// Either way the entry will always be on the top.
@@ -150,7 +151,18 @@ impl LastRecentlyUsedList {
         result
     }
 
-    /// Generates an LRU inviction system from an u64 slice handed over.
+    /// Gets called after loading and makes sure, that all elements in the list are registered.
+    pub fn complete_list(&mut self, candidates: &[u64]) {
+        let forgotten_entries : Vec<_> = candidates
+            .iter()
+            .filter(|&x| !self.forward_map.contains_key(x))
+            .collect();
+        for x in forgotten_entries {
+            self.generate_new_entry(*x);
+        }
+    }
+
+    /// Generates an LRU eviction system from an u64 slice handed over.
     pub fn new(content_slice: &[u64]) -> Self {
         let mut result = Self::default();
         if content_slice.is_empty() {
@@ -163,7 +175,9 @@ impl LastRecentlyUsedList {
         let content = content_slice
             .iter()
             .enumerate()
-            .inspect(|(i,x)| {result.forward_map.insert(**x, *i as u32);})
+            .inspect(|(i, x)| {
+                result.forward_map.insert(**x, *i as u32);
+            })
             .map(|(i, x)| LRUEntry {
                 previous: (i > 0).then(|| set_u32(i as u32 - 1).unwrap()),
                 next: (i < last_element).then(|| set_u32(i as u32 + 1).unwrap()),
@@ -205,7 +219,7 @@ mod tests {
         cand.touch_or_insert(0);
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
         cand.touch_or_insert(4);
-         assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
+        assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
         cand = LastRecentlyUsedList::new(&usage_list);
         cand.touch_or_insert(2);
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
@@ -223,8 +237,15 @@ mod tests {
 
     #[test]
     fn reconstruct_test() {
-        let cand = LastRecentlyUsedList::new(&[0,1,2,3,4,5]);
+        let cand = LastRecentlyUsedList::new(&[0, 1, 2, 3, 4, 5]);
         let list = cand.generate_usage_list();
-        assert_eq!(list, vec![0,1,2,3,4,5]);
+        assert_eq!(list, vec![0, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn completion_test() {
+        let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3]);
+        cand.complete_list(&[ 2, 3, 4, 5]);
+        assert_eq!(cand.generate_usage_list(), vec![ 5,4, 0, 1, 2,3]);
     }
 }
