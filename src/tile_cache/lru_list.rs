@@ -1,6 +1,4 @@
 //! This module contains as a pseudo double linked list the entries of the data in least recently used priority que.
-
-use crate::add;
 use fxhash::FxHashMap;
 use std::num::NonZeroU32;
 
@@ -136,12 +134,17 @@ impl LastRecentlyUsedList {
             }
         }
 
+        // Check if we have flushed all.
+        if self.last_entry.is_none() {
+            self.first_entry = None;
+        }
+
         result
     }
 
     /// Generates a list from the current cache list from most to least recently used.
     pub fn generate_usage_list(&self) -> Vec<u64> {
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(self.forward_map.len());
         let mut scan = self.first_entry;
         while let Some(entry) = scan {
             result.push(self.entry_list[entry as usize].hash_content);
@@ -153,7 +156,7 @@ impl LastRecentlyUsedList {
 
     /// Gets called after loading and makes sure, that all elements in the list are registered.
     pub fn complete_list(&mut self, candidates: &[u64]) {
-        let forgotten_entries : Vec<_> = candidates
+        let forgotten_entries: Vec<_> = candidates
             .iter()
             .filter(|&x| !self.forward_map.contains_key(x))
             .collect();
@@ -245,7 +248,20 @@ mod tests {
     #[test]
     fn completion_test() {
         let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3]);
-        cand.complete_list(&[ 2, 3, 4, 5]);
-        assert_eq!(cand.generate_usage_list(), vec![ 5,4, 0, 1, 2,3]);
+        cand.complete_list(&[2, 3, 4, 5]);
+        assert_eq!(cand.generate_usage_list(), vec![5, 4, 0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn free_all_test() {
+        let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3]);
+        let reverse_list = cand.free_elements(5.0, weight_function);
+        assert_eq!(
+            reverse_list,
+            vec![3, 2, 1, 0],
+            "All elements should be free"
+        );
+        let remaining = cand.generate_usage_list();
+        assert_eq!(remaining, vec![], "The remainder should be empty.");
     }
 }
