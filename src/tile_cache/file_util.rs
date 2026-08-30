@@ -82,7 +82,8 @@ impl FileUtil {
     /// Removes a file from the position.
     pub async fn remove_file(&self, file_name: impl AsRef<Path>) {
         let final_path = self.base_path.join(file_name);
-        remove_file(final_path).await.unwrap();
+        // If the file is already away it does not matter. 
+        let _ = remove_file(final_path).await;
     }
 
 
@@ -134,7 +135,7 @@ mod tests {
     #[tokio::test]
     async fn  file_test() {
         let base = vec![12, 23, 24, 25];
-        let util = FileUtil::new("./");
+        let util = FileUtil::new(tempfile::tempdir().unwrap());
         util.save_safe("my_test/blob.tmp", &base).await;
         let back_data = util.try_load_plain("my_test/blob.tmp").await.unwrap();
         assert_eq!(back_data, base);
@@ -142,13 +143,13 @@ mod tests {
         util.remove_file("my_test/blob.tmp").await;
         assert_eq!(util.get_file_length("my_test/blob.tmp").await, 0);
     }
-    
+
     #[tokio::test]
     async fn fake_png_test() {
         let base = vec![12, 23, 24, 25];
         use crate::tile_cache::tile_name_conversion::*;
         let base_index = TileSpecification::new(1, 2, 3);
-        let util = FileUtil::new("./");
+        let util = FileUtil::new(tempfile::tempdir().unwrap());
         util.save_safe(base_index.filename(), &base).await;
         let existing_pngs = util.get_all_pngs_interpreted_as_u64().await;
         assert_eq!(TileSpecification::from( existing_pngs[0]), base_index);

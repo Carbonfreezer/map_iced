@@ -7,3 +7,6 @@ edition = "2024"
 reqwest = "0.13.4"
 fxhash = "0.2.1"
 tokio = { version = "1.53.1" , features = ["fs", "macros"]}
+
+[dev-dependencies]
+tempfile = "3.27.0"

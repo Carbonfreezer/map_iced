@@ -126,6 +126,7 @@ impl LastRecentlyUsedList {
             self.touch(*index)
         } else {
             self.generate_new_entry(data);
+            self.hit_attempts = 0;
             true
         }
     }
