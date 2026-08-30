@@ -72,7 +72,7 @@ impl FileUtil {
         create_dir_all(dir).await.unwrap();
         // Now we create a transient file that will get moved.
         let transient = self.base_path.join(format!(
-            "{:016x}.tmp",
+            "{:08x}.tmp",
             self.temp_file_counter.fetch_add(1, Ordering::Relaxed)
         ));
         write(&transient, data).await.unwrap();
@@ -107,7 +107,7 @@ impl FileUtil {
                     if let Some(n) = path
                         .file_stem()
                         .and_then(|s| s.to_str())
-                        .and_then(|s| s.parse::<u64>().ok())
+                        .and_then(|s| u64::from_str_radix(s, 16).ok())
                     {
                         result.push(n);
                     }
