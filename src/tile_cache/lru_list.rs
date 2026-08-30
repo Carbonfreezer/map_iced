@@ -5,6 +5,9 @@ use fxhash::FxHashMap;
 use std::num::NonZeroU32;
 
 
+/// After how many hit attempts does the file need resaving.
+const SAVE_REQUIRED_AFTER : u32 = 20;
+
 // Here are some helper functions to deal with Option<NonZeroU32>
 
 fn get_u32(x: Option<NonZeroU32>) -> Option<u32> {
@@ -38,11 +41,13 @@ pub struct LastRecentlyUsedList {
     last_entry: Option<u32>,
     /// The hashmap to find which data is stored in which cell. 
     forward_map: FxHashMap<u64, u32>,
+    /// Counts the amount of hit attempts needed to check for saving.
+    hit_attempts : u32
 }
 
 impl LastRecentlyUsedList {
-    /// Takes the entry and moves it to the front.
-    fn touch(&mut self, index: u32) {
+    /// Takes the entry and moves it to the front. Returns if we need to save the structure.
+    fn touch(&mut self, index: u32) -> bool {
         // When we are the first in the list there is nothing to touch.
         let Some(previous) = get_u32(self.entry_list[index as usize].previous) else {
             debug_assert_eq!(
@@ -50,7 +55,7 @@ impl LastRecentlyUsedList {
                 self.first_entry,
                 "Counter check that we are the first entry."
             );
-            return;
+            return false;
         };
 
         // The old first element has now us as the predecessor.
@@ -78,6 +83,14 @@ impl LastRecentlyUsedList {
         self.entry_list[index as usize].previous = None;
         self.entry_list[index as usize].next = map_u32(self.first_entry);
         self.first_entry = Some(index);
+        
+        self.hit_attempts += 1;
+        if self.hit_attempts >= SAVE_REQUIRED_AFTER {
+            self.hit_attempts = 0;
+            true
+        } else {
+            false
+        }
     }
 
     /// Generates a new entry at the top and returns the storage entry.
@@ -106,12 +119,14 @@ impl LastRecentlyUsedList {
     }
 
     /// Touches the data if existing or generates a new entry,
-    /// Either way the entry will always be on the top.
-    pub fn touch_or_insert(&mut self, data: u64) {
+    /// Either way the entry will always be on the top. We also returns whether
+    /// we require a save.
+    pub fn touch_or_insert(&mut self, data: u64) -> bool {
         if let Some(index) = self.forward_map.get(&data) {
-            self.touch(*index);
+            self.touch(*index)
         } else {
             self.generate_new_entry(data);
+            true
         }
     }
 
