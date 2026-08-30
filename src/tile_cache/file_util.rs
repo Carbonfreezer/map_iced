@@ -85,7 +85,7 @@ impl FileUtil {
         remove_file(final_path).await.unwrap();
     }
 
-    
+
     /// Gets all png filenames recursively interpreted as u64.
     pub async fn get_all_pngs_interpreted_as_u64(&self) -> Vec<u64> {
         let mut result = Vec::new();
