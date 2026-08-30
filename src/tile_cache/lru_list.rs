@@ -158,6 +158,9 @@ impl LastRecentlyUsedList {
         if self.last_entry.is_none() {
             self.first_entry = None;
         }
+        
+        // Reset the counter.
+        self.hit_attempts = 0;
 
         result
     }
