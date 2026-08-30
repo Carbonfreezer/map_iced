@@ -129,4 +129,28 @@ mod tests {
         let back_test = FileUtil::convert_to_u64(&FileUtil::convert_to_u8(&base));
         assert_eq!(back_test, base, "Vectors should be the same.");
     }
+
+
+    #[tokio::test]
+    async fn  file_test() {
+        let base = vec![12, 23, 24, 25];
+        let util = FileUtil::new("./");
+        util.save_safe("my_test/blob.tmp", &base).await;
+        let back_data = util.try_load_plain("my_test/blob.tmp").await.unwrap();
+        assert_eq!(back_data, base);
+        assert_eq!(util.get_file_length("my_test/blob.tmp").await, 4 * 1024);
+        util.remove_file("my_test/blob.tmp").await;
+        assert_eq!(util.get_file_length("my_test/blob.tmp").await, 0);
+    }
+    
+    #[tokio::test]
+    async fn fake_png_test() {
+        let base = vec![12, 23, 24, 25];
+        use crate::tile_cache::tile_name_conversion::*;
+        let base_index = TileSpecification::new(1, 2, 3);
+        let util = FileUtil::new("./");
+        util.save_safe(base_index.filename(), &base).await;
+        let existing_pngs = util.get_all_pngs_interpreted_as_u64().await;
+        assert_eq!(TileSpecification::from( existing_pngs[0]), base_index);
+    }
 }
