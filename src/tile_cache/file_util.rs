@@ -91,10 +91,10 @@ impl FileUtil {
     /// Removes a file from the position.
     pub async fn remove_file(&self, file_name: impl AsRef<Path>) {
         let final_path = self.base_path.join(file_name);
-        // If the file is already away it does not matter. 
+        // If the file is already away it does not matter.
         let _ = remove_file(final_path).await;
     }
-    
+
     /// Gets all png filenames recursively interpreted as u64. and returns also the accumulated size in files.
     pub async fn get_all_pngs_interpreted_as_u64(&self) -> ScanResult {
         let mut id_list = Vec::new();
@@ -137,6 +137,8 @@ impl FileUtil {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::tile_name_conversion::*;
+
     #[test]
     fn conversion_test() {
         let base = vec![12, 23, 24, 25];
@@ -160,7 +162,6 @@ mod tests {
     #[tokio::test]
     async fn fake_png_test() {
         let base = vec![12, 23, 24, 25];
-        use crate::tile_cache::tile_name_conversion::*;
         let base_index = TileSpecification::new(1, 2, 3);
         let util = FileUtil::new(tempfile::tempdir().unwrap());
         util.safe_save(base_index.filename(), &base).await;
