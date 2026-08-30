@@ -12,6 +12,15 @@ pub struct FileUtil {
     temp_file_counter: AtomicU32,
 }
 
+/// The result of the scanning process.
+pub struct ScanResult {
+    /// The id with the files scanned.
+    pub tile_ids: Vec<u64>,
+    /// The total disc size of all files.
+    pub total_file_size: u64,
+}
+
+
 impl FileUtil {
     /// Converts a u8 Vector into an u64 vector.
     pub fn convert_to_u64(input: &[u8]) -> Vec<u64> {
@@ -65,7 +74,7 @@ impl FileUtil {
 
     /// Makes a save safe, which means the data gets first written to a temporary file, that gets then
     /// moved to the final destination to avoid data inconsistency with crashes.
-    pub async fn save_safe(&self, file_name: impl AsRef<Path>, data: &[u8]) {
+    pub async fn safe_save(&self, file_name: impl AsRef<Path>, data: &[u8]) {
         let final_path = self.base_path.join(file_name);
         let dir = final_path.parent().unwrap();
         // For the case the directory does not exist yet, we create it.
@@ -85,12 +94,12 @@ impl FileUtil {
         // If the file is already away it does not matter. 
         let _ = remove_file(final_path).await;
     }
-
-
-    /// Gets all png filenames recursively interpreted as u64.
-    pub async fn get_all_pngs_interpreted_as_u64(&self) -> Vec<u64> {
-        let mut result = Vec::new();
+    
+    /// Gets all png filenames recursively interpreted as u64. and returns also the accumulated size in files.
+    pub async fn get_all_pngs_interpreted_as_u64(&self) -> ScanResult {
+        let mut id_list = Vec::new();
         let mut pending = vec![self.base_path.clone()];
+        let mut accumulated_size = 0;
 
         while let Some(dir) = pending.pop() {
             let Ok(mut dir_scan) = read_dir(&dir).await else { continue };
@@ -105,19 +114,23 @@ impl FileUtil {
                     if path.extension().and_then(|e| e.to_str()) != Some("png") {
                         continue;
                     }
+                    accumulated_size += self.get_file_length(&path).await as u64;
                     if let Some(n) = path
                         .file_stem()
                         .and_then(|s| s.to_str())
                         .and_then(|s| u64::from_str_radix(s, 16).ok())
                     {
-                        result.push(n);
+                        id_list.push(n);
                     }
                 }
             }
 
         }
 
-        result
+        ScanResult {
+            tile_ids: id_list,
+            total_file_size: accumulated_size
+        }
     }
 }
 
@@ -136,7 +149,7 @@ mod tests {
     async fn  file_test() {
         let base = vec![12, 23, 24, 25];
         let util = FileUtil::new(tempfile::tempdir().unwrap());
-        util.save_safe("my_test/blob.tmp", &base).await;
+        util.safe_save("my_test/blob.tmp", &base).await;
         let back_data = util.try_load_plain("my_test/blob.tmp").await.unwrap();
         assert_eq!(back_data, base);
         assert_eq!(util.get_file_length("my_test/blob.tmp").await, 4 * 1024);
@@ -150,8 +163,9 @@ mod tests {
         use crate::tile_cache::tile_name_conversion::*;
         let base_index = TileSpecification::new(1, 2, 3);
         let util = FileUtil::new(tempfile::tempdir().unwrap());
-        util.save_safe(base_index.filename(), &base).await;
+        util.safe_save(base_index.filename(), &base).await;
         let existing_pngs = util.get_all_pngs_interpreted_as_u64().await;
-        assert_eq!(TileSpecification::from( existing_pngs[0]), base_index);
+        assert_eq!(TileSpecification::from( existing_pngs.tile_ids[0]), base_index);
+        assert_eq!(existing_pngs.total_file_size, 4 * 1024);
     }
 }
