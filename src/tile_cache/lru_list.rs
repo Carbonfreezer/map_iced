@@ -1,6 +1,11 @@
-//! This module contains as a pseudo double linked list the entries of the data in least recently used priority que.
+//! This module contains as a pseudo double linked list the entries of the data in least recently
+//! used priority que. The data stored is an u64. This is the core data used for the tiling system. 
+
 use fxhash::FxHashMap;
 use std::num::NonZeroU32;
+
+
+// Here are some helper functions to deal with Option<NonZeroU32>
 
 fn get_u32(x: Option<NonZeroU32>) -> Option<u32> {
     x.map(|x| x.get() - 1)
@@ -18,7 +23,7 @@ fn map_u32(x: Option<u32>) -> Option<NonZeroU32> {
 struct LRUEntry {
     previous: Option<NonZeroU32>,
     next: Option<NonZeroU32>,
-    hash_content: u64,
+    data: u64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -31,7 +36,7 @@ pub struct LastRecentlyUsedList {
     first_entry: Option<u32>,
     /// The last entry in the list.
     last_entry: Option<u32>,
-    /// The hashmap with all the entries.
+    /// The hashmap to find which data is stored in which cell. 
     forward_map: FxHashMap<u64, u32>,
 }
 
@@ -86,7 +91,7 @@ impl LastRecentlyUsedList {
             }
         };
         let element = &mut self.entry_list[space as usize];
-        element.hash_content = data;
+        element.data = data;
         element.previous = None;
         element.next = map_u32(self.first_entry);
         if let Some(entry) = self.first_entry {
@@ -123,7 +128,7 @@ impl LastRecentlyUsedList {
             && amount_to_free > 0.0
         {
             let element = &self.entry_list[scan as usize];
-            let content = element.hash_content;
+            let content = element.data;
             result.push(content);
             self.forward_map.remove(&content);
             amount_to_free -= weight_function(content);
@@ -143,11 +148,12 @@ impl LastRecentlyUsedList {
     }
 
     /// Generates a list from the current cache list from most to least recently used.
+    /// This method is meant as a preparation for saving.
     pub fn generate_usage_list(&self) -> Vec<u64> {
         let mut result = Vec::with_capacity(self.forward_map.len());
         let mut scan = self.first_entry;
         while let Some(entry) = scan {
-            result.push(self.entry_list[entry as usize].hash_content);
+            result.push(self.entry_list[entry as usize].data);
             scan = get_u32(self.entry_list[entry as usize].next);
         }
 
@@ -165,7 +171,8 @@ impl LastRecentlyUsedList {
         }
     }
 
-    /// Generates an LRU eviction system from an u64 slice handed over.
+    /// Generates an LRU eviction system from an u64 slice handed over. This method
+    /// is meant as an entry point for loading.
     pub fn new(content_slice: &[u64]) -> Self {
         let mut result = Self::default();
         if content_slice.is_empty() {
@@ -184,7 +191,7 @@ impl LastRecentlyUsedList {
             .map(|(i, x)| LRUEntry {
                 previous: (i > 0).then(|| set_u32(i as u32 - 1).unwrap()),
                 next: (i < last_element).then(|| set_u32(i as u32 + 1).unwrap()),
-                hash_content: *x,
+                data: *x,
             })
             .collect();
 
