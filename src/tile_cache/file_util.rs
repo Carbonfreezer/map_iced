@@ -12,9 +12,9 @@ pub struct FileUtil {
     temp_file_counter: AtomicU32,
 }
 
-/// The result of the scanning process.
-pub struct ScanResult {
-    /// The id with the files scanned.
+/// A collection of the tiles in combination with their total used memory.
+pub struct TileCollection {
+    /// The ids with the files.
     pub tile_ids: Vec<u64>,
     /// The total disc size of all files.
     pub total_file_size: u64,
@@ -96,7 +96,7 @@ impl FileUtil {
     }
 
     /// Gets all png filenames recursively interpreted as u64. and returns also the accumulated size in files.
-    pub async fn get_all_pngs_interpreted_as_u64(&self) -> ScanResult {
+    pub async fn get_all_pngs_interpreted_as_u64(&self) -> TileCollection {
         let mut id_list = Vec::new();
         let mut pending = vec![self.base_path.clone()];
         let mut accumulated_size = 0;
@@ -127,7 +127,7 @@ impl FileUtil {
 
         }
 
-        ScanResult {
+        TileCollection {
             tile_ids: id_list,
             total_file_size: accumulated_size
         }

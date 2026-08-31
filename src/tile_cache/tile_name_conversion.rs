@@ -16,6 +16,10 @@ impl TileSpecification {
         assert!(x < (1 << 29) && y < (1 << 29), "Coordinate out of range");
         TileSpecification { level, x, y }
     }
+    
+    pub fn level(&self) -> u8 {self.level}
+    pub fn x(&self) -> u32 {self.x}
+    pub fn y(&self) -> u32 {self.y}
 
     /// Gets the filename, where this coordinate would be stored in the cache.
     pub fn filename(&self) -> PathBuf {

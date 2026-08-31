@@ -3,7 +3,7 @@
 
 use fxhash::FxHashMap;
 use std::num::NonZeroU32;
-
+use crate::tile_cache::file_util::TileCollection;
 
 /// After how many hit attempts does the file need resaving.
 const SAVE_REQUIRED_AFTER : u32 = 20;
@@ -134,25 +134,30 @@ impl LastRecentlyUsedList {
     /// Frees elements from the Cache and returns the freed elements.
     /// If the element does not exist anymore a size of zero should be returned.
     /// It will get cued up in the deletion list anyway and should be ignored from the caller.
+    /// Returns the files to eliminate including their total memory consumption.
     pub fn free_elements(
         &mut self,
-        mut amount_to_free: f32,
-        weight_function: impl Fn(u64) -> f32,
-    ) -> Vec<u64> {
-        let mut result = Vec::with_capacity(self.forward_map.len());
+        mut amount_to_free: u64,
+        consumption_per_file: impl Fn(u64) -> u64,
+    ) -> TileCollection {
+        let mut free_list = Vec::with_capacity(self.forward_map.len());
+        let mut freed_accumulated = 0;
         while let Some(scan) = self.last_entry
-            && amount_to_free > 0.0
+            && amount_to_free != 0
         {
             let element = &self.entry_list[scan as usize];
             let content = element.data;
-            result.push(content);
+            free_list.push(content);
             self.forward_map.remove(&content);
-            amount_to_free -= weight_function(content);
             self.open_spaces.push(scan);
             self.last_entry = get_u32(element.previous);
             if let Some(previous) = self.last_entry {
                 self.entry_list[previous as usize].next = None;
             }
+
+            let freed_amount = consumption_per_file(content);
+            freed_accumulated += freed_amount;
+            amount_to_free = amount_to_free.saturating_sub(freed_amount);
         }
 
         // Check if we have flushed all.
@@ -160,10 +165,10 @@ impl LastRecentlyUsedList {
             self.first_entry = None;
         }
         
-        // Reset the counter.
+        // Reset the counter, we have to do a save here afterward anyway.
         self.hit_attempts = 0;
 
-        result
+        TileCollection {tile_ids: free_list, total_file_size : freed_accumulated}
     }
 
     /// Generates a list from the current cache list from most to least recently used.
@@ -226,14 +231,12 @@ impl LastRecentlyUsedList {
 mod tests {
     use super::*;
 
-    fn weight_function(_: u64) -> f32 {
-        1.0
-    }
+    fn weight_function(_: u64) -> u64 { 1 }
     #[test]
     fn empty_test() {
         let mut cand = LastRecentlyUsedList::default();
         assert_eq!(cand.generate_usage_list(), Vec::new());
-        cand.free_elements(10.0, weight_function);
+        cand.free_elements(10, weight_function);
     }
 
     #[test]
@@ -257,8 +260,9 @@ mod tests {
     #[test]
     fn removal_test() {
         let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3, 4]);
-        let data = cand.free_elements(2.0, weight_function);
-        assert_eq!(data, vec![4, 3]);
+        let data = cand.free_elements(2, weight_function);
+        assert_eq!(data.tile_ids, vec![4, 3]);
+        assert_eq!(data.total_file_size, 2);
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2]);
         cand.generate_new_entry(42);
         assert_eq!(cand.generate_usage_list(), vec![42, 0, 1, 2]);
@@ -281,11 +285,16 @@ mod tests {
     #[test]
     fn free_all_test() {
         let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3]);
-        let reverse_list = cand.free_elements(5.0, weight_function);
+        let reverse_list = cand.free_elements(5, weight_function);
         assert_eq!(
-            reverse_list,
+            reverse_list.tile_ids,
             vec![3, 2, 1, 0],
             "All elements should be free"
+        );
+        assert_eq!(
+            reverse_list.total_file_size,
+            4,
+            "All elements should be total4"
         );
         let remaining = cand.generate_usage_list();
         assert_eq!(remaining, vec![], "The remainder should be empty.");
