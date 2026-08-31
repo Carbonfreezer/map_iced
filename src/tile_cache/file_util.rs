@@ -25,6 +25,10 @@ pub struct TileCollection {
 /// 4K Block size for files.
 const BLOCK_SIZE: u64 = 4 * 1024;
 
+pub fn round_to_final_consumption(raw_size : u64) -> u64 {
+    raw_size.div_ceil(BLOCK_SIZE) * BLOCK_SIZE
+}
+
 impl FileUtil {
     /// Converts a u8 Vector into an u64 vector.
     pub fn convert_to_u64(input: &[u8]) -> Vec<u64> {
@@ -50,17 +54,13 @@ impl FileUtil {
 
     /// Returns a given file length 0 if non-existent.
     pub async fn get_file_length(&self, file_name: impl AsRef<Path>) -> u64 {
-      
-
         let final_path = self.base_path.join(file_name);
         let length = match metadata(&final_path).await {
             Ok(metadata) => metadata.len(),
             Err(_) => 0,
         };
 
-        eprintln!("Path : {:?} Length is {} result: {:?}", final_path, length, metadata(&final_path).await);
-
-        length.div_ceil(BLOCK_SIZE) * BLOCK_SIZE
+        round_to_final_consumption(length)
     }
 
     /// Gets the file length directly from an id.
@@ -157,7 +157,7 @@ impl FileUtil {
                         continue;
                     }
                     let length = metadata(&path).await.expect("The file existent was just scanned").len();
-                    accumulated_size += length.div_ceil(BLOCK_SIZE) * BLOCK_SIZE;
+                    accumulated_size += round_to_final_consumption(length);
                     if let Some(n) = path
                         .file_stem()
                         .and_then(|s| s.to_str())

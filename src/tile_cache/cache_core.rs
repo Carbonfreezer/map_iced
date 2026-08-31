@@ -1,7 +1,7 @@
 //! This is the rea core of the tile cache.
 //! It provides asynchronous access to the the caching system.
 
-use crate::tile_cache::file_util::FileUtil;
+use crate::tile_cache::file_util::{round_to_final_consumption, FileUtil};
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
 use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
@@ -125,7 +125,6 @@ impl<T: Requester> CachingSystem<T> {
             .await
             .complete_list(&data.tile_ids);
         // Eventually we have to deal with an oversized cache.
-        eprintln!("On Disc {:?} allowed {:?}", data.total_file_size, sharable_entry.maximum_amount_of_data);
         if data.total_file_size > sharable_entry.maximum_amount_of_data {
             let amount_to_free = data.total_file_size - sharable_entry.maximum_amount_of_data;
             let clear_data = sharable_entry
@@ -151,7 +150,9 @@ impl<T: Requester> CachingSystem<T> {
                 .store(data.total_file_size, Ordering::Relaxed);
         }
 
-        sharable_entry.initialization_completed.store(true, Ordering::Relaxed);
+        sharable_entry
+            .initialization_completed
+            .store(true, Ordering::Relaxed);
 
         // If an error occurred the receiver has been dropped in the meantime.
         let _ = sender
@@ -160,9 +161,15 @@ impl<T: Requester> CachingSystem<T> {
     }
 
     /// Initializes the system.
-    pub fn initialize(&mut self) -> Result<(), String>{
-        if self.cloneable_entry.initialization_completed.load(Ordering::Relaxed) {
-            return Err(String::from("CachingSystem::initialize already initialized"));
+    pub fn initialize(&mut self) -> Result<(), String> {
+        if self
+            .cloneable_entry
+            .initialization_completed
+            .load(Ordering::Relaxed)
+        {
+            return Err(String::from(
+                "CachingSystem::initialize already initialized",
+            ));
         }
         let shareable_entry = self.cloneable_entry.clone();
         let sender = self.stream_sender.clone();
@@ -172,8 +179,14 @@ impl<T: Requester> CachingSystem<T> {
 
     /// Poses a request for a tile.
     pub fn request_tile(&self, level: u8, x: u32, y: u32) -> Result<(), String> {
-        if !self.cloneable_entry.initialization_completed.load(Ordering::Relaxed) {
-            return Err(String::from("CachingSystem::request_tile not initialized yet"));
+        if !self
+            .cloneable_entry
+            .initialization_completed
+            .load(Ordering::Relaxed)
+        {
+            return Err(String::from(
+                "CachingSystem::request_tile not initialized yet",
+            ));
         }
         let shareable_entry = self.cloneable_entry.clone();
         let sender = self.stream_sender.clone();
@@ -241,6 +254,7 @@ impl<T: Requester> CachingSystem<T> {
             }
         };
 
+
         // First send the result.
         let _ = sender
             .send(CachingResultMessage::TileData {
@@ -262,11 +276,7 @@ impl<T: Requester> CachingSystem<T> {
                 .await;
         }
 
-
-        let new_memory = sharable_entry
-            .file_util
-            .get_file_length(destination.filename())
-            .await;
+        let new_memory = round_to_final_consumption(raw_data.len() as u64);
         let total_memory = sharable_entry.amount_of_data.load(Ordering::SeqCst) + new_memory;
         // First we insert our entry.
         sharable_entry
@@ -356,12 +366,11 @@ pub fn generate_cache(
     )
 }
 
-
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::assert_matches;
     use std::time::Duration;
-    use super::*;
 
     #[tokio::test]
     async fn first_setup() {
@@ -375,21 +384,22 @@ mod tests {
 
     #[tokio::test]
     async fn first_fill() {
-        let mut cache = generate_dummy_cache("test_folder", 10_000);
+        let mut cache = generate_dummy_cache("test_folder", 20_000);
         cache.initialize().expect("Already initialized.");
         let message = cache.poll_result().await;
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
-        cache.request_tile(0,1,1).expect("Initialization uncompleted.");
-        cache.request_tile(0,2,1).expect("Initialization uncompleted.");
-        cache.request_tile(0,3,1).expect("Initialization uncompleted.");
-        cache.request_tile(0,4,1).expect("Initialization uncompleted.");
+        for x in 0..10 {
+            cache
+                .request_tile(0, x, 1)
+                .expect("Initialization uncompleted.");
+        }
 
-        for _ in 0..4 {
+        for _ in 0..10 {
             let message = cache.poll_result().await;
-            assert_matches!(message, CachingResultMessage::  TileData {
-        level: 0, y: 1,  ..
-        });
-
+            assert_matches!(
+                message,
+                CachingResultMessage::TileData { level: 0, y: 1, .. }
+            );
         }
         // Hack to make sure the data is on disc.
         tokio::time::sleep(Duration::from_millis(100)).await;
