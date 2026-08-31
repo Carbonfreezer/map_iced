@@ -1,6 +1,7 @@
 //! Contains helper functionality for file loading and saving.
 
 use std::path::{Path, PathBuf};
+use std::process;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::fs::*;
 
@@ -78,10 +79,11 @@ impl FileUtil {
         let dir = final_path.parent().unwrap();
         // For the case the directory does not exist yet, we create it.
         create_dir_all(dir).await.map_err(|err| err.to_string())?;
+        let combined = (process::id() as u64) << 32 | self.temp_file_counter.fetch_add(1, Ordering::Relaxed) as u64;
         // Now we create a transient file that will get moved.
         let transient = self.base_path.join(format!(
-            "{:08x}.tmp",
-            self.temp_file_counter.fetch_add(1, Ordering::Relaxed)
+            "{:016x}.tmp",
+            combined
         ));
         write(&transient, data).await.map_err(|err| err.to_string())?;
         rename(&transient, &final_path).await.map_err(|err| err.to_string())?;
