@@ -91,8 +91,8 @@ impl<T: Requester> CachingSystem<T> {
     }
 
     /// Extracts the receiver out of the class. Can only be done one time.
-    pub fn get_receiver(&self) -> Receiver<CachingResultMessage> {
-        self.stream_reader.lock().unwrap().take().unwrap()
+    pub fn get_receiver(&self) -> Option<Receiver<CachingResultMessage>> {
+        self.stream_reader.lock().unwrap().take()
     }
 
 
@@ -405,9 +405,9 @@ mod tests {
 
     #[tokio::test]
     async fn first_setup() {
-        let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
+        let  cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
         cache.initialize().expect("Already initialized.");
-        let mut receiver = cache.get_receiver();
+        let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
         // Hack to make sure the data is on disc.
@@ -416,9 +416,9 @@ mod tests {
 
     #[tokio::test]
     async fn first_fill() {
-        let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
+        let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
         cache.initialize().expect("Already initialized.");
-        let mut receiver = cache.get_receiver();
+        let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
         for x in 0..100 {
