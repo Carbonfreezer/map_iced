@@ -35,7 +35,7 @@ impl TileSpecification {
     }
 
     /// Gets the relative path used in tile coordinate systems for web services.
-    pub fn get_partial_url(&self) -> PathBuf {
+    pub fn get_partial_url(&self) -> String {
         format!("{}/{}/{}.png", self.level, self.x, self.y).into()
     }
 }
@@ -75,6 +75,6 @@ mod tests {
         );
 
         let spec = TileSpecification::new(1, 2, 3);
-        assert_eq!(spec.get_partial_url().to_str().unwrap(), "1/2/3.png");
+        assert_eq!(spec.get_partial_url(), "1/2/3.png");
     }
 }

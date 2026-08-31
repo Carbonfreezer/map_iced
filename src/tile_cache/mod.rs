@@ -3,3 +3,4 @@
 mod file_util;
 mod lru_list;
 mod tile_name_conversion;
+mod web_requester;
