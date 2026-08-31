@@ -73,18 +73,19 @@ impl FileUtil {
 
     /// Makes a save safe, which means the data gets first written to a temporary file, that gets then
     /// moved to the final destination to avoid data inconsistency with crashes.
-    pub async fn safe_save(&self, file_name: impl AsRef<Path>, data: &[u8]) {
+    pub async fn safe_save(&self, file_name: impl AsRef<Path>, data: &[u8]) -> Result<(), String> {
         let final_path = self.base_path.join(file_name);
         let dir = final_path.parent().unwrap();
         // For the case the directory does not exist yet, we create it.
-        create_dir_all(dir).await.unwrap();
+        create_dir_all(dir).await.map_err(|err| err.to_string())?;
         // Now we create a transient file that will get moved.
         let transient = self.base_path.join(format!(
             "{:08x}.tmp",
             self.temp_file_counter.fetch_add(1, Ordering::Relaxed)
         ));
-        write(&transient, data).await.unwrap();
-        rename(&transient, &final_path).await.unwrap();
+        write(&transient, data).await.map_err(|err| err.to_string())?;
+        rename(&transient, &final_path).await.map_err(|err| err.to_string())?;;
+        Ok(())
     }
 
     /// Removes a file from the position.
@@ -153,7 +154,7 @@ mod tests {
     async fn file_test() {
         let base = vec![12, 23, 24, 25];
         let util = FileUtil::new(tempfile::tempdir().unwrap());
-        util.safe_save("my_test/blob.tmp", &base).await;
+        util.safe_save("my_test/blob.tmp", &base).await.unwrap();
         let back_data = util.try_load_plain("my_test/blob.tmp").await.unwrap();
         assert_eq!(back_data, base);
         assert_eq!(util.get_file_length("my_test/blob.tmp").await, 4 * 1024);
@@ -184,7 +185,7 @@ mod tests {
             "Transient.bin",
             &FileUtil::convert_to_u8(&cache.generate_usage_list()),
         )
-        .await;
+        .await.unwrap();
         let cache_b = LastRecentlyUsedList::new(&FileUtil::convert_to_u64(
             &util.try_load_plain("Transient.bin").await.unwrap(),
         ));
