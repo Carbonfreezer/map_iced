@@ -203,7 +203,7 @@ impl LastRecentlyUsedList {
 
     /// Generates an LRU eviction system from an u64 slice handed over. This method
     /// is meant as an entry point for loading.
-    pub fn reconstruct_from(&mut self, content_slice: &[u64])  {
+    pub fn reconstruct_from(&mut self, content_slice: &[u64]) {
         if content_slice.is_empty() {
             return;
         }
@@ -235,7 +235,6 @@ impl LastRecentlyUsedList {
 mod tests {
     use super::*;
 
-
     #[test]
     fn empty_test() {
         let cand = LastRecentlyUsedList::default();
@@ -260,12 +259,10 @@ mod tests {
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
     }
 
-
-
     #[test]
     fn reconstruct_test() {
         let mut cand = LastRecentlyUsedList::default();
-        cand.reconstruct_from(&[0, 1, 2, 3, 4,5 ]);
+        cand.reconstruct_from(&[0, 1, 2, 3, 4, 5]);
         let list = cand.generate_usage_list();
         assert_eq!(list, vec![0, 1, 2, 3, 4, 5]);
     }
@@ -277,5 +274,4 @@ mod tests {
         cand.complete_list(&[2, 3, 4, 5]);
         assert_eq!(cand.generate_usage_list(), vec![5, 4, 0, 1, 2, 3]);
     }
-    
 }

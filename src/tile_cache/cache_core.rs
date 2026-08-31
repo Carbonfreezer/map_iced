@@ -15,7 +15,7 @@ use tokio::sync::{Mutex, mpsc};
 const MAXIMUM_MESSAGE_CHANNEL: usize = 100;
 
 /// The filename for the LRU table.
-const LRU_TABLE_FILE: &'static str = "LRU.bin";
+const LRU_TABLE_FILE: &str = "LRU.bin";
 
 /// This struct contains the elements that must be shared across different tasks.
 struct ShareableEntries<T: Requester> {
@@ -215,13 +215,19 @@ impl<T: Requester> CachingSystem<T> {
         }
     }
 
-    async fn deal_with_cache_miss(sharable_entry: &Arc<ShareableEntries<T>>, sender: Sender<CachingResultMessage>, destination: TileSpecification)  {
+    async fn deal_with_cache_miss(
+        sharable_entry: &Arc<ShareableEntries<T>>,
+        sender: Sender<CachingResultMessage>,
+        destination: TileSpecification,
+    ) {
         // In this case the file is not on the cache so we have to get it.
         let web_access = sharable_entry.requester.get_image_data(destination).await;
         let raw_data = match web_access {
             Ok(data) => data,
             Err(text) => {
-                let _ = sender.send(CachingResultMessage::Error { message: text });
+                let _ = sender
+                    .send(CachingResultMessage::Error { message: text })
+                    .await;
                 return;
             }
         };
@@ -229,9 +235,9 @@ impl<T: Requester> CachingSystem<T> {
         // First send the result.
         let _ = sender
             .send(CachingResultMessage::TileData {
-                level : destination.level(),
-                x : destination.x(),
-                y : destination.y(),
+                level: destination.level(),
+                x: destination.x(),
+                y: destination.y(),
                 data: raw_data.clone(),
             })
             .await;
@@ -242,9 +248,10 @@ impl<T: Requester> CachingSystem<T> {
             .safe_save(destination.filename(), &raw_data)
             .await
         {
-            let _ = sender.send(CachingResultMessage::Error { message: text });
+            let _ = sender
+                .send(CachingResultMessage::Error { message: text })
+                .await;
         }
-
 
         let new_memory = sharable_entry
             .file_util
@@ -269,19 +276,24 @@ impl<T: Requester> CachingSystem<T> {
                 )
                 .await;
             // Remove files.
-            sharable_entry.file_util.remove_files(&clean_result.tile_ids).await;
+            sharable_entry
+                .file_util
+                .remove_files(&clean_result.tile_ids)
+                .await;
             clean_result.total_file_size
         } else {
             0
         };
 
-
         // Now set the new memory.
         if new_memory > subtracted_memory {
-            sharable_entry.amount_of_data.fetch_add(new_memory - subtracted_memory, Ordering::SeqCst);
-        }
-        else {
-            sharable_entry.amount_of_data.fetch_sub(subtracted_memory - new_memory, Ordering::SeqCst);
+            sharable_entry
+                .amount_of_data
+                .fetch_add(new_memory - subtracted_memory, Ordering::SeqCst);
+        } else {
+            sharable_entry
+                .amount_of_data
+                .fetch_sub(subtracted_memory - new_memory, Ordering::SeqCst);
         }
 
         // Save the new table.
@@ -310,22 +322,26 @@ impl<T: Requester> CachingSystem<T> {
     }
 }
 
-
 /// The dummy cache we use for testing purposes.
-pub fn generate_dummy_cache( cache_base_dir: impl AsRef<Path>,
-                             maximum_amount_of_data: u64 ) -> CachingSystem<DummyRequester> {
+pub fn generate_dummy_cache(
+    cache_base_dir: impl AsRef<Path>,
+    maximum_amount_of_data: u64,
+) -> CachingSystem<DummyRequester> {
     CachingSystem::new(DummyRequester, cache_base_dir, maximum_amount_of_data)
 }
 
 /// Generates the real cache. The first 3 entries refer to the url and the username to access the web service.
 /// Cache base directory is the place where we store data and the maximum amount is the maximum amount of data we want to take.
 pub fn generate_cache(
-    intro_url : &str,
-    post_url : &str,
-    user_agent : &str,
+    intro_url: &str,
+    post_url: &str,
+    user_agent: &str,
     cache_base_dir: impl AsRef<Path>,
-    maximum_amount_of_data: u64 ) -> CachingSystem<WebRequester> {
-    CachingSystem::new(WebRequester::new(intro_url, post_url, user_agent), cache_base_dir, maximum_amount_of_data)
+    maximum_amount_of_data: u64,
+) -> CachingSystem<WebRequester> {
+    CachingSystem::new(
+        WebRequester::new(intro_url, post_url, user_agent),
+        cache_base_dir,
+        maximum_amount_of_data,
+    )
 }
-
-

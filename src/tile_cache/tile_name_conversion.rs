@@ -10,8 +10,6 @@ pub struct TileSpecification {
     y: u32,
 }
 
-
-
 impl TileSpecification {
     pub fn new(level: u8, x: u32, y: u32) -> Self {
         assert!(level < 29, "Level is too large to be represented");
@@ -36,7 +34,7 @@ impl TileSpecification {
 
     /// Gets the relative path used in tile coordinate systems for web services.
     pub fn get_partial_url(&self) -> String {
-        format!("{}/{}/{}.png", self.level, self.x, self.y).into()
+        format!("{}/{}/{}.png", self.level, self.x, self.y)
     }
 }
 

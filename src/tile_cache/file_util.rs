@@ -1,10 +1,10 @@
 //! Contains helper functionality for file loading and saving.
 
+use crate::tile_cache::tile_name_conversion::TileSpecification;
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::fs::*;
-use crate::tile_cache::tile_name_conversion::TileSpecification;
 
 /// The data for the file utility.
 pub struct FileUtil {
@@ -58,11 +58,11 @@ impl FileUtil {
 
         length.div_ceil(BLOCK_SIZE) * BLOCK_SIZE
     }
-    
-    
+
     /// Gets the file length directly from an id.
     pub async fn get_file_length_from_id(&self, id: u64) -> u64 {
-        self.get_file_length(TileSpecification::from(id).filename()).await
+        self.get_file_length(TileSpecification::from(id).filename())
+            .await
     }
 
     /// Crates a file util with the indicated root directory.
@@ -99,14 +99,13 @@ impl FileUtil {
         Ok(())
     }
 
-    
     /// Removes all the files with the tile ids handed over.
     pub async fn remove_files(&self, list_of_ids: &[u64]) {
         for &x in list_of_ids {
             let final_path = self.base_path.join(TileSpecification::from(x).filename());
             let _ = remove_file(&final_path).await;
         }
-    } 
+    }
 
     /// Removes all temp files from the base directory. This is intended at startup to clear any left overs.
     pub async fn remove_temps_from_base(&self) {
@@ -224,7 +223,7 @@ mod tests {
         .await
         .unwrap();
         let mut cache_b = LastRecentlyUsedList::default();
-        cache_b.reconstruct_from( &FileUtil::convert_to_u64(
+        cache_b.reconstruct_from(&FileUtil::convert_to_u64(
             &util.try_load_plain("Transient.bin").await.unwrap(),
         ));
         assert_eq!(
@@ -237,7 +236,7 @@ mod tests {
     #[tokio::test]
     async fn remove_file_test() {
         let util = FileUtil::new(tempfile::tempdir().unwrap());
-        util.safe_save("Test.tmp", &[1,2,3]).await.unwrap();
+        util.safe_save("Test.tmp", &[1, 2, 3]).await.unwrap();
         util.remove_temps_from_base().await;
         let memory = util.get_file_length("Test.tmp").await;
         assert_eq!(memory, 0, "The fils should have gone by now");
