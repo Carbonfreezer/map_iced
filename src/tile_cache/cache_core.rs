@@ -278,12 +278,14 @@ impl<T: Requester> CachingSystem<T> {
 
         let new_memory = round_to_final_consumption(raw_data.len() as u64);
         let total_memory = sharable_entry.amount_of_data.load(Ordering::SeqCst) + new_memory;
-        // First we insert our entry.
+
+        // First we append ourselves
         sharable_entry
             .lru_list
             .lock()
             .await
             .touch_or_insert(destination.into());
+
         // If we have run over budget, we have to eliminate entries.
         let subtracted_memory = if total_memory > sharable_entry.maximum_amount_of_data {
             let clean_result = sharable_entry
@@ -388,17 +390,18 @@ mod tests {
         cache.initialize().expect("Already initialized.");
         let message = cache.poll_result().await;
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
-        for x in 0..10 {
+        for x in 0..100 {
             cache
                 .request_tile(0, x, 1)
                 .expect("Initialization uncompleted.");
+            tokio::time::sleep(Duration::from_millis(2)).await;
         }
 
-        for _ in 0..10 {
+        for _ in 0..100 {
             let message = cache.poll_result().await;
             assert_matches!(
                 message,
-                CachingResultMessage::TileData { level: 0, y: 1, .. }
+                CachingResultMessage::TileData { level: 0, y: 1,  .. }
             );
         }
         // Hack to make sure the data is on disc.
