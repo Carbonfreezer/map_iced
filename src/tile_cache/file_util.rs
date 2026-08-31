@@ -84,7 +84,7 @@ impl FileUtil {
             self.temp_file_counter.fetch_add(1, Ordering::Relaxed)
         ));
         write(&transient, data).await.map_err(|err| err.to_string())?;
-        rename(&transient, &final_path).await.map_err(|err| err.to_string())?;;
+        rename(&transient, &final_path).await.map_err(|err| err.to_string())?;
         Ok(())
     }
 
@@ -167,7 +167,7 @@ mod tests {
         let base = vec![12, 23, 24, 25];
         let base_index = TileSpecification::new(1, 2, 3);
         let util = FileUtil::new(tempfile::tempdir().unwrap());
-        util.safe_save(base_index.filename(), &base).await;
+        util.safe_save(base_index.filename(), &base).await.unwrap();
         let existing_pngs = util.get_all_pngs_interpreted_as_u64().await;
         assert_eq!(
             TileSpecification::from(existing_pngs.tile_ids[0]),

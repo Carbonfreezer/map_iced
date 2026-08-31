@@ -1,7 +1,6 @@
 //! this module contains the functionality to interact with web requests.
 
 use crate::tile_cache::tile_name_conversion::TileSpecification;
-use std::path::PathBuf;
 
 /// The dummy test image we use for test purposes.
 const TEST_IMAGE: &'static [u8] = include_bytes!("../../assets/Test.png");
@@ -66,4 +65,28 @@ impl Requester for WebRequester {
                 .to_vec(),
         )
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::super::tile_name_conversion::*;
+    use super::*;
+
+
+    #[tokio::test]
+    async fn dummy_requester() {
+        let dummy = DummyRequester;
+        assert_eq!(dummy.get_image_data(TileSpecification::new(0, 0, 0)).await.unwrap(), TEST_IMAGE.to_vec());
+    }
+
+    // This test is normally ignored not to spam OSM with requests.
+    #[ignore]
+    #[tokio::test]
+    async fn real_requester() {
+        let requester = WebRequester::new("https://tile.openstreetmap.org/", "", "test_runner christoph.luerig@gmail.com");
+        let data = requester.get_image_data(TileSpecification::new(0, 0, 0)).await.unwrap();
+        assert!(data.len() > 0, "We should have gotten some data from OSM.");
+    }
+
 }
