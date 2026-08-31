@@ -7,7 +7,7 @@ const TEST_IMAGE: &'static [u8] = include_bytes!("../../assets/Test.png");
 
 /// A general requester interface used here, because we have one real requester and one dummy requester
 /// for experimentation and test purposes. This trait is not dyn compatible.
-pub trait Requester {
+pub trait Requester : Send + Sync + 'static {
     /// Tries to get the image data from the tile specification if possible.
     async fn get_image_data(&self, specification: TileSpecification) -> Result<Vec<u8>, String>;
 }
