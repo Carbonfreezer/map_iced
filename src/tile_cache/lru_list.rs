@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn empty_test() {
-        let mut cand = LastRecentlyUsedList::default();
+        let cand = LastRecentlyUsedList::default();
         assert_eq!(cand.generate_usage_list(), Vec::new());
     }
 

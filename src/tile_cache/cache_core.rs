@@ -1,32 +1,32 @@
 //! This is the rea core of the tile cache.
 //! It provides asynchronous access to the the caching system.
 
-use std::path::Path;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::sync::mpsc::{Receiver,Sender};
-use tokio::sync::{Mutex, mpsc};
 use crate::tile_cache::file_util::FileUtil;
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
-use crate::tile_cache::web_requester::Requester;
+use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
+use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{Mutex, mpsc};
 
 ///  The maximum channel size we currently allow for.
-const MAXIMUM_MESSAGE_CHANNEL : usize = 100;
+const MAXIMUM_MESSAGE_CHANNEL: usize = 100;
 
 /// The filename for the LRU table.
-const LRU_TABLE_FILE : &'static str = "LRU.bin";
+const LRU_TABLE_FILE: &'static str = "LRU.bin";
 
 /// This struct contains the elements that must be shared across different tasks.
-struct ShareableEntries<T : Requester> {
+struct ShareableEntries<T: Requester> {
     /// The file utility for file access.
-    file_util : FileUtil,
+    file_util: FileUtil,
     /// The lru list behind a mutex.
     lru_list: Mutex<LastRecentlyUsedList>,
     /// The amount of data we currently administer.
-    amount_of_data : AtomicU64,
+    amount_of_data: AtomicU64,
     /// The maximum data we currently allow for.
-    maximum_amount_of_data : u64,
+    maximum_amount_of_data: u64,
     /// The requester we use for making web requests.
     requester: T,
 }
@@ -34,7 +34,7 @@ struct ShareableEntries<T : Requester> {
 /// The different messages that come from the caching system,
 pub enum CachingResultMessage {
     /// We have encountered an error, message included.
-    Error{message: String},
+    Error { message: String },
     /// The initialization request has been competed.
     InitializationCompleted,
     /// The tile data, that has been retrieved.
@@ -46,76 +46,113 @@ pub enum CachingResultMessage {
         /// y coordinate.
         y: u32,
         /// The data of the tile.
-        data: Vec<u8>
-    }
+        data: Vec<u8>,
+    },
 }
 
 /// The caching system we also represent to the outside.
-pub struct CachingSystem<T : Requester> {
+pub struct CachingSystem<T: Requester> {
     /// The entry that gets cloned for every working thread.
     cloneable_entry: Arc<ShareableEntries<T>>,
     /// The stream reader for the tokio stream.
-    stream_reader : Receiver<CachingResultMessage>,
+    stream_reader: Receiver<CachingResultMessage>,
     /// The sender used for data,
-    stream_sender : Sender<CachingResultMessage>,
+    stream_sender: Sender<CachingResultMessage>,
     /// Flags that we are initialized.
-    is_initialized : bool,
+    is_initialized: bool,
 }
 
-impl<T : Requester> CachingSystem<T> {
-    pub fn new(requester : T, cache_base_dir : impl AsRef<Path>, maximum_amount_of_data : u64) -> CachingSystem<T> {
-        let (tx,rx) = mpsc::channel::<CachingResultMessage>(MAXIMUM_MESSAGE_CHANNEL);
+impl<T: Requester> CachingSystem<T> {
+    pub fn new(
+        requester: T,
+        cache_base_dir: impl AsRef<Path>,
+        maximum_amount_of_data: u64,
+    ) -> CachingSystem<T> {
+        let (tx, rx) = mpsc::channel::<CachingResultMessage>(MAXIMUM_MESSAGE_CHANNEL);
         let sharable_entry = ShareableEntries {
-            file_util : FileUtil::new(cache_base_dir),
-            lru_list : Mutex::new(LastRecentlyUsedList::default()),
-            amount_of_data : AtomicU64::new(0),
+            file_util: FileUtil::new(cache_base_dir),
+            lru_list: Mutex::new(LastRecentlyUsedList::default()),
+            amount_of_data: AtomicU64::new(0),
             maximum_amount_of_data,
             requester,
         };
 
         Self {
-            cloneable_entry : Arc::new(sharable_entry),
-            stream_reader : rx,
-            stream_sender : tx,
+            cloneable_entry: Arc::new(sharable_entry),
+            stream_reader: rx,
+            stream_sender: tx,
             is_initialized: false,
         }
     }
 
-
     /// Polls the resulting que.
     pub async fn poll_result(&mut self) -> CachingResultMessage {
-        self.stream_reader.recv().await.expect("CachingSystem::pol_result last sender was dropped, should actually not happen")
+        self.stream_reader
+            .recv()
+            .await
+            .expect("CachingSystem::pol_result last sender was dropped, should actually not happen")
     }
-    
 
-    async fn process_initialize(sharable_entry: Arc<ShareableEntries<T>>, sender : Sender<CachingResultMessage>) {
+    async fn process_initialize(
+        sharable_entry: Arc<ShareableEntries<T>>,
+        sender: Sender<CachingResultMessage>,
+    ) {
         // Remove all orphan files.
         sharable_entry.file_util.remove_temps_from_base().await;
         // Let us check if we get an lru table.
-        if let Some(load_data) = sharable_entry.file_util.try_load_plain(LRU_TABLE_FILE).await {
-            sharable_entry.lru_list.lock().await.reconstruct_from(&FileUtil::convert_to_u64(&load_data));
+        if let Some(load_data) = sharable_entry
+            .file_util
+            .try_load_plain(LRU_TABLE_FILE)
+            .await
+        {
+            sharable_entry
+                .lru_list
+                .lock()
+                .await
+                .reconstruct_from(&FileUtil::convert_to_u64(&load_data));
         }
 
         // Now we load all the data from the images on the cache.
-        let data = sharable_entry.file_util.get_all_pngs_interpreted_as_u64().await;
+        let data = sharable_entry
+            .file_util
+            .get_all_pngs_interpreted_as_u64()
+            .await;
         // Check the LRU List if all is contained.
-        sharable_entry.lru_list.lock().await.complete_list(&data.tile_ids);
+        sharable_entry
+            .lru_list
+            .lock()
+            .await
+            .complete_list(&data.tile_ids);
         // Eventually we have to deal with an oversized cache.
         if data.total_file_size > sharable_entry.maximum_amount_of_data {
             let amount_to_free = data.total_file_size - sharable_entry.maximum_amount_of_data;
-            let clear_data = sharable_entry.lru_list.lock().await.free_elements(amount_to_free, &sharable_entry.file_util).await;
+            let clear_data = sharable_entry
+                .lru_list
+                .lock()
+                .await
+                .free_elements(amount_to_free, &sharable_entry.file_util)
+                .await;
             // Remove the files.
-            sharable_entry.file_util.remove_files(&clear_data.tile_ids).await;
+            sharable_entry
+                .file_util
+                .remove_files(&clear_data.tile_ids)
+                .await;
             // Store the result.
-            sharable_entry.amount_of_data.store(data.total_file_size - clear_data.total_file_size, Ordering::Relaxed);
+            sharable_entry.amount_of_data.store(
+                data.total_file_size - clear_data.total_file_size,
+                Ordering::Relaxed,
+            );
         } else {
             // Set the required data.
-            sharable_entry.amount_of_data.store(data.total_file_size, Ordering::Relaxed);
-
+            sharable_entry
+                .amount_of_data
+                .store(data.total_file_size, Ordering::Relaxed);
         }
 
         // If an error occurred the receiver has been dropped in the meantime.
-        let _ = sender.send(CachingResultMessage::InitializationCompleted).await;
+        let _ = sender
+            .send(CachingResultMessage::InitializationCompleted)
+            .await;
     }
 
     /// Initializes the system.
@@ -126,4 +163,169 @@ impl<T : Requester> CachingSystem<T> {
         let sender = self.stream_sender.clone();
         tokio::spawn(Self::process_initialize(shareable_entry, sender));
     }
+
+    /// Poses a request for a tile.
+    pub fn request_tile(&self, level: u8, x: u32, y: u32) {
+        assert!(self.is_initialized, "We should be initialzed");
+        let shareable_entry = self.cloneable_entry.clone();
+        let sender = self.stream_sender.clone();
+        tokio::spawn(Self::process_request_tile(
+            level,
+            x,
+            y,
+            shareable_entry,
+            sender,
+        ));
+    }
+
+    async fn process_request_tile(
+        level: u8,
+        x: u32,
+        y: u32,
+        sharable_entry: Arc<ShareableEntries<T>>,
+        sender: Sender<CachingResultMessage>,
+    ) {
+        let destination = TileSpecification::new(level, x, y);
+        // Here we have to distinguish if we have it on cache or not.
+        if let Some(image_data) = sharable_entry
+            .file_util
+            .try_load_plain(destination.filename())
+            .await
+        {
+            // First send off the result.
+            let _ = sender
+                .send(CachingResultMessage::TileData {
+                    level,
+                    x,
+                    y,
+                    data: image_data,
+                })
+                .await;
+            // Now we have to check with the cache.
+            if sharable_entry
+                .lru_list
+                .lock()
+                .await
+                .touch_or_insert(destination.into())
+            {
+                Self::save_lru_table(&sharable_entry, sender).await;
+            }
+        } else {
+            Self::deal_with_cache_miss(&sharable_entry, sender, destination).await;
+        }
+    }
+
+    async fn deal_with_cache_miss(sharable_entry: &Arc<ShareableEntries<T>>, sender: Sender<CachingResultMessage>, destination: TileSpecification)  {
+        // In this case the file is not on the cache so we have to get it.
+        let web_access = sharable_entry.requester.get_image_data(destination).await;
+        let raw_data = match web_access {
+            Ok(data) => data,
+            Err(text) => {
+                let _ = sender.send(CachingResultMessage::Error { message: text });
+                return;
+            }
+        };
+
+        // First send the result.
+        let _ = sender
+            .send(CachingResultMessage::TileData {
+                level : destination.level(),
+                x : destination.x(),
+                y : destination.y(),
+                data: raw_data.clone(),
+            })
+            .await;
+
+        // Now we have to save the data on the disc.
+        if let Err(text) = sharable_entry
+            .file_util
+            .safe_save(destination.filename(), &raw_data)
+            .await
+        {
+            let _ = sender.send(CachingResultMessage::Error { message: text });
+        }
+
+
+        let new_memory = sharable_entry
+            .file_util
+            .get_file_length(destination.filename())
+            .await;
+        let total_memory = sharable_entry.amount_of_data.load(Ordering::SeqCst) + new_memory;
+        // First we insert our entry.
+        sharable_entry
+            .lru_list
+            .lock()
+            .await
+            .touch_or_insert(destination.into());
+        // If we have run over budget, we have to eliminate entries.
+        let subtracted_memory = if total_memory > sharable_entry.maximum_amount_of_data {
+            let clean_result = sharable_entry
+                .lru_list
+                .lock()
+                .await
+                .free_elements(
+                    total_memory - sharable_entry.maximum_amount_of_data,
+                    &sharable_entry.file_util,
+                )
+                .await;
+            // Remove files.
+            sharable_entry.file_util.remove_files(&clean_result.tile_ids).await;
+            clean_result.total_file_size
+        } else {
+            0
+        };
+
+
+        // Now set the new memory.
+        if new_memory > subtracted_memory {
+            sharable_entry.amount_of_data.fetch_add(new_memory - subtracted_memory, Ordering::SeqCst);
+        }
+        else {
+            sharable_entry.amount_of_data.fetch_sub(subtracted_memory - new_memory, Ordering::SeqCst);
+        }
+
+        // Save the new table.
+        Self::save_lru_table(sharable_entry, sender).await;
+    }
+
+    async fn save_lru_table(
+        sharable_entry: &Arc<ShareableEntries<T>>,
+        sender: Sender<CachingResultMessage>,
+    ) {
+        let raw_data = sharable_entry.lru_list.lock().await.generate_usage_list();
+        let res = sharable_entry
+            .file_util
+            .safe_save(LRU_TABLE_FILE, &FileUtil::convert_to_u8(&raw_data))
+            .await;
+        match res {
+            Ok(_) => {} // Nothing to do here.
+            Err(x) => {
+                let _ = sender
+                    .send(CachingResultMessage::Error {
+                        message: "Error on writing cache file: ".to_string() + x.as_str(),
+                    })
+                    .await;
+            }
+        }
+    }
 }
+
+
+/// The dummy cache we use for testing purposes.
+pub fn generate_dummy_cache( cache_base_dir: impl AsRef<Path>,
+                             maximum_amount_of_data: u64 ) -> CachingSystem<DummyRequester> {
+    CachingSystem::new(DummyRequester, cache_base_dir, maximum_amount_of_data)
+}
+
+/// Generates the real cache. The first 3 entries refer to the url and the username to access the web service.
+/// Cache base directory is the place where we store data and the maximum amount is the maximum amount of data we want to take.
+pub fn generate_cache(
+    intro_url : &str,
+    post_url : &str,
+    user_agent : &str,
+    cache_base_dir: impl AsRef<Path>,
+    maximum_amount_of_data: u64 ) -> CachingSystem<WebRequester> {
+    CachingSystem::new(WebRequester::new(intro_url, post_url, user_agent), cache_base_dir, maximum_amount_of_data)
+}
+
+
