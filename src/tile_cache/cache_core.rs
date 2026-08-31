@@ -1,15 +1,16 @@
 //! This is the rea core of the tile cache.
 //! It provides asynchronous access to the the caching system.
 
-use crate::tile_cache::file_util::{round_to_final_consumption, FileUtil};
+use crate::tile_cache::file_util::{FileUtil, round_to_final_consumption};
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
 use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
+use fxhash::FxHashSet;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{mpsc};
 
 ///  The maximum channel size we currently allow for.
 const MAXIMUM_MESSAGE_CHANNEL: usize = 100;
@@ -22,7 +23,7 @@ struct ShareableEntries<T: Requester> {
     /// The file utility for file access.
     file_util: FileUtil,
     /// The lru list behind a mutex.
-    lru_list: Mutex<LastRecentlyUsedList>,
+    lru_list: tokio::sync::Mutex<LastRecentlyUsedList>,
     /// The amount of data we currently administer.
     amount_of_data: AtomicU64,
     /// The maximum data we currently allow for.
@@ -31,6 +32,8 @@ struct ShareableEntries<T: Requester> {
     requester: T,
     /// Flags that the initialization is completed.
     initialization_completed: AtomicBool,
+    /// System to avoid double loading of the same item several times.
+    loading_set: std::sync::Mutex<FxHashSet<u64>>,
 }
 
 /// The different messages that come from the caching system,
@@ -72,11 +75,12 @@ impl<T: Requester> CachingSystem<T> {
         let (tx, rx) = mpsc::channel::<CachingResultMessage>(MAXIMUM_MESSAGE_CHANNEL);
         let sharable_entry = ShareableEntries {
             file_util: FileUtil::new(cache_base_dir),
-            lru_list: Mutex::new(LastRecentlyUsedList::default()),
+            lru_list: tokio::sync::Mutex::new(LastRecentlyUsedList::default()),
             amount_of_data: AtomicU64::new(0),
             maximum_amount_of_data,
             requester,
             initialization_completed: AtomicBool::new(false),
+            loading_set: std::sync::Mutex::new(FxHashSet::default()),
         };
 
         Self {
@@ -242,6 +246,16 @@ impl<T: Requester> CachingSystem<T> {
         sender: Sender<CachingResultMessage>,
         destination: TileSpecification,
     ) {
+        let current_request_id = u64::from(destination);
+        // First we check if we already have the element in process.
+        if !sharable_entry
+            .loading_set
+            .lock()
+            .expect("Poisoned")
+            .insert(current_request_id)
+        {
+            return;
+        }
         // In this case the file is not on the cache so we have to get it.
         let web_access = sharable_entry.requester.get_image_data(destination).await;
         let raw_data = match web_access {
@@ -250,10 +264,14 @@ impl<T: Requester> CachingSystem<T> {
                 let _ = sender
                     .send(CachingResultMessage::Error { message: text })
                     .await;
+                sharable_entry
+                    .loading_set
+                    .lock()
+                    .expect("Poisoned")
+                    .remove(&current_request_id);
                 return;
             }
         };
-
 
         // First send the result.
         let _ = sender
@@ -265,6 +283,7 @@ impl<T: Requester> CachingSystem<T> {
             })
             .await;
 
+        let mut new_memory = round_to_final_consumption(raw_data.len() as u64);
         // Now we have to save the data on the disc.
         if let Err(text) = sharable_entry
             .file_util
@@ -274,9 +293,16 @@ impl<T: Requester> CachingSystem<T> {
             let _ = sender
                 .send(CachingResultMessage::Error { message: text })
                 .await;
+
+            new_memory = 0;
         }
 
-        let new_memory = round_to_final_consumption(raw_data.len() as u64);
+        sharable_entry
+            .loading_set
+            .lock()
+            .expect("Poisoned")
+            .remove(&current_request_id);
+
         let total_memory = sharable_entry.amount_of_data.load(Ordering::SeqCst) + new_memory;
 
         // First we append ourselves
@@ -394,14 +420,16 @@ mod tests {
             cache
                 .request_tile(0, x, 1)
                 .expect("Initialization uncompleted.");
-            tokio::time::sleep(Duration::from_millis(2)).await;
+            cache
+                .request_tile(0, x, 1)
+                .expect("Initialization uncompleted.");
         }
 
         for _ in 0..100 {
             let message = cache.poll_result().await;
             assert_matches!(
                 message,
-                CachingResultMessage::TileData { level: 0, y: 1,  .. }
+                CachingResultMessage::TileData { level: 0, y: 1, .. }
             );
         }
         // Hack to make sure the data is on disc.
