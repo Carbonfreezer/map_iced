@@ -7,7 +7,7 @@ use crate::tile_cache::tile_name_conversion::TileSpecification;
 use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{Mutex, mpsc};
 
@@ -29,9 +29,12 @@ struct ShareableEntries<T: Requester> {
     maximum_amount_of_data: u64,
     /// The requester we use for making web requests.
     requester: T,
+    /// Flags that the initialization is completed.
+    initialization_completed: AtomicBool,
 }
 
 /// The different messages that come from the caching system,
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CachingResultMessage {
     /// We have encountered an error, message included.
     Error { message: String },
@@ -58,8 +61,6 @@ pub struct CachingSystem<T: Requester> {
     stream_reader: Receiver<CachingResultMessage>,
     /// The sender used for data,
     stream_sender: Sender<CachingResultMessage>,
-    /// Flags that we are initialized.
-    is_initialized: bool,
 }
 
 impl<T: Requester> CachingSystem<T> {
@@ -75,13 +76,13 @@ impl<T: Requester> CachingSystem<T> {
             amount_of_data: AtomicU64::new(0),
             maximum_amount_of_data,
             requester,
+            initialization_completed: AtomicBool::new(false),
         };
 
         Self {
             cloneable_entry: Arc::new(sharable_entry),
             stream_reader: rx,
             stream_sender: tx,
-            is_initialized: false,
         }
     }
 
@@ -124,6 +125,7 @@ impl<T: Requester> CachingSystem<T> {
             .await
             .complete_list(&data.tile_ids);
         // Eventually we have to deal with an oversized cache.
+        eprintln!("On Disc {:?} allowed {:?}", data.total_file_size, sharable_entry.maximum_amount_of_data);
         if data.total_file_size > sharable_entry.maximum_amount_of_data {
             let amount_to_free = data.total_file_size - sharable_entry.maximum_amount_of_data;
             let clear_data = sharable_entry
@@ -149,6 +151,8 @@ impl<T: Requester> CachingSystem<T> {
                 .store(data.total_file_size, Ordering::Relaxed);
         }
 
+        sharable_entry.initialization_completed.store(true, Ordering::Relaxed);
+
         // If an error occurred the receiver has been dropped in the meantime.
         let _ = sender
             .send(CachingResultMessage::InitializationCompleted)
@@ -156,17 +160,21 @@ impl<T: Requester> CachingSystem<T> {
     }
 
     /// Initializes the system.
-    pub fn initialize(&mut self) {
-        assert!(!self.is_initialized, "We should be unitialzed");
-        self.is_initialized = true;
+    pub fn initialize(&mut self) -> Result<(), String>{
+        if self.cloneable_entry.initialization_completed.load(Ordering::Relaxed) {
+            return Err(String::from("CachingSystem::initialize already initialized"));
+        }
         let shareable_entry = self.cloneable_entry.clone();
         let sender = self.stream_sender.clone();
         tokio::spawn(Self::process_initialize(shareable_entry, sender));
+        Ok(())
     }
 
     /// Poses a request for a tile.
-    pub fn request_tile(&self, level: u8, x: u32, y: u32) {
-        assert!(self.is_initialized, "We should be initialzed");
+    pub fn request_tile(&self, level: u8, x: u32, y: u32) -> Result<(), String> {
+        if !self.cloneable_entry.initialization_completed.load(Ordering::Relaxed) {
+            return Err(String::from("CachingSystem::request_tile not initialized yet"));
+        }
         let shareable_entry = self.cloneable_entry.clone();
         let sender = self.stream_sender.clone();
         tokio::spawn(Self::process_request_tile(
@@ -176,6 +184,7 @@ impl<T: Requester> CachingSystem<T> {
             shareable_entry,
             sender,
         ));
+        Ok(())
     }
 
     async fn process_request_tile(
@@ -252,6 +261,7 @@ impl<T: Requester> CachingSystem<T> {
                 .send(CachingResultMessage::Error { message: text })
                 .await;
         }
+
 
         let new_memory = sharable_entry
             .file_util
@@ -344,4 +354,44 @@ pub fn generate_cache(
         cache_base_dir,
         maximum_amount_of_data,
     )
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches;
+    use std::time::Duration;
+    use super::*;
+
+    #[tokio::test]
+    async fn first_setup() {
+        let mut cache = generate_dummy_cache("test_folder", 10_000);
+        cache.initialize().expect("Already initialized.");
+        let message = cache.poll_result().await;
+        assert_eq!(message, CachingResultMessage::InitializationCompleted);
+        // Hack to make sure the data is on disc.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn first_fill() {
+        let mut cache = generate_dummy_cache("test_folder", 10_000);
+        cache.initialize().expect("Already initialized.");
+        let message = cache.poll_result().await;
+        assert_eq!(message, CachingResultMessage::InitializationCompleted);
+        cache.request_tile(0,1,1).expect("Initialization uncompleted.");
+        cache.request_tile(0,2,1).expect("Initialization uncompleted.");
+        cache.request_tile(0,3,1).expect("Initialization uncompleted.");
+        cache.request_tile(0,4,1).expect("Initialization uncompleted.");
+
+        for _ in 0..4 {
+            let message = cache.poll_result().await;
+            assert_matches!(message, CachingResultMessage::  TileData {
+        level: 0, y: 1,  ..
+        });
+
+        }
+        // Hack to make sure the data is on disc.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
