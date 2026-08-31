@@ -147,7 +147,6 @@ impl LastRecentlyUsedList {
         {
             let element = &self.entry_list[scan as usize];
             let content = element.data;
-            free_list.push(content);
             self.forward_map.remove(&content);
             self.open_spaces.push(scan);
             self.last_entry = get_u32(element.previous);
@@ -156,8 +155,12 @@ impl LastRecentlyUsedList {
             }
 
             let freed_amount = consumption_per_file(content);
-            freed_accumulated += freed_amount;
-            amount_to_free = amount_to_free.saturating_sub(freed_amount);
+            // Only enlist the file for removal, if memory consumption is larger 0 otherwise it does not exist.
+            if freed_amount > 0 {
+                freed_accumulated += freed_amount;
+                amount_to_free = amount_to_free.saturating_sub(freed_amount);
+                free_list.push(content);
+            }
         }
 
         // Check if we have flushed all.
