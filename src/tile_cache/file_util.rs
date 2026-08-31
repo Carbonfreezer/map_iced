@@ -79,14 +79,16 @@ impl FileUtil {
         let dir = final_path.parent().unwrap();
         // For the case the directory does not exist yet, we create it.
         create_dir_all(dir).await.map_err(|err| err.to_string())?;
-        let combined = (process::id() as u64) << 32 | self.temp_file_counter.fetch_add(1, Ordering::Relaxed) as u64;
+        let combined = (process::id() as u64) << 32
+            | self.temp_file_counter.fetch_add(1, Ordering::Relaxed) as u64;
         // Now we create a transient file that will get moved.
-        let transient = self.base_path.join(format!(
-            "{:016x}.tmp",
-            combined
-        ));
-        write(&transient, data).await.map_err(|err| err.to_string())?;
-        rename(&transient, &final_path).await.map_err(|err| err.to_string())?;
+        let transient = self.base_path.join(format!("{:016x}.tmp", combined));
+        write(&transient, data)
+            .await
+            .map_err(|err| err.to_string())?;
+        rename(&transient, &final_path)
+            .await
+            .map_err(|err| err.to_string())?;
         Ok(())
     }
 
@@ -95,6 +97,28 @@ impl FileUtil {
         let final_path = self.base_path.join(file_name);
         // If the file is already away it does not matter.
         let _ = remove_file(final_path).await;
+    }
+
+    /// Removes all temp files from the base directory. This is intended at startup to clear any left overs.
+    pub async fn remove_temps_from_base(&self) {
+        let Ok(mut dir_scan) = read_dir(&self.base_path).await else {
+            return;
+        };
+
+        let mut clean_list = Vec::new();
+        while let Ok(Some(entry)) = dir_scan.next_entry().await {
+            let Ok(file_type) = entry.file_type().await else {
+                continue;
+            };
+            let path = entry.path();
+            if file_type.is_file() && path.extension().and_then(|e| e.to_str()) == Some("tmp") {
+                clean_list.push(path);
+            }
+        }
+
+        for file in clean_list {
+            let _ = remove_file(file).await;
+        }
     }
 
     /// Gets all png filenames recursively interpreted as u64. and returns also the accumulated size in files.
@@ -187,7 +211,8 @@ mod tests {
             "Transient.bin",
             &FileUtil::convert_to_u8(&cache.generate_usage_list()),
         )
-        .await.unwrap();
+        .await
+        .unwrap();
         let cache_b = LastRecentlyUsedList::new(&FileUtil::convert_to_u64(
             &util.try_load_plain("Transient.bin").await.unwrap(),
         ));
@@ -196,5 +221,14 @@ mod tests {
             test_vector,
             "They should be the same."
         );
+    }
+
+    #[tokio::test]
+    async fn remove_file_test() {
+        let util = FileUtil::new(tempfile::tempdir().unwrap());
+        util.safe_save("Test.tmp", &[1,2,3]).await.unwrap();
+        util.remove_temps_from_base().await;
+        let memory = util.get_file_length("Test.tmp").await;
+        assert_eq!(memory, 0, "The fils should have gone by now");
     }
 }

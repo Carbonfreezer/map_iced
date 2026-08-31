@@ -58,8 +58,10 @@ impl Requester for WebRequester {
             + specification.get_partial_url().as_str()
             + self.post_url.as_str();
         Ok(
-            reqwest::get(final_url)
-                .await.map_err(|x| x.to_string())?
+            self.client.get(final_url)
+                .send()
+                .await
+                .map_err(|x| x.to_string())?
                 .bytes()
                 .await.map_err(|x| x.to_string())?
                 .to_vec(),
