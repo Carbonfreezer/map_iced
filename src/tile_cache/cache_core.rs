@@ -61,7 +61,7 @@ pub struct CachingSystem<T: Requester> {
     /// The entry that gets cloned for every working thread.
     cloneable_entry: Arc<ShareableEntries<T>>,
     /// The stream reader for the tokio stream.
-    stream_reader: Receiver<CachingResultMessage>,
+    stream_reader: std::sync::Mutex<Option<Receiver<CachingResultMessage>>>,
     /// The sender used for data,
     stream_sender: Sender<CachingResultMessage>,
 }
@@ -85,18 +85,16 @@ impl<T: Requester> CachingSystem<T> {
 
         Self {
             cloneable_entry: Arc::new(sharable_entry),
-            stream_reader: rx,
+            stream_reader: std::sync::Mutex::new(Some(rx)),
             stream_sender: tx,
         }
     }
 
-    /// Polls the resulting que.
-    pub async fn poll_result(&mut self) -> CachingResultMessage {
-        self.stream_reader
-            .recv()
-            .await
-            .expect("CachingSystem::pol_result last sender was dropped, should actually not happen")
+    /// Extracts the receiver out of the class. Can only be done one time.
+    pub fn get_receiver(&self) -> Receiver<CachingResultMessage> {
+        self.stream_reader.lock().unwrap().take().unwrap()
     }
+
 
     /// Asynchronous initialization function to set up the system.
     async fn process_initialize(
@@ -166,7 +164,7 @@ impl<T: Requester> CachingSystem<T> {
     }
 
     /// Initializes the system. Starts an internal tokio task for the work.
-    pub fn initialize(&mut self) -> Result<(), String> {
+    pub fn initialize(&self) -> Result<(), String> {
         if self
             .cloneable_entry
             .initialization_completed
@@ -409,7 +407,8 @@ mod tests {
     async fn first_setup() {
         let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
         cache.initialize().expect("Already initialized.");
-        let message = cache.poll_result().await;
+        let mut receiver = cache.get_receiver();
+        let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
         // Hack to make sure the data is on disc.
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -419,7 +418,8 @@ mod tests {
     async fn first_fill() {
         let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
         cache.initialize().expect("Already initialized.");
-        let message = cache.poll_result().await;
+        let mut receiver = cache.get_receiver();
+        let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
         for x in 0..100 {
             cache
@@ -431,7 +431,7 @@ mod tests {
         }
 
         for _ in 0..100 {
-            let message = cache.poll_result().await;
+            let message =  receiver.recv().await.unwrap();
             assert_matches!(
                 message,
                 CachingResultMessage::TileData { level: 0, y: 1, .. }
