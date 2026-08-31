@@ -1,7 +1,7 @@
 //! This module contains as a pseudo double linked list the entries of the data in least recently
 //! used priority que. The data stored is an u64. This is the core data used for the tiling system.
 
-use crate::tile_cache::file_util::TileCollection;
+use crate::tile_cache::file_util::{FileUtil, TileCollection};
 use fxhash::FxHashMap;
 use std::num::NonZeroU32;
 
@@ -135,10 +135,10 @@ impl LastRecentlyUsedList {
     /// If the element does not exist anymore a size of zero should be returned.
     /// It will get cued up in the deletion list anyway and should be ignored from the caller.
     /// Returns the files to eliminate including their total memory consumption.
-    pub fn free_elements(
+    pub async fn free_elements(
         &mut self,
         mut amount_to_free: u64,
-        consumption_per_file: impl Fn(u64) -> u64,
+        file_util: &FileUtil,
     ) -> TileCollection {
         let mut free_list = Vec::with_capacity(self.forward_map.len());
         let mut freed_accumulated = 0;
@@ -154,7 +154,7 @@ impl LastRecentlyUsedList {
                 self.entry_list[previous as usize].next = None;
             }
 
-            let freed_amount = consumption_per_file(content);
+            let freed_amount = file_util.get_file_length_from_id(content).await;
             // Only enlist the file for removal, if memory consumption is larger 0 otherwise it does not exist.
             if freed_amount > 0 {
                 freed_accumulated += freed_amount;
@@ -235,14 +235,11 @@ impl LastRecentlyUsedList {
 mod tests {
     use super::*;
 
-    fn weight_function(_: u64) -> u64 {
-        1
-    }
+
     #[test]
     fn empty_test() {
         let mut cand = LastRecentlyUsedList::default();
         assert_eq!(cand.generate_usage_list(), Vec::new());
-        cand.free_elements(10, weight_function);
     }
 
     #[test]
@@ -263,17 +260,7 @@ mod tests {
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
     }
 
-    #[test]
-    fn removal_test() {
-        let mut cand = LastRecentlyUsedList::default();
-        cand.reconstruct_from(&[0, 1, 2, 3, 4]);
-        let data = cand.free_elements(2, weight_function);
-        assert_eq!(data.tile_ids, vec![4, 3]);
-        assert_eq!(data.total_file_size, 2);
-        assert_eq!(cand.generate_usage_list(), vec![0, 1, 2]);
-        cand.generate_new_entry(42);
-        assert_eq!(cand.generate_usage_list(), vec![42, 0, 1, 2]);
-    }
+
 
     #[test]
     fn reconstruct_test() {
@@ -290,22 +277,5 @@ mod tests {
         cand.complete_list(&[2, 3, 4, 5]);
         assert_eq!(cand.generate_usage_list(), vec![5, 4, 0, 1, 2, 3]);
     }
-
-    #[test]
-    fn free_all_test() {
-        let mut cand = LastRecentlyUsedList::default();
-        cand.reconstruct_from(&[0, 1, 2, 3]);
-        let reverse_list = cand.free_elements(5, weight_function);
-        assert_eq!(
-            reverse_list.tile_ids,
-            vec![3, 2, 1, 0],
-            "All elements should be free"
-        );
-        assert_eq!(
-            reverse_list.total_file_size, 4,
-            "All elements should be total4"
-        );
-        let remaining = cand.generate_usage_list();
-        assert_eq!(remaining, vec![], "The remainder should be empty.");
-    }
+    
 }

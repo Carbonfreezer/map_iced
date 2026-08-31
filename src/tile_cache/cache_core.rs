@@ -3,11 +3,12 @@
 
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64};
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc::{Receiver,Sender};
 use tokio::sync::{Mutex, mpsc};
 use crate::tile_cache::file_util::FileUtil;
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
+use crate::tile_cache::tile_name_conversion::TileSpecification;
 use crate::tile_cache::web_requester::Requester;
 
 ///  The maximum channel size we currently allow for.
@@ -85,12 +86,33 @@ impl<T : Requester> CachingSystem<T> {
     pub async fn poll_result(&mut self) -> CachingResultMessage {
         self.stream_reader.recv().await.expect("CachingSystem::pol_result last sender was dropped, should actually not happen")
     }
+    
 
     async fn process_initialize(sharable_entry: Arc<ShareableEntries<T>>, sender : Sender<CachingResultMessage>) {
         // Remove all orphan files.
         sharable_entry.file_util.remove_temps_from_base().await;
         // Let us check if we get an lru table.
-        // sharable_entry.lru_list= ;
+        if let Some(load_data) = sharable_entry.file_util.try_load_plain(LRU_TABLE_FILE).await {
+            sharable_entry.lru_list.lock().await.reconstruct_from(&FileUtil::convert_to_u64(&load_data));
+        }
+
+        // Now we load all the data from the images on the cache.
+        let data = sharable_entry.file_util.get_all_pngs_interpreted_as_u64().await;
+        // Check the LRU List if all is contained.
+        sharable_entry.lru_list.lock().await.complete_list(&data.tile_ids);
+        // Eventually we have to deal with an oversized cache.
+        if data.total_file_size > sharable_entry.maximum_amount_of_data {
+            let amount_to_free = data.total_file_size - sharable_entry.maximum_amount_of_data;
+            let clear_data = sharable_entry.lru_list.lock().await.free_elements(amount_to_free, &sharable_entry.file_util).await;
+            // Remove the files.
+            sharable_entry.file_util.remove_files(&clear_data.tile_ids).await;
+            // Store the result.
+            sharable_entry.amount_of_data.store(data.total_file_size - clear_data.total_file_size, Ordering::Relaxed);
+        } else {
+            // Set the required data.
+            sharable_entry.amount_of_data.store(data.total_file_size, Ordering::Relaxed);
+
+        }
 
         // If an error occurred the receiver has been dropped in the meantime.
         let _ = sender.send(CachingResultMessage::InitializationCompleted).await;

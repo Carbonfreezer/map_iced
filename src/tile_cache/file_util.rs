@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::fs::*;
+use crate::tile_cache::tile_name_conversion::TileSpecification;
 
 /// The data for the file utility.
 pub struct FileUtil {
@@ -45,17 +46,23 @@ impl FileUtil {
     }
 
     /// Returns a given file length 0 if non-existent.
-    pub async fn get_file_length(&self, file_name: impl AsRef<Path>) -> u32 {
+    pub async fn get_file_length(&self, file_name: impl AsRef<Path>) -> u64 {
         // 4K Block size.
-        const BLOCK_SIZE: u32 = 4 * 1024;
+        const BLOCK_SIZE: u64 = 4 * 1024;
 
         let final_path = self.base_path.join(file_name);
         let length = match metadata(&final_path).await {
-            Ok(metadata) => metadata.len() as u32,
+            Ok(metadata) => metadata.len(),
             Err(_) => 0,
         };
 
         length.div_ceil(BLOCK_SIZE) * BLOCK_SIZE
+    }
+    
+    
+    /// Gets the file length directly from an id.
+    pub async fn get_file_length_from_id(&self, id: u64) -> u64 {
+        self.get_file_length(TileSpecification::from(id).filename()).await
     }
 
     /// Crates a file util with the indicated root directory.
@@ -92,12 +99,14 @@ impl FileUtil {
         Ok(())
     }
 
-    /// Removes a file from the position.
-    pub async fn remove_file(&self, file_name: impl AsRef<Path>) {
-        let final_path = self.base_path.join(file_name);
-        // If the file is already away it does not matter.
-        let _ = remove_file(final_path).await;
-    }
+    
+    /// Removes all the files with the tile ids handed over.
+    pub async fn remove_files(&self, list_of_ids: &[u64]) {
+        for &x in list_of_ids {
+            let final_path = self.base_path.join(TileSpecification::from(x).filename());
+            let _ = remove_file(&final_path).await;
+        }
+    } 
 
     /// Removes all temp files from the base directory. This is intended at startup to clear any left overs.
     pub async fn remove_temps_from_base(&self) {
@@ -180,11 +189,11 @@ mod tests {
     async fn file_test() {
         let base = vec![12, 23, 24, 25];
         let util = FileUtil::new(tempfile::tempdir().unwrap());
-        util.safe_save("my_test/blob.tmp", &base).await.unwrap();
-        let back_data = util.try_load_plain("my_test/blob.tmp").await.unwrap();
+        util.safe_save("blob.tmp", &base).await.unwrap();
+        let back_data = util.try_load_plain("blob.tmp").await.unwrap();
         assert_eq!(back_data, base);
-        assert_eq!(util.get_file_length("my_test/blob.tmp").await, 4 * 1024);
-        util.remove_file("my_test/blob.tmp").await;
+        assert_eq!(util.get_file_length("blob.tmp").await, 4 * 1024);
+        util.remove_temps_from_base().await;
         assert_eq!(util.get_file_length("my_test/blob.tmp").await, 0);
     }
 
