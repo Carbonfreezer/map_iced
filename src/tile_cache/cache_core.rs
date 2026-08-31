@@ -13,6 +13,9 @@ use crate::tile_cache::web_requester::Requester;
 ///  The maximum channel size we currently allow for.
 const MAXIMUM_MESSAGE_CHANNEL : usize = 100;
 
+/// The filename for the LRU table.
+const LRU_TABLE_FILE : &'static str = "LRU.bin";
+
 /// This struct contains the elements that must be shared across different tasks.
 struct ShareableEntries<T : Requester> {
     /// The file utility for file access.
@@ -84,7 +87,13 @@ impl<T : Requester> CachingSystem<T> {
     }
 
     async fn process_initialize(sharable_entry: Arc<ShareableEntries<T>>, sender : Sender<CachingResultMessage>) {
+        // Remove all orphan files.
+        sharable_entry.file_util.remove_temps_from_base().await;
+        // Let us check if we get an lru table.
+        // sharable_entry.lru_list= ;
 
+        // If an error occurred the receiver has been dropped in the meantime.
+        let _ = sender.send(CachingResultMessage::InitializationCompleted).await;
     }
 
     /// Initializes the system.

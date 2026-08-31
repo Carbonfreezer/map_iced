@@ -206,14 +206,16 @@ mod tests {
     async fn lru_cache_test() {
         let util = FileUtil::new(tempfile::tempdir().unwrap());
         let test_vector = vec![12, 23, 24, 25];
-        let cache = LastRecentlyUsedList::new(&test_vector);
+        let mut cache = LastRecentlyUsedList::default();
+        cache.reconstruct_from(&test_vector);
         util.safe_save(
             "Transient.bin",
             &FileUtil::convert_to_u8(&cache.generate_usage_list()),
         )
         .await
         .unwrap();
-        let cache_b = LastRecentlyUsedList::new(&FileUtil::convert_to_u64(
+        let mut cache_b = LastRecentlyUsedList::default();
+        cache_b.reconstruct_from( &FileUtil::convert_to_u64(
             &util.try_load_plain("Transient.bin").await.unwrap(),
         ));
         assert_eq!(

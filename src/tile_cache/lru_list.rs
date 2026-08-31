@@ -203,20 +203,20 @@ impl LastRecentlyUsedList {
 
     /// Generates an LRU eviction system from an u64 slice handed over. This method
     /// is meant as an entry point for loading.
-    pub fn new(content_slice: &[u64]) -> Self {
-        let mut result = Self::default();
+    pub fn reconstruct_from(&mut self, content_slice: &[u64])  {
         if content_slice.is_empty() {
-            return result;
+            return;
         }
 
         let last_element = content_slice.len() - 1;
-        result.forward_map.reserve(last_element + 1);
+        self.forward_map.clear();
+        self.forward_map.reserve(last_element + 1);
 
         let content = content_slice
             .iter()
             .enumerate()
             .inspect(|(i, x)| {
-                result.forward_map.insert(**x, *i as u32);
+                self.forward_map.insert(**x, *i as u32);
             })
             .map(|(i, x)| LRUEntry {
                 previous: (i > 0).then(|| set_u32(i as u32 - 1).unwrap()),
@@ -225,11 +225,9 @@ impl LastRecentlyUsedList {
             })
             .collect();
 
-        result.entry_list = content;
-        result.first_entry = Some(0);
-        result.last_entry = Some(last_element as u32);
-
-        result
+        self.entry_list = content;
+        self.first_entry = Some(0);
+        self.last_entry = Some(last_element as u32);
     }
 }
 
@@ -260,14 +258,15 @@ mod tests {
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
         cand.touch_or_insert(4);
         assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
-        cand = LastRecentlyUsedList::new(&usage_list);
+        cand.reconstruct_from(&usage_list);
         cand.touch_or_insert(2);
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
     }
 
     #[test]
     fn removal_test() {
-        let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3, 4]);
+        let mut cand = LastRecentlyUsedList::default();
+        cand.reconstruct_from(&[0, 1, 2, 3, 4]);
         let data = cand.free_elements(2, weight_function);
         assert_eq!(data.tile_ids, vec![4, 3]);
         assert_eq!(data.total_file_size, 2);
@@ -278,21 +277,24 @@ mod tests {
 
     #[test]
     fn reconstruct_test() {
-        let cand = LastRecentlyUsedList::new(&[0, 1, 2, 3, 4, 5]);
+        let mut cand = LastRecentlyUsedList::default();
+        cand.reconstruct_from(&[0, 1, 2, 3, 4,5 ]);
         let list = cand.generate_usage_list();
         assert_eq!(list, vec![0, 1, 2, 3, 4, 5]);
     }
 
     #[test]
     fn completion_test() {
-        let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3]);
+        let mut cand = LastRecentlyUsedList::default();
+        cand.reconstruct_from(&[0, 1, 2, 3]);
         cand.complete_list(&[2, 3, 4, 5]);
         assert_eq!(cand.generate_usage_list(), vec![5, 4, 0, 1, 2, 3]);
     }
 
     #[test]
     fn free_all_test() {
-        let mut cand = LastRecentlyUsedList::new(&[0, 1, 2, 3]);
+        let mut cand = LastRecentlyUsedList::default();
+        cand.reconstruct_from(&[0, 1, 2, 3]);
         let reverse_list = cand.free_elements(5, weight_function);
         assert_eq!(
             reverse_list.tile_ids,
