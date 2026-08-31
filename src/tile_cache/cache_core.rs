@@ -98,6 +98,7 @@ impl<T: Requester> CachingSystem<T> {
             .expect("CachingSystem::pol_result last sender was dropped, should actually not happen")
     }
 
+    /// Asynchronous initialization function to set up the system.
     async fn process_initialize(
         sharable_entry: Arc<ShareableEntries<T>>,
         sender: Sender<CachingResultMessage>,
@@ -164,7 +165,7 @@ impl<T: Requester> CachingSystem<T> {
             .await;
     }
 
-    /// Initializes the system.
+    /// Initializes the system. Starts an internal tokio task for the work.
     pub fn initialize(&mut self) -> Result<(), String> {
         if self
             .cloneable_entry
@@ -181,7 +182,7 @@ impl<T: Requester> CachingSystem<T> {
         Ok(())
     }
 
-    /// Poses a request for a tile.
+    /// Poses a request for a tile. Starts an internal tokio task for the work.
     pub fn request_tile(&self, level: u8, x: u32, y: u32) -> Result<(), String> {
         if !self
             .cloneable_entry
@@ -204,6 +205,7 @@ impl<T: Requester> CachingSystem<T> {
         Ok(())
     }
 
+    /// Internal work for requesting a tile basically distinguishes between cache hit and miss.
     async fn process_request_tile(
         level: u8,
         x: u32,
@@ -241,6 +243,7 @@ impl<T: Requester> CachingSystem<T> {
         }
     }
 
+    /// The cache miss part is more complicated but tries to serve the data as fast as possible.
     async fn deal_with_cache_miss(
         sharable_entry: &Arc<ShareableEntries<T>>,
         sender: Sender<CachingResultMessage>,
@@ -297,12 +300,6 @@ impl<T: Requester> CachingSystem<T> {
             new_memory = 0;
         }
 
-        sharable_entry
-            .loading_set
-            .lock()
-            .expect("Poisoned")
-            .remove(&current_request_id);
-
         let total_memory = sharable_entry.amount_of_data.load(Ordering::SeqCst) + new_memory;
 
         // First we append ourselves
@@ -344,10 +341,18 @@ impl<T: Requester> CachingSystem<T> {
                 .fetch_sub(subtracted_memory - new_memory, Ordering::SeqCst);
         }
 
+        // Release the book keeping.
+        sharable_entry
+            .loading_set
+            .lock()
+            .expect("Poisoned")
+            .remove(&current_request_id);
+
         // Save the new table.
         Self::save_lru_table(sharable_entry, sender).await;
     }
 
+    /// Helper routine to write out the cache file.
     async fn save_lru_table(
         sharable_entry: &Arc<ShareableEntries<T>>,
         sender: Sender<CachingResultMessage>,
@@ -402,7 +407,7 @@ mod tests {
 
     #[tokio::test]
     async fn first_setup() {
-        let mut cache = generate_dummy_cache("test_folder", 10_000);
+        let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
         cache.initialize().expect("Already initialized.");
         let message = cache.poll_result().await;
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
@@ -412,7 +417,7 @@ mod tests {
 
     #[tokio::test]
     async fn first_fill() {
-        let mut cache = generate_dummy_cache("test_folder", 20_000);
+        let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
         cache.initialize().expect("Already initialized.");
         let message = cache.poll_result().await;
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
