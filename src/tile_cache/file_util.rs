@@ -20,7 +20,6 @@ pub struct TileCollection {
     pub total_file_size: u64,
 }
 
-
 impl FileUtil {
     /// Converts a u8 Vector into an u64 vector.
     pub fn convert_to_u64(input: &[u8]) -> Vec<u64> {
@@ -102,10 +101,14 @@ impl FileUtil {
         let mut accumulated_size = 0;
 
         while let Some(dir) = pending.pop() {
-            let Ok(mut dir_scan) = read_dir(&dir).await else { continue };
+            let Ok(mut dir_scan) = read_dir(&dir).await else {
+                continue;
+            };
 
             while let Ok(Some(entry)) = dir_scan.next_entry().await {
-                let Ok(file_type) = entry.file_type().await else { continue };
+                let Ok(file_type) = entry.file_type().await else {
+                    continue;
+                };
                 let path = entry.path();
 
                 if file_type.is_dir() {
@@ -124,20 +127,20 @@ impl FileUtil {
                     }
                 }
             }
-
         }
 
         TileCollection {
             tile_ids: id_list,
-            total_file_size: accumulated_size
+            total_file_size: accumulated_size,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tile_name_conversion::*;
+    use super::*;
+    use crate::tile_cache::lru_list::LastRecentlyUsedList;
 
     #[test]
     fn conversion_test() {
@@ -146,9 +149,8 @@ mod tests {
         assert_eq!(back_test, base, "Vectors should be the same.");
     }
 
-
     #[tokio::test]
-    async fn  file_test() {
+    async fn file_test() {
         let base = vec![12, 23, 24, 25];
         let util = FileUtil::new(tempfile::tempdir().unwrap());
         util.safe_save("my_test/blob.tmp", &base).await;
@@ -166,7 +168,30 @@ mod tests {
         let util = FileUtil::new(tempfile::tempdir().unwrap());
         util.safe_save(base_index.filename(), &base).await;
         let existing_pngs = util.get_all_pngs_interpreted_as_u64().await;
-        assert_eq!(TileSpecification::from( existing_pngs.tile_ids[0]), base_index);
+        assert_eq!(
+            TileSpecification::from(existing_pngs.tile_ids[0]),
+            base_index
+        );
         assert_eq!(existing_pngs.total_file_size, 4 * 1024);
+    }
+
+    #[tokio::test]
+    async fn lru_cache_test() {
+        let util = FileUtil::new(tempfile::tempdir().unwrap());
+        let test_vector = vec![12, 23, 24, 25];
+        let cache = LastRecentlyUsedList::new(&test_vector);
+        util.safe_save(
+            "Transient.bin",
+            &FileUtil::convert_to_u8(&cache.generate_usage_list()),
+        )
+        .await;
+        let cache_b = LastRecentlyUsedList::new(&FileUtil::convert_to_u64(
+            &util.try_load_plain("Transient.bin").await.unwrap(),
+        ));
+        assert_eq!(
+            cache_b.generate_usage_list(),
+            test_vector,
+            "They should be the same."
+        );
     }
 }

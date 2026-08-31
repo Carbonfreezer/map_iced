@@ -10,20 +10,28 @@ pub struct TileSpecification {
     y: u32,
 }
 
+
+
 impl TileSpecification {
     pub fn new(level: u8, x: u32, y: u32) -> Self {
         assert!(level < 29, "Level is too large to be represented");
         assert!(x < (1 << 29) && y < (1 << 29), "Coordinate out of range");
         TileSpecification { level, x, y }
     }
-    
-    pub fn level(&self) -> u8 {self.level}
-    pub fn x(&self) -> u32 {self.x}
-    pub fn y(&self) -> u32 {self.y}
+
+    pub fn level(&self) -> u8 {
+        self.level
+    }
+    pub fn x(&self) -> u32 {
+        self.x
+    }
+    pub fn y(&self) -> u32 {
+        self.y
+    }
 
     /// Gets the filename, where this coordinate would be stored in the cache.
     pub fn filename(&self) -> PathBuf {
-         format!("{}/{}/{:016x}.png", self.level, self.x, u64::from(*self)).into()
+        format!("{}/{}/{:016x}.png", self.level, self.x, u64::from(*self)).into()
     }
 
     /// Gets the relative path used in tile coordinate systems for web services.
@@ -37,11 +45,7 @@ impl From<u64> for TileSpecification {
         let level = (item >> 58) as u8;
         let y = ((item >> 29) & 0x1FFF_FFFF) as u32;
         let x = (item & 0x1FFF_FFFF) as u32;
-        Self {
-            level : level as u8,
-            y : y as u32,
-            x : x as u32,
-        }
+        Self { level, y, x }
     }
 }
 
@@ -65,11 +69,12 @@ mod tests {
     #[test]
     fn name_test() {
         let spec = TileSpecification::new(0, 10, 0);
-        assert_eq!(spec.filename().to_str().unwrap(), "0/10/000000000000000a.png");
+        assert_eq!(
+            spec.filename().to_str().unwrap(),
+            "0/10/000000000000000a.png"
+        );
 
         let spec = TileSpecification::new(1, 2, 3);
         assert_eq!(spec.get_partial_url().to_str().unwrap(), "1/2/3.png");
-
     }
-
 }

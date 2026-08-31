@@ -1,12 +1,12 @@
 //! This module contains as a pseudo double linked list the entries of the data in least recently
-//! used priority que. The data stored is an u64. This is the core data used for the tiling system. 
+//! used priority que. The data stored is an u64. This is the core data used for the tiling system.
 
+use crate::tile_cache::file_util::TileCollection;
 use fxhash::FxHashMap;
 use std::num::NonZeroU32;
-use crate::tile_cache::file_util::TileCollection;
 
 /// After how many hit attempts does the file need resaving.
-const SAVE_REQUIRED_AFTER : u32 = 20;
+const SAVE_REQUIRED_AFTER: u32 = 20;
 
 // Here are some helper functions to deal with Option<NonZeroU32>
 
@@ -39,10 +39,10 @@ pub struct LastRecentlyUsedList {
     first_entry: Option<u32>,
     /// The last entry in the list.
     last_entry: Option<u32>,
-    /// The hashmap to find which data is stored in which cell. 
+    /// The hashmap to find which data is stored in which cell.
     forward_map: FxHashMap<u64, u32>,
     /// Counts the amount of hit attempts needed to check for saving.
-    hit_attempts : u32
+    hit_attempts: u32,
 }
 
 impl LastRecentlyUsedList {
@@ -83,7 +83,7 @@ impl LastRecentlyUsedList {
         self.entry_list[index as usize].previous = None;
         self.entry_list[index as usize].next = map_u32(self.first_entry);
         self.first_entry = Some(index);
-        
+
         self.hit_attempts += 1;
         if self.hit_attempts >= SAVE_REQUIRED_AFTER {
             self.hit_attempts = 0;
@@ -164,11 +164,14 @@ impl LastRecentlyUsedList {
         if self.last_entry.is_none() {
             self.first_entry = None;
         }
-        
+
         // Reset the counter, we have to do a save here afterward anyway.
         self.hit_attempts = 0;
 
-        TileCollection {tile_ids: free_list, total_file_size : freed_accumulated}
+        TileCollection {
+            tile_ids: free_list,
+            total_file_size: freed_accumulated,
+        }
     }
 
     /// Generates a list from the current cache list from most to least recently used.
@@ -231,7 +234,9 @@ impl LastRecentlyUsedList {
 mod tests {
     use super::*;
 
-    fn weight_function(_: u64) -> u64 { 1 }
+    fn weight_function(_: u64) -> u64 {
+        1
+    }
     #[test]
     fn empty_test() {
         let mut cand = LastRecentlyUsedList::default();
@@ -292,8 +297,7 @@ mod tests {
             "All elements should be free"
         );
         assert_eq!(
-            reverse_list.total_file_size,
-            4,
+            reverse_list.total_file_size, 4,
             "All elements should be total4"
         );
         let remaining = cand.generate_usage_list();
