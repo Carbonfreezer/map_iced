@@ -46,6 +46,8 @@ pub struct TileCache<T: Requester> {
     is_initialized: bool,
     /// The accumulated error string.
     error_msg: String,
+    /// Special error message from tile error.
+    tile_error_msg: String,
     /// The hash set of clients, whose subscription got affected.
     client_notifications: FxHashSet<u32>,
     /// Tiles for which a request is currently outstanding at the core.
@@ -64,6 +66,7 @@ impl<T: Requester> TileCache<T> {
             subscription_region: FxHashMap::default(),
             is_initialized: false,
             error_msg: "".to_string(),
+            tile_error_msg: "".to_string(),
             client_notifications: FxHashSet::default(),
             tiles_in_flight: FxHashSet::default(),
         })
@@ -77,17 +80,60 @@ impl<T: Requester> TileCache<T> {
     /// Gets the internal update messages that have been accumulated,
     pub fn drain_result_messages(&mut self) -> Vec<UpdateMessage> {
         let mut result: Vec<UpdateMessage> = Vec::new();
-        if !self.error_msg.is_empty() {
+
+        if !self.error_msg.is_empty() || !self.tile_error_msg.is_empty() {
+            let mut text = take(&mut self.error_msg);
+            text.push_str(&take(&mut self.tile_error_msg));
             result.push(UpdateMessage::ErrorMessage {
-                text: self.error_msg.trim().into(),
+                text: text.trim().into(),
             });
+        } else {
+            self.error_msg.clear();
+            self.tile_error_msg.clear();
         }
+        
         for &client in &self.client_notifications {
             result.push(UpdateMessage::RelevantTilesArrived { client });
         }
         self.error_msg = "".to_string();
+        self.tile_error_msg = "".to_string();
         self.client_notifications.clear();
         result
+    }
+
+    /// Asks for the  current number of tiles missing can be used for
+    /// enabling / disabling buttons.
+    pub fn number_of_tiles_failed(&self) -> u32 {
+        if !self.is_initialized {
+            return 0;
+        }
+        self.content_tiles
+            .iter()
+            .filter(|(pos, image)| image.image.is_none() && !self.tiles_in_flight.contains(pos))
+            .count() as u32
+    }
+
+    /// Gets invoked from the outside to send request for failed tiles again.
+    /// A failed tile is a tile with no image data in the cache and whose position is not in tiles in flight.
+    pub fn retry_failed_tiles(&mut self) {
+        if !self.is_initialized {
+            return;
+        }
+
+        let missing_pos = self
+            .content_tiles
+            .iter()
+            .filter_map(|(pos, image)| {
+                (image.image.is_none() && !self.tiles_in_flight.contains(pos)).then_some(*pos)
+            })
+            .collect::<Vec<TilePosition>>();
+
+        for pos in missing_pos {
+            self.tiles_in_flight.insert(pos);
+            self.core
+                .request_tile(pos.zoom, pos.x, pos.y)
+                .expect("Inconsistent tile initialization state");
+        }
     }
 
     /// Gets called to process the messages, effectively those that have been pulled out the receiver
@@ -124,7 +170,9 @@ impl<T: Requester> TileCache<T> {
             } => {
                 let pos = TilePosition { x, y, zoom: level };
                 self.tiles_in_flight.remove(&pos);
-                self.error_msg += &*(message + "\n");
+                if self.tile_error_msg.is_empty() {
+                    self.tile_error_msg = message;
+                }
             }
         }
     }
