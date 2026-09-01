@@ -263,9 +263,9 @@ mod tests {
             y: 1,
             zoom: 0,
         };
-        let simpa = BoundingRectangle::new(&[first_tile]);
-        let simpb = BoundingRectangle::new(&[second_tile]);
-        let change = simpa.generate_deletion_creation_list(&simpb, 0);
+        let simple_a = BoundingRectangle::new(&[first_tile]);
+        let simple_b = BoundingRectangle::new(&[second_tile]);
+        let change = simple_a.generate_deletion_creation_list(&simple_b, 0);
         assert_eq!(change.deleted, vec![first_tile]);
         assert_eq!(change.added, vec![second_tile]);
     }
