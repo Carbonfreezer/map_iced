@@ -91,7 +91,7 @@ impl<T: Requester> TileCache<T> {
             self.error_msg.clear();
             self.tile_error_msg.clear();
         }
-        
+
         for &client in &self.client_notifications {
             result.push(UpdateMessage::RelevantTilesArrived { client });
         }
@@ -269,4 +269,48 @@ impl<T: Requester> TileCache<T> {
                 .expect("Inconsistent start state of tile cache.");
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches;
+    use itertools::iproduct;
+    use crate::tile_cache::cache_core::generate_dummy_cache;
+    use super::*;
+
+    #[tokio::test]
+    async fn base_test() {
+
+        const TILE_DIMENSION : u32 = 10;
+        let test_rect = BoundingRectangle::new(&[TilePosition{x:0, y:0, zoom:5}, TilePosition{x:TILE_DIMENSION - 1, y:TILE_DIMENSION - 1, zoom:5}]);
+        let low_level =  generate_dummy_cache(tempfile::tempdir().unwrap(), 100_000);
+        let mut high_level = TileCache::new(low_level).unwrap();
+        let mut receiver = high_level.get_receiver().unwrap();
+
+        high_level.register_new_interest_area(0, test_rect, 5);
+        let message = receiver.recv().await.unwrap();
+        assert_matches!(message, CachingResultMessage::InitializationCompleted);
+        high_level.process_caching_message(message);
+
+        let mut counter = 0;
+        while let Some(message) = receiver.recv().await {
+            counter += 1;
+            assert_matches!(message, CachingResultMessage::TileData{level : 5, ..});
+            high_level.process_caching_message(message);
+            if counter == TILE_DIMENSION * TILE_DIMENSION {break;}
+        }
+        assert_eq!(high_level.number_of_tiles_failed(), 0);
+
+        for (x,y) in iproduct!(0..TILE_DIMENSION, 0..TILE_DIMENSION) {
+            let check = high_level.try_get_image(&TilePosition{x:x, y:y, zoom:5});
+            assert!(check.is_some());
+        }
+
+        high_level.completely_unsubscribe(0);
+        for (x,y) in iproduct!(0..TILE_DIMENSION, 0..TILE_DIMENSION) {
+            let check = high_level.try_get_image(&TilePosition{x:x, y:y, zoom:5});
+            assert!(check.is_none());
+        }
+    }
+
 }
