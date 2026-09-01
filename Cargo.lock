@@ -2339,6 +2339,7 @@ dependencies = [
 name = "map_iced"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "fxhash",
  "iced",
  "itertools 0.15.0",

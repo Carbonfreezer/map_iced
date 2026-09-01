@@ -8,6 +8,7 @@ use crate::tile_cache::file_util::{FileUtil, round_to_final_consumption};
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
 use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
+use bytes::Bytes;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -52,7 +53,18 @@ pub enum CachingResultMessage {
         /// y coordinate.
         y: u32,
         /// The data of the tile, put behind an arc to prevent expensive cloning.
-        data: Arc<[u8]>,
+        data: Bytes,
+    },
+    /// Contains the information that a tile id has failed, needed  for book keeping.
+    TileFailed {
+        /// Zoom level.
+        level: u8,
+        /// x coordinate.
+        x: u32,
+        /// y coordinate.
+        y: u32,
+        /// Why did the tile not arrive..
+        message: String,
     },
 }
 
@@ -222,7 +234,7 @@ impl<T: Requester> CachingSystem<T> {
                     level,
                     x,
                     y,
-                    data: Arc::from(image_data),
+                    data: Bytes::from(image_data),
                 })
                 .await;
             // Now we have to check with the cache.
@@ -247,11 +259,16 @@ impl<T: Requester> CachingSystem<T> {
     ) {
         // In this case the file is not on the cache so we have to get it.
         let web_access = sharable_entry.requester.get_image_data(destination).await;
-        let raw_data: Arc<[u8]> = match web_access {
-            Ok(data) => Arc::from(data),
+        let raw_data: Bytes = match web_access {
+            Ok(data) => Bytes::from(data),
             Err(text) => {
                 let _ = sender
-                    .send(CachingResultMessage::Error { message: text })
+                    .send(CachingResultMessage::TileFailed {
+                        x: destination.x(),
+                        y: destination.y(),
+                        level: destination.level(),
+                        message: text,
+                    })
                     .await;
                 return;
             }

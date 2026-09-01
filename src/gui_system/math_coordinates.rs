@@ -11,7 +11,6 @@ pub struct TileCoordinates {
     pub zoom: u8,
 }
 
-
 /// A position of the tile in rounded coordinates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TilePosition {
@@ -154,8 +153,8 @@ impl LatitudeLongitude {
     /// (latitude: -90 .. 90, longitude: -180 .. 180)
     pub fn new(latitude: f64, longitude: f64) -> Self {
         Self {
-            latitude : latitude.clamp(-90.0, 90.0),
-            longitude : longitude.clamp(-180.0, 180.0),
+            latitude: latitude.clamp(-90.0, 90.0),
+            longitude: longitude.clamp(-180.0, 180.0),
         }
     }
 
@@ -183,8 +182,8 @@ impl From<TileCoordinates> for LatitudeLongitude {
 
 #[cfg(test)]
 mod tests {
-    use proptest::proptest;
     use super::*;
+    use proptest::proptest;
 
     #[test]
     fn creation_test() {
@@ -284,5 +283,4 @@ mod tests {
 
         }
     }
-
 }

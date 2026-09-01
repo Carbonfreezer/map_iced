@@ -9,6 +9,7 @@ fxhash = "0.2.1"
 tokio = { version = "1.53.1" , features = ["fs", "macros"]}
 itertools = "0.15.0"
 iced = {  version = "0.14.0", features = ["tokio","image", "advanced", "canvas"] }
+bytes = "1.12.1"
 
 [dev-dependencies]
 tempfile = "3.27.0"
