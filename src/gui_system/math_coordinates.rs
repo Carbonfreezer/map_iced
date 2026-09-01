@@ -1,12 +1,13 @@
 //! This module contains all related to math and coordinates.
 
 use itertools::iproduct;
+use std::f64::consts::PI;
 
 /// The tile coordinates in float space,
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct TileCoordinates {
-    pub x: f32,
-    pub y: f32,
+    pub x: f64,
+    pub y: f64,
     pub zoom: u8,
 }
 
@@ -26,6 +27,16 @@ impl From<TileCoordinates> for TilePosition {
         Self {
             x: value.x.floor() as u32,
             y: value.y.floor() as u32,
+            zoom: value.zoom,
+        }
+    }
+}
+
+impl From<TilePosition> for TileCoordinates {
+    fn from(value: TilePosition) -> Self {
+        Self {
+            x: value.x as f64,
+            y: value.y as f64,
             zoom: value.zoom,
         }
     }
@@ -124,8 +135,53 @@ impl BoundingRectangle {
     }
 }
 
+/// Conversion between zoom level and scaling factor.
+fn get_scaling_factor(zoom: u8) -> f64 {
+    2u32.pow(zoom as u32) as f64
+}
+
+/// The latitude longitude pair. Both are given in degrees.
+#[derive(Debug, Clone, Copy)]
+pub struct LatitudeLongitude {
+    latitude: f64,
+    longitude: f64,
+}
+
+impl LatitudeLongitude {
+    /// Constructs the object and makes sure, that both coordinates are in the valid range
+    /// (latitude: -90 .. 90, longitude: -180 .. 180)
+    pub fn new(latitude: f64, longitude: f64) -> Self {
+        Self {
+            latitude : latitude.clamp(-90.0, 90.0),
+            longitude : longitude.clamp(-180.0, 180.0),
+        }
+    }
+
+    /// Gets the tile coordinates in the indicated zoom level
+    pub fn get_tile_coordinates(&self, zoom: u8) -> TileCoordinates {
+        let scaling = get_scaling_factor(zoom);
+
+        let x = (self.longitude + 180.0) / 360.0 * scaling;
+        let angle = self.latitude * PI / 180.0;
+        let y = (1.0 - f64::ln(f64::tan(angle) + 1.0 / f64::cos(angle)) / PI) * scaling * 0.5;
+
+        TileCoordinates { x, y, zoom }
+    }
+}
+
+impl From<TileCoordinates> for LatitudeLongitude {
+    fn from(value: TileCoordinates) -> Self {
+        let scaling = get_scaling_factor(value.zoom);
+        let longitude = (value.x) / scaling * 360.0 - 180.0;
+        let latitude = f64::atan(f64::sinh(PI - value.y / scaling * 2.0 * PI)) * 180.0 / PI;
+
+        Self::new(latitude, longitude)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use proptest::proptest;
     use super::*;
 
     #[test]
@@ -213,4 +269,18 @@ mod tests {
         assert_eq!(change.deleted, vec![first_tile]);
         assert_eq!(change.added, vec![second_tile]);
     }
+
+    proptest! {
+        #[test]
+        fn coordinate_test(latitude in -90f64 .. 90f64, longitude in -180f64 .. 180f64) {
+            let orig_pos = LatitudeLongitude::new(latitude, longitude);
+            let tile = orig_pos.get_tile_coordinates(4);
+            let new_pos :LatitudeLongitude = tile.into();
+
+            assert!( f64::abs(new_pos.longitude -  orig_pos.longitude) < 1e-5);
+            assert!( f64::abs(new_pos.latitude -  orig_pos.latitude) < 1e-5);
+
+        }
+    }
+
 }
