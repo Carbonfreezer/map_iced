@@ -25,7 +25,7 @@ pub struct TileCollection {
 /// 4K Block size for files.
 const BLOCK_SIZE: u64 = 4 * 1024;
 
-pub fn round_to_final_consumption(raw_size : u64) -> u64 {
+pub fn round_to_final_consumption(raw_size: u64) -> u64 {
     raw_size.div_ceil(BLOCK_SIZE) * BLOCK_SIZE
 }
 
@@ -156,7 +156,10 @@ impl FileUtil {
                     if path.extension().and_then(|e| e.to_str()) != Some("png") {
                         continue;
                     }
-                    let length = metadata(&path).await.expect("The file existent was just scanned").len();
+                    let length = metadata(&path)
+                        .await
+                        .expect("The file existent was just scanned")
+                        .len();
                     accumulated_size += round_to_final_consumption(length);
                     if let Some(n) = path
                         .file_stem()

@@ -120,7 +120,97 @@ impl BoundingRectangle {
                 added.push(position);
             }
         }
-
         TileChange { added, deleted }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creation_test() {
+        let rect = BoundingRectangle::new(&[TilePosition {
+            x: 0,
+            y: 0,
+            zoom: 0,
+        }]);
+        assert_eq!(rect.width, 1);
+        assert_eq!(rect.height, 1);
+        assert_eq!(rect.get_iterator(0).count(), 1);
+    }
+
+    #[test]
+    fn square_test() {
+        let rect = BoundingRectangle::new(&[
+            TilePosition {
+                x: 0,
+                y: 0,
+                zoom: 0,
+            },
+            TilePosition {
+                x: 1,
+                y: 1,
+                zoom: 0,
+            },
+            TilePosition {
+                x: 2,
+                y: 2,
+                zoom: 0,
+            },
+        ]);
+        assert_eq!(rect.width, 3);
+        assert_eq!(rect.height, 3);
+        assert_eq!(rect.get_iterator(0).count(), 9);
+    }
+
+    #[test]
+    fn change_test() {
+        let first_rect = BoundingRectangle::new(&[
+            TilePosition {
+                x: 0,
+                y: 0,
+                zoom: 0,
+            },
+            TilePosition {
+                x: 1,
+                y: 1,
+                zoom: 0,
+            },
+        ]);
+        let change = first_rect.generate_deletion_creation_list(&first_rect, 0);
+        assert!(change.added.is_empty());
+        assert!(change.deleted.is_empty());
+        let second_rect = BoundingRectangle::new(&[
+            TilePosition {
+                x: 1,
+                y: 1,
+                zoom: 0,
+            },
+            TilePosition {
+                x: 2,
+                y: 2,
+                zoom: 0,
+            },
+        ]);
+        let change = first_rect.generate_deletion_creation_list(&second_rect, 0);
+        assert_eq!(change.added.len(), 3);
+        assert_eq!(change.deleted.len(), 3);
+
+        let first_tile = TilePosition {
+            x: 0,
+            y: 0,
+            zoom: 0,
+        };
+        let second_tile = TilePosition {
+            x: 1,
+            y: 1,
+            zoom: 0,
+        };
+        let simpa = BoundingRectangle::new(&[first_tile]);
+        let simpb = BoundingRectangle::new(&[second_tile]);
+        let change = simpa.generate_deletion_creation_list(&simpb, 0);
+        assert_eq!(change.deleted, vec![first_tile]);
+        assert_eq!(change.added, vec![second_tile]);
     }
 }

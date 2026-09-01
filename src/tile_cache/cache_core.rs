@@ -12,7 +12,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{mpsc,Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 ///  The maximum channel size we currently allow for.
 const MAXIMUM_MESSAGE_CHANNEL: usize = 100;
@@ -93,7 +93,6 @@ impl<T: Requester> CachingSystem<T> {
     pub fn get_receiver(&self) -> Option<Receiver<CachingResultMessage>> {
         self.stream_reader.lock().unwrap().take()
     }
-
 
     /// Asynchronous initialization function to set up the system.
     async fn process_initialize(
@@ -246,11 +245,10 @@ impl<T: Requester> CachingSystem<T> {
         sender: Sender<CachingResultMessage>,
         destination: TileSpecification,
     ) {
-
         // In this case the file is not on the cache so we have to get it.
         let web_access = sharable_entry.requester.get_image_data(destination).await;
         let raw_data = match web_access {
-            Ok(data) =>Arc::new(data),
+            Ok(data) => Arc::new(data),
             Err(text) => {
                 let _ = sender
                     .send(CachingResultMessage::Error { message: text })
@@ -383,7 +381,7 @@ mod tests {
 
     #[tokio::test]
     async fn first_setup() {
-        let  cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
+        let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
@@ -406,7 +404,7 @@ mod tests {
         }
 
         for _ in 0..100 {
-            let message =  receiver.recv().await.unwrap();
+            let message = receiver.recv().await.unwrap();
             assert_matches!(
                 message,
                 CachingResultMessage::TileData { level: 0, y: 1, .. }
