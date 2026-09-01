@@ -51,8 +51,8 @@ pub enum CachingResultMessage {
         x: u32,
         /// y coordinate.
         y: u32,
-        /// The data of the tile.
-        data: Vec<u8>,
+        /// The data of the tile, put behind an arc to prevent expensive cloning.
+        data: Arc<Vec<u8>>,
     },
 }
 
@@ -223,7 +223,7 @@ impl<T: Requester> CachingSystem<T> {
                     level,
                     x,
                     y,
-                    data: image_data,
+                    data: Arc::new(image_data),
                 })
                 .await;
             // Now we have to check with the cache.
@@ -250,7 +250,7 @@ impl<T: Requester> CachingSystem<T> {
         // In this case the file is not on the cache so we have to get it.
         let web_access = sharable_entry.requester.get_image_data(destination).await;
         let raw_data = match web_access {
-            Ok(data) => data,
+            Ok(data) =>Arc::new(data),
             Err(text) => {
                 let _ = sender
                     .send(CachingResultMessage::Error { message: text })
