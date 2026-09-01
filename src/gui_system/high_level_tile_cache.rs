@@ -87,16 +87,11 @@ impl<T: Requester> TileCache<T> {
             result.push(UpdateMessage::ErrorMessage {
                 text: text.trim().into(),
             });
-        } else {
-            self.error_msg.clear();
-            self.tile_error_msg.clear();
         }
 
         for &client in &self.client_notifications {
             result.push(UpdateMessage::RelevantTilesArrived { client });
         }
-        self.error_msg = "".to_string();
-        self.tile_error_msg = "".to_string();
         self.client_notifications.clear();
         result
     }
@@ -287,7 +282,11 @@ mod tests {
         let mut high_level = TileCache::new(low_level).unwrap();
         let mut receiver = high_level.get_receiver().unwrap();
 
+        // Register, drop and register again before the answers arrive.
         high_level.register_new_interest_area(0, test_rect, 5);
+        high_level.completely_unsubscribe(0);
+        high_level.register_new_interest_area(0, test_rect, 5);
+        
         let message = receiver.recv().await.unwrap();
         assert_matches!(message, CachingResultMessage::InitializationCompleted);
         high_level.process_caching_message(message);
