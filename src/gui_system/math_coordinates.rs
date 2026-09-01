@@ -11,6 +11,8 @@ pub struct TileCoordinates {
     pub zoom: u8,
 }
 
+
+/// A position of the tile in rounded coordinates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TilePosition {
     pub x: u32,
@@ -52,7 +54,7 @@ pub struct BoundingRectangle {
 }
 
 /// Describe what tiles have changed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TileChange {
     pub deleted: Vec<TilePosition>,
     pub added: Vec<TilePosition>,
