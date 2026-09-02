@@ -374,21 +374,21 @@ mod tests {
     use std::time::Duration;
 
     #[tokio::test]
-    #[ignore]
+    // #[ignore]
     async fn first_setup() {
-        // let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
-        let cache = generate_dummy_cache("transient", 20_000);
+        let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
+        // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
-        tokio::time::sleep(Duration::from_secs(AMOUNT_OF_SECONDS_TILL_SAVE as u64 + 2)).await;
+        // tokio::time::sleep(Duration::from_secs(AMOUNT_OF_SECONDS_TILL_SAVE as u64 + 2)).await;
     }
 
     #[tokio::test]
     async fn first_fill() {
-        // let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
-        let cache = generate_dummy_cache("transient", 20_000);
+        let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
+        // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
