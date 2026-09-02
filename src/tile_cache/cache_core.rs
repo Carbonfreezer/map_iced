@@ -23,7 +23,7 @@ const MAXIMUM_MESSAGE_CHANNEL: usize = 100;
 const LRU_TABLE_FILE: &str = "LRU.bin";
 
 /// The amount of idle seconds we use till saving.
-const AMOUNT_OF_SECONDS_TILL_SAVE: u8 = 10;
+const AMOUNT_OF_SECONDS_TILL_SAVE: u8 = 5;
 
 /// This struct contains the elements that must be shared across different tasks.
 struct ShareableEntries<T: Requester> {
