@@ -166,7 +166,7 @@ impl<T: Requester> CachingSystem<T> {
             .lru_list
             .lock()
             .await
-            .reconstruct_from(&lru_data, &data.tile_ids);
+            .reconstruct_from(&lru_data, &data);
 
         // Eventually we have to deal with an oversized cache.
         if data.total_file_size > sharable_entry.maximum_amount_of_data {
@@ -335,46 +335,26 @@ impl<T: Requester> CachingSystem<T> {
             new_memory = 0;
         }
 
-        let total_memory = sharable_entry.amount_of_data.load(Ordering::SeqCst) + new_memory;
+        let mut lru = sharable_entry.lru_list.lock().await;
+        lru.touch_or_insert(destination.into());
 
-        // First we append ourselves
-        sharable_entry
-            .lru_list
-            .lock()
-            .await
-            .touch_or_insert(destination.into());
+        // Reservierung als eine atomare Operation, kein load-dann-add mehr.
+        let total = sharable_entry.amount_of_data.fetch_add(new_memory, Ordering::SeqCst) + new_memory;
 
-        // If we have run over budget, we have to eliminate entries.
-        let subtracted_memory = if total_memory > sharable_entry.maximum_amount_of_data {
-            let clean_result = sharable_entry
-                .lru_list
-                .lock()
-                .await
-                .free_elements(
-                    total_memory - sharable_entry.maximum_amount_of_data,
-                    &sharable_entry.file_util,
-                )
+        let to_remove = if total > sharable_entry.maximum_amount_of_data {
+            let cleaned = lru
+                .free_elements(total - sharable_entry.maximum_amount_of_data, &sharable_entry.file_util)
                 .await;
-            // Remove files.
             sharable_entry
-                .file_util
-                .remove_files(&clean_result.tile_ids)
-                .await;
-            clean_result.total_file_size
+                .amount_of_data
+                .fetch_sub(cleaned.total_file_size, Ordering::SeqCst);
+            cleaned.tile_ids
         } else {
-            0
+            Vec::new()
         };
+        drop(lru);
+        sharable_entry.file_util.remove_files(&to_remove).await;
 
-        // Now set the new memory.
-        if new_memory > subtracted_memory {
-            sharable_entry
-                .amount_of_data
-                .fetch_add(new_memory - subtracted_memory, Ordering::SeqCst);
-        } else {
-            sharable_entry
-                .amount_of_data
-                .fetch_sub(subtracted_memory - new_memory, Ordering::SeqCst);
-        }
     }
 
     /// Helper routine to write out the cache file.

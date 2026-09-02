@@ -38,6 +38,8 @@ pub struct LastRecentlyUsedList {
     last_entry: Option<u32>,
     /// The hashmap to find which data is stored in which cell.
     forward_map: FxHashMap<u64, u32>,
+    /// The amount of data we store as the accumulated total file size.
+    amount_of_data: u64,
 }
 
 impl LastRecentlyUsedList {
@@ -185,18 +187,21 @@ impl LastRecentlyUsedList {
     /// lru content, that has also a file handle in lodaded handles and then add the handles in
     /// loaded handles, that are not in lru_content. So we have exactly the loaded_file_handles in there
     /// in the end just in different order.
-    pub fn reconstruct_from(&mut self, lru_content: &[u64], loaded_file_handles: &[u64]) {
-        let total_size = loaded_file_handles.len();
+    pub fn reconstruct_from(&mut self, lru_content: &[u64], existing_entries: &TileCollection) {
+        let total_size = existing_entries.tile_ids.len();
         if total_size == 0 {
             *self = Self::default();
             return;
         }
+        self.amount_of_data = existing_entries.total_file_size;
+        debug_assert!(self.amount_of_data > 0, "As we have files we should have a larger file size.");
+
         let last_element = total_size as u32 - 1;
         self.open_spaces.clear();
         self.forward_map.clear();
         self.forward_map.reserve(total_size);
         let mut sequence_content: Vec<LRUEntry> = Vec::with_capacity(total_size);
-        let mut remaining_loaded_files = FxHashSet::from_iter(loaded_file_handles);
+        let mut remaining_loaded_files = FxHashSet::from_iter(&existing_entries.tile_ids);
         debug_assert_eq!(
             remaining_loaded_files.len(),
             total_size,
@@ -243,7 +248,7 @@ mod tests {
     #[test]
     fn filter_test() {
         let raw_data = vec![0, 1, 2, 3, 4, 5];
-        let file_data = vec![5, 2, 3, 22];
+        let file_data = TileCollection{ tile_ids: vec![5, 2, 3, 22], total_file_size: 20};
         let expected_data = vec![2, 3, 5, 22];
         let mut cand = LastRecentlyUsedList::default();
         cand.reconstruct_from(&raw_data, &file_data);
@@ -265,7 +270,7 @@ mod tests {
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
         cand.touch_or_insert(4);
         assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
-        cand.reconstruct_from(&usage_list, &total_vec);
+        cand.reconstruct_from(&usage_list, &TileCollection{ tile_ids: total_vec, total_file_size: 20});
         cand.touch_or_insert(2);
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
     }
@@ -274,7 +279,7 @@ mod tests {
     fn reconstruct_test() {
         let mut cand = LastRecentlyUsedList::default();
 
-        cand.reconstruct_from(&[], &[0, 1, 2, 3, 4, 5]);
+        cand.reconstruct_from(&[], &TileCollection{tile_ids: vec![0, 1, 2, 3, 4, 5], total_file_size: 20});
         let mut list = cand.generate_usage_list();
         list.sort();
         assert_eq!(list, vec![0, 1, 2, 3, 4, 5]);

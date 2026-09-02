@@ -222,8 +222,9 @@ mod tests {
     async fn lru_cache_test() {
         let util = FileUtil::new(tempfile::tempdir().unwrap());
         let test_vector = vec![12, 23, 24, 25];
+        let test_collection = TileCollection {tile_ids: test_vector.clone(), total_file_size: 4 * 1024};
         let mut cache = LastRecentlyUsedList::default();
-        cache.reconstruct_from(&test_vector, &test_vector);
+        cache.reconstruct_from(&test_vector, &test_collection);
         util.safe_save(
             "Transient.bin",
             &FileUtil::convert_to_u8(&cache.generate_usage_list()),
@@ -233,7 +234,7 @@ mod tests {
         let mut cache_b = LastRecentlyUsedList::default();
         cache_b.reconstruct_from(
             &FileUtil::convert_to_u64(&util.try_load_plain("Transient.bin").await.unwrap()),
-            &test_vector,
+            &test_collection,
         );
         assert_eq!(
             cache_b.generate_usage_list(),
