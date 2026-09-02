@@ -11,7 +11,7 @@ use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
 use bytes::Bytes;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{Mutex, mpsc};
 use tokio::task::JoinHandle;
@@ -31,8 +31,6 @@ struct ShareableEntries<T: Requester> {
     file_util: FileUtil,
     /// The lru list behind a mutex.
     lru_list: Mutex<LastRecentlyUsedList>,
-    /// The amount of data we currently administer.
-    amount_of_data: AtomicU64,
     /// The maximum data we currently allow for.
     maximum_amount_of_data: u64,
     /// The requester we use for making web requests.
@@ -96,7 +94,6 @@ impl<T: Requester> CachingSystem<T> {
         let sharable_entry = ShareableEntries {
             file_util: FileUtil::new(cache_base_dir),
             lru_list: Mutex::new(LastRecentlyUsedList::default()),
-            amount_of_data: AtomicU64::new(0),
             maximum_amount_of_data,
             requester,
             initialization_completed: AtomicBool::new(false),
@@ -182,16 +179,6 @@ impl<T: Requester> CachingSystem<T> {
                 .file_util
                 .remove_files(&clear_data.tile_ids)
                 .await;
-            // Store the result.
-            sharable_entry.amount_of_data.store(
-                data.total_file_size - clear_data.total_file_size,
-                Ordering::Relaxed,
-            );
-        } else {
-            // Set the required data.
-            sharable_entry
-                .amount_of_data
-                .store(data.total_file_size, Ordering::Relaxed);
         }
 
         sharable_entry
@@ -280,7 +267,7 @@ impl<T: Requester> CachingSystem<T> {
                 .lru_list
                 .lock()
                 .await
-                .touch_or_insert(destination.into());
+                .touch(destination.into());
         } else {
             Self::deal_with_cache_miss(&sharable_entry, sender, destination).await;
         }
@@ -321,7 +308,7 @@ impl<T: Requester> CachingSystem<T> {
             })
             .await;
 
-        let mut new_memory = round_to_final_consumption(raw_data.len() as u64);
+        let new_memory = round_to_final_consumption(raw_data.len() as u64);
         // Now we have to save the data on the disc.
         if let Err(text) = sharable_entry
             .file_util
@@ -332,22 +319,19 @@ impl<T: Requester> CachingSystem<T> {
                 .send(CachingResultMessage::Error { message: text })
                 .await;
 
-            new_memory = 0;
+            return;
         }
 
         let mut lru = sharable_entry.lru_list.lock().await;
-        lru.touch_or_insert(destination.into());
+        lru.insert(destination.into(), new_memory);
 
         // Reservierung als eine atomare Operation, kein load-dann-add mehr.
-        let total = sharable_entry.amount_of_data.fetch_add(new_memory, Ordering::SeqCst) + new_memory;
+        let total = lru.space_on_disc();
 
         let to_remove = if total > sharable_entry.maximum_amount_of_data {
             let cleaned = lru
                 .free_elements(total - sharable_entry.maximum_amount_of_data, &sharable_entry.file_util)
                 .await;
-            sharable_entry
-                .amount_of_data
-                .fetch_sub(cleaned.total_file_size, Ordering::SeqCst);
             cleaned.tile_ids
         } else {
             Vec::new()
@@ -451,6 +435,6 @@ mod tests {
             );
         }
         // Wait for the data written to disc.
-        tokio::time::sleep(Duration::from_millis(1000)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }

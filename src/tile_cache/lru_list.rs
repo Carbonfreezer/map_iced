@@ -39,12 +39,14 @@ pub struct LastRecentlyUsedList {
     /// The hashmap to find which data is stored in which cell.
     forward_map: FxHashMap<u64, u32>,
     /// The amount of data we store as the accumulated total file size.
-    amount_of_data: u64,
+    space_on_disc: u64,
 }
 
 impl LastRecentlyUsedList {
     /// Takes the entry and moves it to the front. Returns if we need to save the structure.
-    fn touch(&mut self, index: u32) {
+    /// User has to make sure that the data is contained in the table.
+    pub fn touch(&mut self, data: u64) {
+        let index = *self.forward_map.get(&data).expect("Data is not in lru list.");
         // When we are the first in the list there is nothing to touch.
         let Some(previous) = get_u32(self.entry_list[index as usize].previous) else {
             debug_assert_eq!(
@@ -81,9 +83,13 @@ impl LastRecentlyUsedList {
         self.entry_list[index as usize].next = map_u32(self.first_entry);
         self.first_entry = Some(index);
     }
+    
+    /// Gets the amount of disc space we currently cover.
+    pub fn space_on_disc(&self) -> u64 {self.space_on_disc}
 
-    /// Generates a new entry at the top and returns the storage entry.
-    fn generate_new_entry(&mut self, data: u64) {
+    /// Generates a new entry at the top.
+    pub fn insert(&mut self, data: u64, space_on_disc: u64) {
+        self.space_on_disc += space_on_disc;
         // First we have to eventually add a new entry.
         let space = match self.open_spaces.pop() {
             Some(n) => n,
@@ -107,15 +113,7 @@ impl LastRecentlyUsedList {
         self.forward_map.insert(data, space);
     }
 
-    /// Touches the data if existing or generates a new entry,
-    /// Either way the entry will always be on the top.
-    pub fn touch_or_insert(&mut self, data: u64) {
-        if let Some(index) = self.forward_map.get(&data) {
-            self.touch(*index)
-        } else {
-            self.generate_new_entry(data);
-        }
-    }
+    
 
     /// Frees elements from the Cache and returns the freed elements.
     /// If the element does not exist anymore a size of zero should be returned.
@@ -149,6 +147,8 @@ impl LastRecentlyUsedList {
             }
         }
 
+        self.space_on_disc -= freed_accumulated;
+        
         // Check if we have flushed all.
         if self.last_entry.is_none() {
             self.first_entry = None;
@@ -193,8 +193,8 @@ impl LastRecentlyUsedList {
             *self = Self::default();
             return;
         }
-        self.amount_of_data = existing_entries.total_file_size;
-        debug_assert!(self.amount_of_data > 0, "As we have files we should have a larger file size.");
+        self.space_on_disc = existing_entries.total_file_size;
+        debug_assert!(self.space_on_disc > 0, "As we have files we should have a larger file size.");
 
         let last_element = total_size as u32 - 1;
         self.open_spaces.clear();
@@ -260,18 +260,18 @@ mod tests {
         let mut cand = LastRecentlyUsedList::default();
         let total_vec = vec![0, 1, 2, 3, 4];
         for i in total_vec.iter().rev() {
-            cand.touch_or_insert(*i);
+            cand.insert(*i, 0);
         }
 
         let usage_list = cand.generate_usage_list();
 
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
-        cand.touch_or_insert(0);
+        cand.touch(0);
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
-        cand.touch_or_insert(4);
+        cand.touch(4);
         assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
         cand.reconstruct_from(&usage_list, &TileCollection{ tile_ids: total_vec, total_file_size: 20});
-        cand.touch_or_insert(2);
+        cand.touch(2);
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
     }
 
