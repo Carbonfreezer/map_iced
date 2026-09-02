@@ -10,10 +10,10 @@ use crate::tile_cache::tile_name_conversion::TileSpecification;
 use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
 use bytes::Bytes;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 ///  The maximum channel size we currently allow for.
@@ -31,8 +31,6 @@ struct ShareableEntries<T: Requester> {
     file_util: FileUtil,
     /// The lru list behind a mutex.
     lru_list: Mutex<LastRecentlyUsedList>,
-    /// The maximum data we currently allow for.
-    maximum_amount_of_data: u64,
     /// The requester we use for making web requests.
     requester: T,
     /// Flags that the initialization is completed.
@@ -75,7 +73,7 @@ pub struct CachingSystem<T: Requester> {
     /// The entry that gets cloned for every working thread.
     cloneable_entry: Arc<ShareableEntries<T>>,
     /// The stream reader for the tokio stream.
-    stream_reader: std::sync::Mutex<Option<Receiver<CachingResultMessage>>>,
+    stream_reader: Mutex<Option<Receiver<CachingResultMessage>>>,
     /// The sender used for data,
     stream_sender: Sender<CachingResultMessage>,
     /// The atomic counter we use for saving the lru cache.
@@ -93,8 +91,7 @@ impl<T: Requester> CachingSystem<T> {
         let (tx, rx) = mpsc::channel::<CachingResultMessage>(MAXIMUM_MESSAGE_CHANNEL);
         let sharable_entry = ShareableEntries {
             file_util: FileUtil::new(cache_base_dir),
-            lru_list: Mutex::new(LastRecentlyUsedList::default()),
-            maximum_amount_of_data,
+            lru_list: Mutex::new(LastRecentlyUsedList::new(maximum_amount_of_data)),
             requester,
             initialization_completed: AtomicBool::new(false),
         };
@@ -109,7 +106,7 @@ impl<T: Requester> CachingSystem<T> {
 
         Self {
             cloneable_entry: arc_sharable_entry,
-            stream_reader: std::sync::Mutex::new(Some(rx)),
+            stream_reader: Mutex::new(Some(rx)),
             stream_sender: tx,
             savings_counter,
             timer_handle,
@@ -159,27 +156,17 @@ impl<T: Requester> CachingSystem<T> {
                 .await
                 .unwrap_or_default(),
         );
-        sharable_entry
+        let deletion_list = sharable_entry
             .lru_list
             .lock()
-            .await
+            .unwrap()
             .reconstruct_from(&lru_data, &data);
 
-        // Eventually we have to deal with an oversized cache.
-        if data.total_file_size > sharable_entry.maximum_amount_of_data {
-            let amount_to_free = data.total_file_size - sharable_entry.maximum_amount_of_data;
-            let clear_data = sharable_entry
-                .lru_list
-                .lock()
-                .await
-                .free_elements(amount_to_free, &sharable_entry.file_util)
-                .await;
-            // Remove the files.
-            sharable_entry
-                .file_util
-                .remove_files(&clear_data.tile_ids)
-                .await;
-        }
+        // Remove any orphan files, we do not cache anymore.
+        sharable_entry
+            .file_util
+            .remove_files(&deletion_list)
+            .await;
 
         sharable_entry
             .initialization_completed
@@ -266,7 +253,7 @@ impl<T: Requester> CachingSystem<T> {
             sharable_entry
                 .lru_list
                 .lock()
-                .await
+                .unwrap()
                 .touch(destination.into());
         } else {
             Self::deal_with_cache_miss(&sharable_entry, sender, destination).await;
@@ -322,21 +309,7 @@ impl<T: Requester> CachingSystem<T> {
             return;
         }
 
-        let mut lru = sharable_entry.lru_list.lock().await;
-        lru.insert(destination.into(), new_memory);
-
-        // Reservierung als eine atomare Operation, kein load-dann-add mehr.
-        let total = lru.space_on_disc();
-
-        let to_remove = if total > sharable_entry.maximum_amount_of_data {
-            let cleaned = lru
-                .free_elements(total - sharable_entry.maximum_amount_of_data, &sharable_entry.file_util)
-                .await;
-            cleaned.tile_ids
-        } else {
-            Vec::new()
-        };
-        drop(lru);
+        let to_remove = sharable_entry.lru_list.lock().unwrap().insert_and_clear(destination.into(), new_memory);
         sharable_entry.file_util.remove_files(&to_remove).await;
 
     }
@@ -346,7 +319,7 @@ impl<T: Requester> CachingSystem<T> {
         sharable_entry: &Arc<ShareableEntries<T>>,
         sender: &Sender<CachingResultMessage>,
     ) {
-        let raw_data = sharable_entry.lru_list.lock().await.generate_usage_list();
+        let raw_data = sharable_entry.lru_list.lock().unwrap().generate_usage_list();
         let res = sharable_entry
             .file_util
             .safe_save(LRU_TABLE_FILE, &FileUtil::convert_to_u8(&raw_data))

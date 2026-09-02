@@ -14,13 +14,15 @@ pub struct FileUtil {
     temp_file_counter: AtomicU32,
 }
 
-/// A collection of the tiles in combination with their total used memory.
-pub struct TileCollection {
-    /// The ids with the files.
-    pub tile_ids: Vec<u64>,
-    /// The total disc size of all files.
-    pub total_file_size: u64,
+
+/// An entry for a tile consisting of the id and the disc usage.
+pub struct TileData {
+    /// The id of the tile.
+    pub tile_id: u64,
+    /// The disc space usage of the tile.
+    pub size_on_disc : u64
 }
+
 
 /// 4K Block size for files.
 const BLOCK_SIZE: u64 = 4 * 1024;
@@ -52,22 +54,6 @@ impl FileUtil {
         input.iter().flat_map(|&x| u64::to_be_bytes(x)).collect()
     }
 
-    /// Returns a given file length 0 if non-existent.
-    pub async fn get_file_length(&self, file_name: impl AsRef<Path>) -> u64 {
-        let final_path = self.base_path.join(file_name);
-        let length = match metadata(&final_path).await {
-            Ok(metadata) => metadata.len(),
-            Err(_) => 0,
-        };
-
-        round_to_final_consumption(length)
-    }
-
-    /// Gets the file length directly from an id.
-    pub async fn get_file_length_from_id(&self, id: u64) -> u64 {
-        self.get_file_length(TileSpecification::from(id).filename())
-            .await
-    }
 
     /// Crates a file util with the indicated root directory.
     pub fn new(base_path: impl AsRef<Path>) -> Self {
@@ -134,10 +120,9 @@ impl FileUtil {
     }
 
     /// Gets all png filenames recursively interpreted as u64. and returns also the accumulated size in files.
-    pub async fn get_all_pngs_interpreted_as_u64(&self) -> TileCollection {
-        let mut id_list = Vec::new();
+    pub async fn get_all_pngs_interpreted_as_u64(&self) -> Vec<TileData> {
+        let mut result = Vec::new();
         let mut pending = vec![self.base_path.clone()];
-        let mut accumulated_size = 0;
 
         while let Some(dir) = pending.pop() {
             let Ok(mut dir_scan) = read_dir(&dir).await else {
@@ -156,26 +141,22 @@ impl FileUtil {
                     if path.extension().and_then(|e| e.to_str()) != Some("png") {
                         continue;
                     }
-                    let length = metadata(&path)
+                    let length = round_to_final_consumption(metadata(&path)
                         .await
                         .expect("The file existent was just scanned")
-                        .len();
-                    accumulated_size += round_to_final_consumption(length);
+                        .len());
+                    debug_assert!(length > 0, "There should be no empty files");
                     if let Some(n) = path
                         .file_stem()
                         .and_then(|s| s.to_str())
                         .and_then(|s| u64::from_str_radix(s, 16).ok())
                     {
-                        id_list.push(n);
+                        result.push(TileData{tile_id: n, size_on_disc: length});
                     }
                 }
             }
         }
-
-        TileCollection {
-            tile_ids: id_list,
-            total_file_size: accumulated_size,
-        }
+        result
     }
 }
 
@@ -192,38 +173,28 @@ mod tests {
         assert_eq!(back_test, base, "Vectors should be the same.");
     }
 
-    #[tokio::test]
-    async fn file_test() {
-        let base = vec![12, 23, 24, 25];
-        let util = FileUtil::new(tempfile::tempdir().unwrap());
-        util.safe_save("blob.tmp", &base).await.unwrap();
-        let back_data = util.try_load_plain("blob.tmp").await.unwrap();
-        assert_eq!(back_data, base);
-        assert_eq!(util.get_file_length("blob.tmp").await, 4 * 1024);
-        util.remove_temps_from_base().await;
-        assert_eq!(util.get_file_length("my_test/blob.tmp").await, 0);
-    }
 
     #[tokio::test]
     async fn fake_png_test() {
         let base = vec![12, 23, 24, 25];
         let base_index = TileSpecification::new(1, 2, 3);
-        let util = FileUtil::new(tempfile::tempdir().unwrap());
+        // let util = FileUtil::new(tempfile::tempdir().unwrap());
+        let util = FileUtil::new("transient");
         util.safe_save(base_index.filename(), &base).await.unwrap();
         let existing_pngs = util.get_all_pngs_interpreted_as_u64().await;
         assert_eq!(
-            TileSpecification::from(existing_pngs.tile_ids[0]),
+            TileSpecification::from(existing_pngs[0].tile_id),
             base_index
         );
-        assert_eq!(existing_pngs.total_file_size, 4 * 1024);
+        assert_eq!(existing_pngs[0].size_on_disc, 4 * 1024);
     }
 
     #[tokio::test]
     async fn lru_cache_test() {
         let util = FileUtil::new(tempfile::tempdir().unwrap());
         let test_vector = vec![12, 23, 24, 25];
-        let test_collection = TileCollection {tile_ids: test_vector.clone(), total_file_size: 4 * 1024};
-        let mut cache = LastRecentlyUsedList::default();
+        let test_collection = test_vector.iter().map(|&t| TileData{tile_id: t, size_on_disc: 1}).collect::<Vec<_>>();
+        let mut cache = LastRecentlyUsedList::new(20);
         cache.reconstruct_from(&test_vector, &test_collection);
         util.safe_save(
             "Transient.bin",
@@ -231,7 +202,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let mut cache_b = LastRecentlyUsedList::default();
+        let mut cache_b = LastRecentlyUsedList::new(20);
         cache_b.reconstruct_from(
             &FileUtil::convert_to_u64(&util.try_load_plain("Transient.bin").await.unwrap()),
             &test_collection,
@@ -248,7 +219,7 @@ mod tests {
         let util = FileUtil::new(tempfile::tempdir().unwrap());
         util.safe_save("Test.tmp", &[1, 2, 3]).await.unwrap();
         util.remove_temps_from_base().await;
-        let memory = util.get_file_length("Test.tmp").await;
-        assert_eq!(memory, 0, "The fils should have gone by now");
+        let data = util.try_load_plain("Test.tmp").await;
+        assert_eq!(data, None, "The fils should have gone by now");
     }
 }
