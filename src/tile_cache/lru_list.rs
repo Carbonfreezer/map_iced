@@ -1,7 +1,7 @@
 //! This module contains as a pseudo double linked list the entries of the data in least recently
 //! used priority que. The data stored is an u64. This is the core data used for the tiling system.
 
-use crate::tile_cache::file_util::{TileData};
+use crate::tile_cache::file_util::TileData;
 use fxhash::FxHashMap;
 use std::num::NonZeroU32;
 
@@ -26,7 +26,7 @@ struct LRUEntry {
     /// The data we represent.
     data: u64,
     /// The amount of disc space we occupy.
-    disc_space_consumption : u64
+    disc_space_consumption: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -48,7 +48,6 @@ pub struct LastRecentlyUsedList {
 }
 
 impl LastRecentlyUsedList {
-
     /// Creates a new least recently used list.
     pub fn new(max_space_on_disc: u64) -> Self {
         Self {
@@ -58,7 +57,7 @@ impl LastRecentlyUsedList {
             last_entry: Default::default(),
             space_on_disc: Default::default(),
             forward_map: Default::default(),
-            max_space_on_disc
+            max_space_on_disc,
         }
     }
 
@@ -70,7 +69,10 @@ impl LastRecentlyUsedList {
     /// Takes the entry and moves it to the front. Returns if we need to save the structure.
     /// User has to make sure that the data is contained in the table.
     pub fn touch(&mut self, data: u64) {
-        let index = *self.forward_map.get(&data).expect("Data is not in lru list.");
+        // Situation can happen if file got loaded but already eliminated from bookkeeping.
+        let Some(&index) = self.forward_map.get(&data) else {
+            return;
+        };
         // When we are the first in the list there is nothing to touch.
         let Some(previous) = get_u32(self.entry_list[index as usize].previous) else {
             debug_assert_eq!(
@@ -108,9 +110,13 @@ impl LastRecentlyUsedList {
         self.first_entry = Some(index);
     }
 
-
     /// Generates a new entry at the top,  we also return the files that need to get deleted.
     pub fn insert_and_clear(&mut self, data: u64, space_on_disc: u64) -> Vec<u64> {
+        // There is a bogus double file incoming. Simply touch it and return nothing.
+        if self.forward_map.contains_key(&data) {
+            self.touch(data);
+            return vec![];
+        }
         debug_assert!(space_on_disc > 0, "There should be no empty files");
         self.space_on_disc += space_on_disc;
         // First we have to eventually add a new entry.
@@ -148,7 +154,10 @@ impl LastRecentlyUsedList {
         {
             let element = &self.entry_list[scan as usize];
             let freed_amount = element.disc_space_consumption;
-            debug_assert!(freed_amount > 0, "We should have no orphan files in the list.");
+            debug_assert!(
+                freed_amount > 0,
+                "We should have no orphan files in the list."
+            );
             let content = element.data;
             self.forward_map.remove(&content);
             free_list.push(content);
@@ -181,12 +190,17 @@ impl LastRecentlyUsedList {
     }
 
     /// Generates an entry for the LRU table.
-    fn get_lru_entry(index: u32, last_element: u32, content: u64, disc_space_consumption: u64) -> LRUEntry {
+    fn get_lru_entry(
+        index: u32,
+        last_element: u32,
+        content: u64,
+        disc_space_consumption: u64,
+    ) -> LRUEntry {
         LRUEntry {
             previous: (index > 0).then(|| set_u32(index - 1).unwrap()),
             next: (index < last_element).then(|| set_u32(index + 1).unwrap()),
             data: content,
-            disc_space_consumption
+            disc_space_consumption,
         }
     }
 
@@ -195,39 +209,57 @@ impl LastRecentlyUsedList {
     /// lru content, that has also a file handle in lodaded handles and then add the handles in
     /// loaded handles, that are not in lru_content. So we have exactly the loaded_file_handles in there
     /// in the end just in different order. Also we return a list of files to be deleted to fit into the budget.
-    pub fn reconstruct_from(&mut self, lru_content: &[u64], existing_entries: &[TileData]) -> Vec<u64> {
+    pub fn reconstruct_from(
+        &mut self,
+        lru_content: &[u64],
+        existing_entries: &[TileData],
+    ) -> Vec<u64> {
         self.reset();
-        if  existing_entries.is_empty() {
+        if existing_entries.is_empty() {
             return Vec::new();
         }
-        self.space_on_disc  = existing_entries.iter().map(|x| x.size_on_disc).sum();
+        // We are deduplicating along the way, if someone should have manipulated the
+        // directories.
+        let mut look_up_for_existing = existing_entries
+            .iter()
+            .map(|x| (x.tile_id, x.size_on_disc))
+            .collect::<FxHashMap<u64, u64>>();
 
-        let total_size = existing_entries.len();
-        debug_assert!(self.space_on_disc > 0, "As we have files we should have a larger file size.");
+        self.space_on_disc = look_up_for_existing.values().sum();
+        let total_size = look_up_for_existing.len();
+
+        debug_assert!(
+            self.space_on_disc > 0,
+            "As we have files we should have a larger file size."
+        );
         let last_element = total_size as u32 - 1;
         self.forward_map.reserve(total_size);
         let mut sequence_content: Vec<LRUEntry> = Vec::with_capacity(total_size);
-
-        let mut look_up_for_existing = existing_entries.iter().map(|x| (x.tile_id, x.size_on_disc)).collect::<FxHashMap<u64, u64>>();
-
-        debug_assert_eq!(
-            look_up_for_existing.len(),
-            total_size,
-            "The loaded files should be unique per construction"
-        );
 
         let mut position_counter = 0;
         // First pass we go over the lru content.
         for &x in lru_content {
             // Skip all entries that are not loaded.
-            let Some(file_size) = look_up_for_existing.remove(&x) else {continue;};
-            sequence_content.push(Self::get_lru_entry(position_counter, last_element, x, file_size));
+            let Some(file_size) = look_up_for_existing.remove(&x) else {
+                continue;
+            };
+            sequence_content.push(Self::get_lru_entry(
+                position_counter,
+                last_element,
+                x,
+                file_size,
+            ));
             self.forward_map.insert(x, position_counter);
             position_counter += 1;
         }
         // Now we add all the remaining files, that are loaded but not in the content table.
         for (data, size) in look_up_for_existing.into_iter() {
-            sequence_content.push(Self::get_lru_entry(position_counter, last_element, data, size));
+            sequence_content.push(Self::get_lru_entry(
+                position_counter,
+                last_element,
+                data,
+                size,
+            ));
             self.forward_map.insert(data, position_counter);
             position_counter += 1;
         }
@@ -239,7 +271,7 @@ impl LastRecentlyUsedList {
         self.first_entry = Some(0);
         self.last_entry = Some(last_element);
 
-        return self.fit_in_budget();
+        self.fit_in_budget()
     }
 }
 
@@ -256,8 +288,14 @@ mod tests {
     #[test]
     fn filter_test() {
         let raw_data = vec![0, 1, 2, 3, 4, 5];
-        let test_data = vec![5,2,3,22];
-        let file_data = test_data.iter().map(|x| TileData{tile_id: *x, size_on_disc: 1}).collect::<Vec<_>>();
+        let test_data = vec![5, 2, 3, 22];
+        let file_data = test_data
+            .iter()
+            .map(|x| TileData {
+                tile_id: *x,
+                size_on_disc: 1,
+            })
+            .collect::<Vec<_>>();
         let expected_data = vec![2, 3, 5, 22];
         let mut cand = LastRecentlyUsedList::new(20);
         cand.reconstruct_from(&raw_data, &file_data);
@@ -268,7 +306,13 @@ mod tests {
     fn fill_test() {
         let mut cand = LastRecentlyUsedList::new(20);
         let total_vec = vec![0, 1, 2, 3, 4];
-        let entry_vec = total_vec.iter().map(|x| TileData{tile_id: *x, size_on_disc: 1}).collect::<Vec<_>>();
+        let entry_vec = total_vec
+            .iter()
+            .map(|x| TileData {
+                tile_id: *x,
+                size_on_disc: 1,
+            })
+            .collect::<Vec<_>>();
         for i in total_vec.iter().rev() {
             cand.insert_and_clear(*i, 1);
         }
@@ -288,8 +332,14 @@ mod tests {
     #[test]
     fn reconstruct_test() {
         let mut cand = LastRecentlyUsedList::new(20);
-        let total_vec = vec![0, 1, 2, 3, 4,5];
-        let input_vec = total_vec.iter().map(|x| TileData{tile_id: *x, size_on_disc: 1}).collect::<Vec<_>>();
+        let total_vec = vec![0, 1, 2, 3, 4, 5];
+        let input_vec = total_vec
+            .iter()
+            .map(|x| TileData {
+                tile_id: *x,
+                size_on_disc: 1,
+            })
+            .collect::<Vec<_>>();
 
         cand.reconstruct_from(&[], &input_vec);
         let mut list = cand.generate_usage_list();

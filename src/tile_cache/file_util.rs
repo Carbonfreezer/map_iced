@@ -14,15 +14,13 @@ pub struct FileUtil {
     temp_file_counter: AtomicU32,
 }
 
-
 /// An entry for a tile consisting of the id and the disc usage.
 pub struct TileData {
     /// The id of the tile.
     pub tile_id: u64,
     /// The disc space usage of the tile.
-    pub size_on_disc : u64
+    pub size_on_disc: u64,
 }
-
 
 /// 4K Block size for files.
 const BLOCK_SIZE: u64 = 4 * 1024;
@@ -53,7 +51,6 @@ impl FileUtil {
     pub fn convert_to_u8(input: &[u64]) -> Vec<u8> {
         input.iter().flat_map(|&x| u64::to_be_bytes(x)).collect()
     }
-
 
     /// Crates a file util with the indicated root directory.
     pub fn new(base_path: impl AsRef<Path>) -> Self {
@@ -141,17 +138,22 @@ impl FileUtil {
                     if path.extension().and_then(|e| e.to_str()) != Some("png") {
                         continue;
                     }
-                    let length = round_to_final_consumption(metadata(&path)
-                        .await
-                        .expect("The file existent was just scanned")
-                        .len());
+                    let length = round_to_final_consumption(
+                        metadata(&path)
+                            .await
+                            .expect("The file existent was just scanned")
+                            .len(),
+                    );
                     debug_assert!(length > 0, "There should be no empty files");
                     if let Some(n) = path
                         .file_stem()
                         .and_then(|s| s.to_str())
                         .and_then(|s| u64::from_str_radix(s, 16).ok())
                     {
-                        result.push(TileData{tile_id: n, size_on_disc: length});
+                        result.push(TileData {
+                            tile_id: n,
+                            size_on_disc: length,
+                        });
                     }
                 }
             }
@@ -173,7 +175,6 @@ mod tests {
         assert_eq!(back_test, base, "Vectors should be the same.");
     }
 
-
     #[tokio::test]
     async fn fake_png_test() {
         let base = vec![12, 23, 24, 25];
@@ -193,7 +194,13 @@ mod tests {
     async fn lru_cache_test() {
         let util = FileUtil::new(tempfile::tempdir().unwrap());
         let test_vector = vec![12, 23, 24, 25];
-        let test_collection = test_vector.iter().map(|&t| TileData{tile_id: t, size_on_disc: 1}).collect::<Vec<_>>();
+        let test_collection = test_vector
+            .iter()
+            .map(|&t| TileData {
+                tile_id: t,
+                size_on_disc: 1,
+            })
+            .collect::<Vec<_>>();
         let mut cache = LastRecentlyUsedList::new(20);
         cache.reconstruct_from(&test_vector, &test_collection);
         util.safe_save(

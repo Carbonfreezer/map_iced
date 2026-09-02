@@ -10,10 +10,10 @@ use crate::tile_cache::tile_name_conversion::TileSpecification;
 use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
 use bytes::Bytes;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use tokio::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
 ///  The maximum channel size we currently allow for.
@@ -159,14 +159,11 @@ impl<T: Requester> CachingSystem<T> {
         let deletion_list = sharable_entry
             .lru_list
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .reconstruct_from(&lru_data, &data);
 
         // Remove any orphan files, we do not cache anymore.
-        sharable_entry
-            .file_util
-            .remove_files(&deletion_list)
-            .await;
+        sharable_entry.file_util.remove_files(&deletion_list).await;
 
         sharable_entry
             .initialization_completed
@@ -253,7 +250,7 @@ impl<T: Requester> CachingSystem<T> {
             sharable_entry
                 .lru_list
                 .lock()
-                .unwrap()
+                .unwrap_or_else(|e| e.into_inner())
                 .touch(destination.into());
         } else {
             Self::deal_with_cache_miss(&sharable_entry, sender, destination).await;
@@ -271,6 +268,17 @@ impl<T: Requester> CachingSystem<T> {
         // In this case the file is not on the cache so we have to get it.
         let web_access = sharable_entry.requester.get_image_data(destination).await;
         let raw_data: Bytes = match web_access {
+            Ok(data) if data.is_empty() => {
+                let _ = sender
+                    .send(CachingResultMessage::TileFailed {
+                        x: destination.x(),
+                        y: destination.y(),
+                        level: destination.level(),
+                        message: "Empty data received from server".to_string(),
+                    })
+                    .await;
+                return;
+            }
             Ok(data) => Bytes::from(data),
             Err(text) => {
                 let _ = sender
@@ -309,9 +317,12 @@ impl<T: Requester> CachingSystem<T> {
             return;
         }
 
-        let to_remove = sharable_entry.lru_list.lock().unwrap().insert_and_clear(destination.into(), new_memory);
+        let to_remove = sharable_entry
+            .lru_list
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert_and_clear(destination.into(), new_memory);
         sharable_entry.file_util.remove_files(&to_remove).await;
-
     }
 
     /// Helper routine to write out the cache file.
@@ -319,7 +330,11 @@ impl<T: Requester> CachingSystem<T> {
         sharable_entry: &Arc<ShareableEntries<T>>,
         sender: &Sender<CachingResultMessage>,
     ) {
-        let raw_data = sharable_entry.lru_list.lock().unwrap().generate_usage_list();
+        let raw_data = sharable_entry
+            .lru_list
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .generate_usage_list();
         let res = sharable_entry
             .file_util
             .safe_save(LRU_TABLE_FILE, &FileUtil::convert_to_u8(&raw_data))
@@ -395,10 +410,9 @@ mod tests {
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
         for y in 0..100 {
             cache
-                .request_tile(0,  1, y)
+                .request_tile(0, 1, y)
                 .expect("Initialization uncompleted.");
         }
-
 
         for _ in 0..100 {
             let message = receiver.recv().await.unwrap();

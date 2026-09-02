@@ -55,8 +55,8 @@ impl From<TileSpecification> for u64 {
 
 #[cfg(test)]
 mod tests {
-    use proptest::{prop_assert_eq, proptest};
     use super::*;
+    use proptest::{prop_assert_eq, proptest};
 
     #[test]
     fn base_test() {
@@ -77,7 +77,7 @@ mod tests {
         assert_eq!(spec.get_partial_url(), "1/2/3.png");
     }
 
-    proptest!{
+    proptest! {
         #[test]
         fn conversion(scale in (0u8..10), x in (0u32..100), y in (0u32..100)) {
             let spec = TileSpecification::new(scale, x, y);
