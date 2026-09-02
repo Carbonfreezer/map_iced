@@ -1,5 +1,7 @@
 
-#[tokio::main]
-async fn main() {
-    let a = 0;
+
+pub fn main() -> iced::Result {
+    let _a = 0;
+
+    Ok(())
 }
