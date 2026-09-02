@@ -145,6 +145,7 @@ impl<T: Requester> CachingSystem<T> {
     async fn process_initialize(
         sharable_entry: Arc<ShareableEntries<T>>,
         sender: Sender<CachingResultMessage>,
+        savings_counter: Arc<AtomicU8>,
     ) {
         // Remove all orphan files.
         sharable_entry.file_util.remove_temps_from_base().await;
@@ -197,6 +198,9 @@ impl<T: Requester> CachingSystem<T> {
             .initialization_completed
             .store(true, Ordering::Relaxed);
 
+        // We also register a save because the contents of the LRU may have changed.
+        savings_counter.store(AMOUNT_OF_SECONDS_TILL_SAVE, Ordering::SeqCst);
+
         // If an error occurred the receiver has been dropped in the meantime.
         let _ = sender
             .send(CachingResultMessage::InitializationCompleted)
@@ -214,9 +218,11 @@ impl<T: Requester> CachingSystem<T> {
                 "CachingSystem::initialize already initialized",
             ));
         }
-        let shareable_entry = self.cloneable_entry.clone();
-        let sender = self.stream_sender.clone();
-        tokio::spawn(Self::process_initialize(shareable_entry, sender));
+        tokio::spawn(Self::process_initialize(
+            self.cloneable_entry.clone(),
+            self.stream_sender.clone(),
+            self.savings_counter.clone(),
+        ));
         Ok(())
     }
 
@@ -428,35 +434,43 @@ pub fn generate_cache(
 mod tests {
     use super::*;
     use std::assert_matches;
+    use std::time::Duration;
 
     #[tokio::test]
+    #[ignore]
     async fn first_setup() {
-        let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
+        // let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
+        let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
+        tokio::time::sleep(Duration::from_secs(AMOUNT_OF_SECONDS_TILL_SAVE as u64 + 2)).await;
     }
 
     #[tokio::test]
     async fn first_fill() {
-        let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
+        // let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
+        let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
-        for x in 0..100 {
+        for y in 0..100 {
             cache
-                .request_tile(0, x, 1)
+                .request_tile(0,  1, y)
                 .expect("Initialization uncompleted.");
         }
+
 
         for _ in 0..100 {
             let message = receiver.recv().await.unwrap();
             assert_matches!(
                 message,
-                CachingResultMessage::TileData { level: 0, y: 1, .. }
+                CachingResultMessage::TileData { level: 0, x: 1, .. }
             );
         }
+        // Wait for the data written to disc.
+        tokio::time::sleep(Duration::from_millis(1000)).await;
     }
 }

@@ -183,7 +183,7 @@ impl From<TileCoordinates> for LatitudeLongitude {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::proptest;
+    use proptest::{prop_assert, proptest};
 
     #[test]
     fn creation_test() {
@@ -278,8 +278,8 @@ mod tests {
             let tile = orig_pos.get_tile_coordinates(4);
             let new_pos :LatitudeLongitude = tile.into();
 
-            assert!( f64::abs(new_pos.longitude -  orig_pos.longitude) < 1e-5);
-            assert!( f64::abs(new_pos.latitude -  orig_pos.latitude) < 1e-5);
+            prop_assert!( f64::abs(new_pos.longitude -  orig_pos.longitude) < 1e-5);
+            prop_assert!( f64::abs(new_pos.latitude -  orig_pos.latitude) < 1e-5);
 
         }
     }
