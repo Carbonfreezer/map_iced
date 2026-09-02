@@ -11,17 +11,17 @@ pub enum CachingDirectory {
     /// Completely manually constructed.
     FullyConstructed(PathBuf),
     /// Relative to the OSes temp dir.
-    TempDirectory(PathBuf),
+    CacheDirectory(PathBuf),
     /// Fixed to the OSes temp dir (Tiles)
-    TempDirFixed,
+    CacheDirFixed,
 }
 
 impl CachingDirectory {
-    fn get_path(&self) -> PathBuf {
+    fn get_path(&self) -> Result<PathBuf, String> {
         match self {
-            CachingDirectory::FullyConstructed(path) => path.clone(),
-            CachingDirectory::TempDirectory(path) => cache_dir().unwrap().join(path),
-            CachingDirectory::TempDirFixed => cache_dir().unwrap().join("Tiles"),
+            CachingDirectory::FullyConstructed(path) => Ok(path.clone()),
+            CachingDirectory::CacheDirectory(path) => Ok(cache_dir().ok_or("Cache directory not found on system")?.join(path)),
+            CachingDirectory::CacheDirFixed => Ok(cache_dir().ok_or("Cache directory not found on system")?.join("Tiles")),
         }
     }
 }
@@ -41,20 +41,20 @@ pub enum TileSource {
     MapTilesApi { api_key: String },
     /// The [mapbox](https://www.mapbox.com/)) api. Here you can specify a tile set id.
     MapBoxTiles { tileset_id: String, api_key: String },
-    /// The [mapbox](https://www.mapbox.com/)) api. This defaults to the standard street set.
-    MapBoxTilesStreet { api_key: String },
+    /// The [mapbox](https://www.mapbox.com/)) api. This defaults to the standard sattelite.
+    MapBoxSatellite { api_key: String },
     /// Thunderforst [maps](https://www.thunderforest.com/docs/map-tiles-api).
     Thunderforest { style: String, api_key: String },
 }
 
-pub struct TripleInfo {
+pub(crate) struct TripleInfo {
     start_url: String,
     end_url: String,
     user_agent: String,
 }
 
 impl TileSource {
-    pub fn get_triple(&self) -> TripleInfo {
+    pub(crate) fn get_triple(&self) -> TripleInfo {
         match self {
             TileSource::FullyConstructed {
                 start_url,
@@ -73,7 +73,7 @@ impl TileSource {
             TileSource::MapTilesApi { api_key } => TripleInfo {
                 start_url: "https://maptiles.p.rapidapi.com/en/map/v1/".to_string(),
                 end_url: "?rapidapi-key=".to_string() + api_key,
-                user_agent: "".to_string(),
+                user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
             },
             TileSource::MapBoxTiles {
                 tileset_id,
@@ -81,17 +81,17 @@ impl TileSource {
             } => TripleInfo {
                 start_url: "https://api.mapbox.com/v4/".to_string() + tileset_id + "/",
                 end_url: "?access_token=".to_string() + api_key,
-                user_agent: "".to_string(),
+                user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
             },
-            TileSource::MapBoxTilesStreet { api_key } => TripleInfo {
-                start_url: "https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/".to_string(),
+            TileSource::MapBoxSatellite { api_key } => TripleInfo {
+                start_url: "https://api.mapbox.com/v4/mapbox.satellite/".to_string(),
                 end_url: "?access_token=".to_string() + api_key,
-                user_agent: "".to_string(),
+                user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
             },
             TileSource::Thunderforest { style, api_key } => TripleInfo {
                 start_url: "https://api.thunderforest.com/".to_string() + style + "/",
                 end_url: "?apikey=".to_string() + api_key,
-                user_agent: "".to_string(),
+                user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
             },
         }
     }
@@ -102,7 +102,7 @@ pub fn generate_debug_tile_cache(
     dir_info: CachingDirectory,
     cache_size: u64,
 ) -> Result<TileCache<DummyRequester>, String> {
-    TileCache::new(generate_dummy_cache(dir_info.get_path(), cache_size))
+    TileCache::new(generate_dummy_cache(dir_info.get_path()?, cache_size))
 }
 
 pub fn generate_web_tile_cache(
@@ -115,7 +115,7 @@ pub fn generate_web_tile_cache(
         &description.start_url,
         &description.end_url,
         &description.user_agent,
-        dir_info.get_path(),
+        dir_info.get_path()?,
         cache_size,
     ))
 }
