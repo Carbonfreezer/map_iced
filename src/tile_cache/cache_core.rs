@@ -11,7 +11,7 @@ use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
 use bytes::Bytes;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{Mutex, mpsc};
 use tokio::task::JoinHandle;
@@ -23,7 +23,7 @@ const MAXIMUM_MESSAGE_CHANNEL: usize = 100;
 const LRU_TABLE_FILE: &str = "LRU.bin";
 
 /// The amount of idle seconds we use till saving.
-const AMOUNT_OF_SECONDS_TILL_SAVE : u8 = 10;
+const AMOUNT_OF_SECONDS_TILL_SAVE: u8 = 10;
 
 /// This struct contains the elements that must be shared across different tasks.
 struct ShareableEntries<T: Requester> {
@@ -83,7 +83,7 @@ pub struct CachingSystem<T: Requester> {
     /// The atomic counter we use for saving the lru cache.
     savings_counter: Arc<AtomicU8>,
     /// The join handle for the timer to kill in drop trait.
-    timer_handle: JoinHandle<()>
+    timer_handle: JoinHandle<()>,
 }
 
 impl<T: Requester> CachingSystem<T> {
@@ -104,7 +104,11 @@ impl<T: Requester> CachingSystem<T> {
 
         let arc_sharable_entry = Arc::new(sharable_entry);
         let savings_counter = Arc::new(AtomicU8::new(0));
-        let timer_handle = tokio::spawn(Self::savings_timer(savings_counter.clone(), arc_sharable_entry.clone(), tx.clone()));
+        let timer_handle = tokio::spawn(Self::savings_timer(
+            savings_counter.clone(),
+            arc_sharable_entry.clone(),
+            tx.clone(),
+        ));
 
         Self {
             cloneable_entry: arc_sharable_entry,
@@ -116,14 +120,16 @@ impl<T: Requester> CachingSystem<T> {
     }
 
     /// Timer function that does an autosave after a couple of idle seconds.
-    async fn savings_timer(counter: Arc<AtomicU8>, shareable_entries:  Arc<ShareableEntries<T>>, sender: Sender<CachingResultMessage>) {
+    async fn savings_timer(
+        counter: Arc<AtomicU8>,
+        shareable_entries: Arc<ShareableEntries<T>>,
+        sender: Sender<CachingResultMessage>,
+    ) {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            let previous = counter.try_update(
-                Ordering::SeqCst,
-                Ordering::SeqCst,
-                |current| Some(current.saturating_sub(1))
-            );
+            let previous = counter.try_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+                Some(current.saturating_sub(1))
+            });
             if previous == Ok(1) {
                 Self::save_lru_table(&shareable_entries, &sender).await;
             }
@@ -142,30 +148,25 @@ impl<T: Requester> CachingSystem<T> {
     ) {
         // Remove all orphan files.
         sharable_entry.file_util.remove_temps_from_base().await;
-        // Let us check if we get an lru table.
-        if let Some(load_data) = sharable_entry
-            .file_util
-            .try_load_plain(LRU_TABLE_FILE)
-            .await
-        {
-            sharable_entry
-                .lru_list
-                .lock()
-                .await
-                .reconstruct_from(&FileUtil::convert_to_u64(&load_data));
-        }
-
         // Now we load all the data from the images on the cache.
         let data = sharable_entry
             .file_util
             .get_all_pngs_interpreted_as_u64()
             .await;
-        // Check the LRU List if all is contained.
+        // Let us check if we get an lru table.
+        let lru_data = FileUtil::convert_to_u64(
+            &sharable_entry
+                .file_util
+                .try_load_plain(LRU_TABLE_FILE)
+                .await
+                .unwrap_or_default(),
+        );
         sharable_entry
             .lru_list
             .lock()
             .await
-            .complete_list(&data.tile_ids);
+            .reconstruct_from(&lru_data, &data.tile_ids);
+
         // Eventually we have to deal with an oversized cache.
         if data.total_file_size > sharable_entry.maximum_amount_of_data {
             let amount_to_free = data.total_file_size - sharable_entry.maximum_amount_of_data;
@@ -238,7 +239,7 @@ impl<T: Requester> CachingSystem<T> {
             y,
             shareable_entry,
             sender,
-            self.savings_counter.clone()
+            self.savings_counter.clone(),
         ));
         Ok(())
     }
@@ -278,7 +279,7 @@ impl<T: Requester> CachingSystem<T> {
             Self::deal_with_cache_miss(&sharable_entry, sender, destination).await;
         }
         // Flag for cache flush.
-        savings_counter.store(AMOUNT_OF_SECONDS_TILL_SAVE,  Ordering::SeqCst);
+        savings_counter.store(AMOUNT_OF_SECONDS_TILL_SAVE, Ordering::SeqCst);
     }
 
     /// The cache miss part is more complicated but tries to serve the data as fast as possible.
@@ -370,13 +371,11 @@ impl<T: Requester> CachingSystem<T> {
         }
     }
 
-
     /// Helper routine to write out the cache file.
     async fn save_lru_table(
         sharable_entry: &Arc<ShareableEntries<T>>,
         sender: &Sender<CachingResultMessage>,
     ) {
-
         let raw_data = sharable_entry.lru_list.lock().await.generate_usage_list();
         let res = sharable_entry
             .file_util
@@ -394,7 +393,6 @@ impl<T: Requester> CachingSystem<T> {
         }
     }
 }
-
 
 impl<T: Requester> Drop for CachingSystem<T> {
     fn drop(&mut self) {
@@ -430,24 +428,19 @@ pub fn generate_cache(
 mod tests {
     use super::*;
     use std::assert_matches;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn first_setup() {
         let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
-        // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
-        // Hack to make sure the data is on disc.
-        // tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
     #[tokio::test]
     async fn first_fill() {
         let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
-        // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
@@ -465,7 +458,5 @@ mod tests {
                 CachingResultMessage::TileData { level: 0, y: 1, .. }
             );
         }
-        // Hack to make sure the data is on disc.
-        // tokio::time::sleep(Duration::from_secs(15)).await;
     }
 }

@@ -2,9 +2,8 @@
 //! used priority que. The data stored is an u64. This is the core data used for the tiling system.
 
 use crate::tile_cache::file_util::{FileUtil, TileCollection};
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use std::num::NonZeroU32;
-
 
 // Here are some helper functions to deal with Option<NonZeroU32>
 
@@ -43,7 +42,7 @@ pub struct LastRecentlyUsedList {
 
 impl LastRecentlyUsedList {
     /// Takes the entry and moves it to the front. Returns if we need to save the structure.
-    fn touch(&mut self, index: u32)  {
+    fn touch(&mut self, index: u32) {
         // When we are the first in the list there is nothing to touch.
         let Some(previous) = get_u32(self.entry_list[index as usize].previous) else {
             debug_assert_eq!(
@@ -107,8 +106,8 @@ impl LastRecentlyUsedList {
     }
 
     /// Touches the data if existing or generates a new entry,
-    /// Either way the entry will always be on the top. 
-    pub fn touch_or_insert(&mut self, data: u64)  {
+    /// Either way the entry will always be on the top.
+    pub fn touch_or_insert(&mut self, data: u64) {
         if let Some(index) = self.forward_map.get(&data) {
             self.touch(*index)
         } else {
@@ -172,44 +171,56 @@ impl LastRecentlyUsedList {
         result
     }
 
-    /// Gets called after loading and makes sure, that all elements in the list are registered.
-    pub fn complete_list(&mut self, candidates: &[u64]) {
-        let forgotten_entries: Vec<_> = candidates
-            .iter()
-            .filter(|&x| !self.forward_map.contains_key(x))
-            .collect();
-        for x in forgotten_entries {
-            self.generate_new_entry(*x);
+    /// Generates an entry for the LRU table.
+    fn get_lru_entry(index: u32, last_element: u32, content: u64) -> LRUEntry {
+        LRUEntry {
+            previous: (index > 0).then(|| set_u32(index - 1).unwrap()),
+            next: (index < last_element).then(|| set_u32(index + 1).unwrap()),
+            data: content,
         }
     }
 
     /// Generates an LRU eviction system from an u64 slice handed over. This method
-    /// is meant as an entry point for loading.
-    pub fn reconstruct_from(&mut self, content_slice: &[u64]) {
-        if content_slice.is_empty() {
+    /// is meant as an entry point for loading. We want to get all elements of the
+    /// lru content, that has also a file handle in lodaded handles and then add the handles in
+    /// loaded handles, that are not in lru_content. So we have exactly the loaded_file_handles in there
+    /// in the end just in different order.
+    pub fn reconstruct_from(&mut self, lru_content: &[u64], loaded_file_handles: &[u64]) {
+        let total_sitze = loaded_file_handles.len();
+        if total_sitze == 0 {
+            *self = Self::default();
             return;
         }
-
-        let last_element = content_slice.len() - 1;
+        let last_element = total_sitze as u32 - 1;
         self.forward_map.clear();
-        self.forward_map.reserve(last_element + 1);
+        self.forward_map.reserve(total_sitze);
+        let mut sequence_content: Vec<LRUEntry> = Vec::with_capacity(total_sitze);
+        let mut remaining_loaded_files = FxHashSet::from_iter(loaded_file_handles);
 
-        let content = content_slice
-            .iter()
-            .enumerate()
-            .inspect(|(i, x)| {
-                self.forward_map.insert(**x, *i as u32);
-            })
-            .map(|(i, x)| LRUEntry {
-                previous: (i > 0).then(|| set_u32(i as u32 - 1).unwrap()),
-                next: (i < last_element).then(|| set_u32(i as u32 + 1).unwrap()),
-                data: *x,
-            })
-            .collect();
+        let mut position_counter = 0;
+        // First pass we go over the lru content.
+        for &x in lru_content {
+            // Skip all entries that are not loaded.
+            if !remaining_loaded_files.remove(&x) {
+                continue;
+            }
+            sequence_content.push(Self::get_lru_entry(position_counter, last_element, x));
+            self.forward_map.insert(x, position_counter);
+            position_counter += 1;
+        }
+        // Now we add all the remaining files, that are loaded but not in the content table.
+        for &x in remaining_loaded_files {
+            sequence_content.push(Self::get_lru_entry(position_counter, last_element, x));
+            self.forward_map.insert(x, position_counter);
+            position_counter += 1;
+        }
 
-        self.entry_list = content;
+        debug_assert_eq!(sequence_content.len(), total_sitze);
+        debug_assert_eq!(position_counter, total_sitze as u32);
+
+        self.entry_list = sequence_content;
         self.first_entry = Some(0);
-        self.last_entry = Some(last_element as u32);
+        self.last_entry = Some(last_element);
     }
 }
 
@@ -224,19 +235,31 @@ mod tests {
     }
 
     #[test]
+    fn filter_test() {
+        let raw_data = vec![0, 1, 2, 3, 4, 5];
+        let file_data = vec![5, 2, 3, 22];
+        let expected_data = vec![2, 3, 5, 22];
+        let mut cand = LastRecentlyUsedList::default();
+        cand.reconstruct_from(&raw_data, &file_data);
+        assert_eq!(cand.generate_usage_list(), expected_data);
+    }
+
+    #[test]
     fn fill_test() {
         let mut cand = LastRecentlyUsedList::default();
-        for i in (0..5).rev() {
-            cand.touch_or_insert(i);
+        let total_vec = vec![0, 1, 2, 3, 4];
+        for i in total_vec.iter().rev() {
+            cand.touch_or_insert(*i);
         }
 
         let usage_list = cand.generate_usage_list();
+
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
         cand.touch_or_insert(0);
         assert_eq!(cand.generate_usage_list(), vec![0, 1, 2, 3, 4]);
         cand.touch_or_insert(4);
         assert_eq!(cand.generate_usage_list(), vec![4, 0, 1, 2, 3]);
-        cand.reconstruct_from(&usage_list);
+        cand.reconstruct_from(&usage_list, &total_vec);
         cand.touch_or_insert(2);
         assert_eq!(cand.generate_usage_list(), vec![2, 0, 1, 3, 4]);
     }
@@ -244,16 +267,10 @@ mod tests {
     #[test]
     fn reconstruct_test() {
         let mut cand = LastRecentlyUsedList::default();
-        cand.reconstruct_from(&[0, 1, 2, 3, 4, 5]);
-        let list = cand.generate_usage_list();
-        assert_eq!(list, vec![0, 1, 2, 3, 4, 5]);
-    }
 
-    #[test]
-    fn completion_test() {
-        let mut cand = LastRecentlyUsedList::default();
-        cand.reconstruct_from(&[0, 1, 2, 3]);
-        cand.complete_list(&[2, 3, 4, 5]);
-        assert_eq!(cand.generate_usage_list(), vec![5, 4, 0, 1, 2, 3]);
+        cand.reconstruct_from(&[], &[0, 1, 2, 3, 4, 5]);
+        let mut list = cand.generate_usage_list();
+        list.sort();
+        assert_eq!(list, vec![0, 1, 2, 3, 4, 5]);
     }
 }
