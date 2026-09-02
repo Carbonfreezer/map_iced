@@ -186,16 +186,22 @@ impl LastRecentlyUsedList {
     /// loaded handles, that are not in lru_content. So we have exactly the loaded_file_handles in there
     /// in the end just in different order.
     pub fn reconstruct_from(&mut self, lru_content: &[u64], loaded_file_handles: &[u64]) {
-        let total_sitze = loaded_file_handles.len();
-        if total_sitze == 0 {
+        let total_size = loaded_file_handles.len();
+        if total_size == 0 {
             *self = Self::default();
             return;
         }
-        let last_element = total_sitze as u32 - 1;
+        let last_element = total_size as u32 - 1;
+        self.open_spaces.clear();
         self.forward_map.clear();
-        self.forward_map.reserve(total_sitze);
-        let mut sequence_content: Vec<LRUEntry> = Vec::with_capacity(total_sitze);
+        self.forward_map.reserve(total_size);
+        let mut sequence_content: Vec<LRUEntry> = Vec::with_capacity(total_size);
         let mut remaining_loaded_files = FxHashSet::from_iter(loaded_file_handles);
+        debug_assert_eq!(
+            remaining_loaded_files.len(),
+            total_size,
+            "The loaded files should be unique per construction"
+        );
 
         let mut position_counter = 0;
         // First pass we go over the lru content.
@@ -215,8 +221,8 @@ impl LastRecentlyUsedList {
             position_counter += 1;
         }
 
-        debug_assert_eq!(sequence_content.len(), total_sitze);
-        debug_assert_eq!(position_counter, total_sitze as u32);
+        debug_assert_eq!(sequence_content.len(), total_size);
+        debug_assert_eq!(position_counter, total_size as u32);
 
         self.entry_list = sequence_content;
         self.first_entry = Some(0);
