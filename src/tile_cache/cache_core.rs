@@ -11,15 +11,19 @@ use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
 use bytes::Bytes;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{Mutex, mpsc};
+use tokio::task::JoinHandle;
 
 ///  The maximum channel size we currently allow for.
 const MAXIMUM_MESSAGE_CHANNEL: usize = 100;
 
 /// The filename for the LRU table.
 const LRU_TABLE_FILE: &str = "LRU.bin";
+
+/// The amount of idle seconds we use till saving.
+const AMOUNT_OF_SECONDS_TILL_SAVE : u8 = 10;
 
 /// This struct contains the elements that must be shared across different tasks.
 struct ShareableEntries<T: Requester> {
@@ -76,6 +80,10 @@ pub struct CachingSystem<T: Requester> {
     stream_reader: std::sync::Mutex<Option<Receiver<CachingResultMessage>>>,
     /// The sender used for data,
     stream_sender: Sender<CachingResultMessage>,
+    /// The atomic counter we use for saving the lru cache.
+    savings_counter: Arc<AtomicU8>,
+    /// The join handle for the timer to kill in drop trait.
+    timer_handle: JoinHandle<()>
 }
 
 impl<T: Requester> CachingSystem<T> {
@@ -94,10 +102,31 @@ impl<T: Requester> CachingSystem<T> {
             initialization_completed: AtomicBool::new(false),
         };
 
+        let arc_sharable_entry = Arc::new(sharable_entry);
+        let savings_counter = Arc::new(AtomicU8::new(0));
+        let timer_handle = tokio::spawn(Self::savings_timer(savings_counter.clone(), arc_sharable_entry.clone(), tx.clone()));
+
         Self {
-            cloneable_entry: Arc::new(sharable_entry),
+            cloneable_entry: arc_sharable_entry,
             stream_reader: std::sync::Mutex::new(Some(rx)),
             stream_sender: tx,
+            savings_counter,
+            timer_handle,
+        }
+    }
+
+    /// Timer function that does an autosave after a couple of idle seconds.
+    async fn savings_timer(counter: Arc<AtomicU8>, shareable_entries:  Arc<ShareableEntries<T>>, sender: Sender<CachingResultMessage>) {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            let previous = counter.try_update(
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+                |current| Some(current.saturating_sub(1))
+            );
+            if previous == Ok(1) {
+                Self::save_lru_table(&shareable_entries, &sender).await;
+            }
         }
     }
 
@@ -209,6 +238,7 @@ impl<T: Requester> CachingSystem<T> {
             y,
             shareable_entry,
             sender,
+            self.savings_counter.clone()
         ));
         Ok(())
     }
@@ -220,6 +250,7 @@ impl<T: Requester> CachingSystem<T> {
         y: u32,
         sharable_entry: Arc<ShareableEntries<T>>,
         sender: Sender<CachingResultMessage>,
+        savings_counter: Arc<AtomicU8>,
     ) {
         let destination = TileSpecification::new(level, x, y);
         // Here we have to distinguish if we have it on cache or not.
@@ -238,17 +269,16 @@ impl<T: Requester> CachingSystem<T> {
                 })
                 .await;
             // Now we have to check with the cache.
-            if sharable_entry
+            sharable_entry
                 .lru_list
                 .lock()
                 .await
-                .touch_or_insert(destination.into())
-            {
-                Self::save_lru_table(&sharable_entry, sender).await;
-            }
+                .touch_or_insert(destination.into());
         } else {
             Self::deal_with_cache_miss(&sharable_entry, sender, destination).await;
         }
+        // Flag for cache flush.
+        savings_counter.store(AMOUNT_OF_SECONDS_TILL_SAVE,  Ordering::SeqCst);
     }
 
     /// The cache miss part is more complicated but tries to serve the data as fast as possible.
@@ -338,16 +368,15 @@ impl<T: Requester> CachingSystem<T> {
                 .amount_of_data
                 .fetch_sub(subtracted_memory - new_memory, Ordering::SeqCst);
         }
-
-        // Save the new table.
-        Self::save_lru_table(sharable_entry, sender).await;
     }
+
 
     /// Helper routine to write out the cache file.
     async fn save_lru_table(
         sharable_entry: &Arc<ShareableEntries<T>>,
-        sender: Sender<CachingResultMessage>,
+        sender: &Sender<CachingResultMessage>,
     ) {
+
         let raw_data = sharable_entry.lru_list.lock().await.generate_usage_list();
         let res = sharable_entry
             .file_util
@@ -363,6 +392,13 @@ impl<T: Requester> CachingSystem<T> {
                     .await;
             }
         }
+    }
+}
+
+
+impl<T: Requester> Drop for CachingSystem<T> {
+    fn drop(&mut self) {
+        self.timer_handle.abort();
     }
 }
 
@@ -399,17 +435,19 @@ mod tests {
     #[tokio::test]
     async fn first_setup() {
         let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
+        // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
         // Hack to make sure the data is on disc.
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
     #[tokio::test]
     async fn first_fill() {
         let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
+        // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
@@ -428,6 +466,6 @@ mod tests {
             );
         }
         // Hack to make sure the data is on disc.
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // tokio::time::sleep(Duration::from_secs(15)).await;
     }
 }
