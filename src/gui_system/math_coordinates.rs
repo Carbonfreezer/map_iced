@@ -19,15 +19,24 @@ pub struct TilePosition {
     pub zoom: u8,
 }
 
+impl TilePosition {
+    fn check_sanity(&self) {
+        debug_assert!((0..=19).contains(&self.zoom), "zoom out of range");
+        let max_value = (1u32 << self.zoom) - 1;
+        debug_assert!((0..=max_value).contains(&self.x));
+        debug_assert!((0..=max_value).contains(&self.y));
+    }
+}
+
 impl From<TileCoordinates> for TilePosition {
+    /// Along the way we clamp to the legal range.
     fn from(value: TileCoordinates) -> Self {
-        debug_assert!(
-            value.x >= 0.0 && value.y >= 0.0,
-            "Only positive coordinates are allowed"
-        );
+        debug_assert!((0..=19).contains(&value.zoom), "zoom out of range");
+        let max_value = ((1u32 << value.zoom) - 1) as f64;
+
         Self {
-            x: value.x.floor() as u32,
-            y: value.y.floor() as u32,
+            x: value.x.floor().clamp(0.0, max_value) as u32,
+            y: value.y.floor().clamp(0.0, max_value) as u32,
             zoom: value.zoom,
         }
     }
@@ -67,7 +76,13 @@ impl BoundingRectangle {
     /// Gets the bounding rectangle from a bunch of tile coordinates.
     pub fn new(positions: &[TilePosition]) -> Self {
         debug_assert!(!positions.is_empty(), "We must contain some data");
-        let (x_min, y_min, x_max, y_max) = positions.iter().fold(
+        debug_assert!(
+            positions.windows(2).all(|w| w[0].zoom == w[1].zoom),
+            "All positions must share the same zoom level"
+        );
+        let (x_min, y_min, x_max, y_max) = positions.iter()
+            .inspect(|x| x.check_sanity())
+            .fold(
             (u32::MAX, u32::MAX, 0, 0),
             |(x_min, y_min, x_max, y_max), tile| {
                 (
@@ -122,7 +137,7 @@ impl BoundingRectangle {
             x: self.x_min + w,
             y: self.y_min + h,
             zoom,
-        })
+        }).inspect(|p| p.check_sanity())
     }
 
     /// Generates the bounding rectangle that include both.
@@ -236,22 +251,22 @@ mod tests {
             TilePosition {
                 x: 0,
                 y: 0,
-                zoom: 0,
+                zoom: 2,
             },
             TilePosition {
                 x: 1,
                 y: 1,
-                zoom: 0,
+                zoom: 2,
             },
             TilePosition {
                 x: 2,
                 y: 2,
-                zoom: 0,
+                zoom: 2,
             },
         ]);
         assert_eq!(rect.width, 3);
         assert_eq!(rect.height, 3);
-        assert_eq!(rect.get_iterator(0).count(), 9);
+        assert_eq!(rect.get_iterator(2).count(), 9);
     }
 
     #[test]
@@ -260,55 +275,55 @@ mod tests {
             TilePosition {
                 x: 0,
                 y: 0,
-                zoom: 0,
+                zoom: 1,
             },
             TilePosition {
                 x: 1,
                 y: 1,
-                zoom: 0,
+                zoom: 1,
             },
         ]);
-        let change = first_rect.generate_deletion_creation_list(&first_rect, 0);
+        let change = first_rect.generate_deletion_creation_list(&first_rect, 1);
         assert!(change.added.is_empty());
         assert!(change.deleted.is_empty());
         let second_rect = BoundingRectangle::new(&[
             TilePosition {
                 x: 1,
                 y: 1,
-                zoom: 0,
+                zoom: 2,
             },
             TilePosition {
                 x: 2,
                 y: 2,
-                zoom: 0,
+                zoom: 2,
             },
         ]);
-        let change = first_rect.generate_deletion_creation_list(&second_rect, 0);
+        let change = first_rect.generate_deletion_creation_list(&second_rect, 2);
         assert_eq!(change.added.len(), 3);
         assert_eq!(change.deleted.len(), 3);
 
         let first_tile = TilePosition {
             x: 0,
             y: 0,
-            zoom: 0,
+            zoom: 1,
         };
         let second_tile = TilePosition {
             x: 1,
             y: 1,
-            zoom: 0,
+            zoom: 1,
         };
         let simple_a = BoundingRectangle::new(&[first_tile]);
         let simple_b = BoundingRectangle::new(&[second_tile]);
-        let change = simple_a.generate_deletion_creation_list(&simple_b, 0);
+        let change = simple_a.generate_deletion_creation_list(&simple_b, 1);
         assert_eq!(change.deleted, vec![first_tile]);
         assert_eq!(change.added, vec![second_tile]);
     }
 
     proptest! {
         #[test]
-        fn coordinate_test(latitude in -90f64 .. 90f64, longitude in -180f64 .. 180f64) {
+        fn coordinate_test(latitude in -90f64 .. 90f64, longitude in -180f64 .. 180f64, zoom in 0u8 .. 19) {
             let orig_pos = LatitudeLongitude::new(latitude, longitude);
-            let tile = orig_pos.get_tile_coordinates(4);
+            let tile = orig_pos.get_tile_coordinates(zoom);
             let new_pos :LatitudeLongitude = tile.into();
 
             prop_assert!( f64::abs(new_pos.longitude -  orig_pos.longitude) < 1e-5);
