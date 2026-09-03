@@ -21,6 +21,7 @@ impl BasicApplication {
     pub fn boot() -> (BasicApplication,Task<Message>)  {
         let mut cache = generate_debug_tile_cache(CachingDirectory::FullyConstructed(PathBuf::from("transient")), 100_000).unwrap();
         cache.register_new_interest_area(0, BoundingRectangle { x_min: 0, y_min:0, width: 3, height: 3}, 5);
+        cache.register_new_interest_area(1, BoundingRectangle { x_min: 0, y_min:0, width: 3, height: 3}, 5);
         let receiver = cache.get_receiver().unwrap();
         let task = Task::run(ReceiverStream::new(receiver), Message::TileMapMessage);
         (Self {
@@ -35,6 +36,12 @@ impl BasicApplication {
         match message {
             Message::TileMapMessage(m) => {self.cache.process_caching_message(m.clone())},
         };
+
+        let messages = self.cache.drain_result_messages();
+
+        for x in messages {
+            println!("Caching result message: {:?}", x);
+        }
 
         
     }

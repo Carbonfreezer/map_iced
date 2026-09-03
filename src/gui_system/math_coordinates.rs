@@ -59,6 +59,10 @@ pub struct TileChange {
     pub added: Vec<TilePosition>,
 }
 
+
+/// The boundary latitude we do not overshoot.
+const BOUNDARY_LATITUDE: f64 = 85.05112878;
+
 impl BoundingRectangle {
     /// Gets the bounding rectangle from a bunch of tile coordinates.
     pub fn new(positions: &[TilePosition]) -> Self {
@@ -81,6 +85,35 @@ impl BoundingRectangle {
             width: x_max - x_min + 1,
             height: y_max - y_min + 1,
         }
+    }
+
+    pub fn clamped(x_min: i64, y_min: i64, width: u32, height: u32, zoom: u8) -> Option<Self> {
+        debug_assert!((0..=19).contains(&zoom), "zoom out of range");
+        let max_index = (1i64 << zoom) - 1;
+
+        if width == 0 || height == 0 {
+            return None;
+        }
+
+        let x_max = x_min + width as i64 - 1;
+        let y_max = y_min + height as i64 - 1;
+
+        // Complete outside the world.
+        if x_max < 0 || x_min > max_index || y_max < 0 || y_min > max_index {
+            return None;
+        }
+
+        let x_min_new = x_min.clamp(0, max_index) as u32;
+        let y_min_new = y_min.clamp(0, max_index) as u32;
+        let x_max_new = x_max.clamp(0, max_index) as u32;
+        let y_max_new = y_max.clamp(0, max_index) as u32;
+
+        Some(Self {
+            x_min: x_min_new,
+            y_min: y_min_new,
+            width: x_max_new - x_min_new + 1,
+            height: y_max_new - y_min_new + 1,
+        })
     }
 
     /// Gets an iterator for the tile positions in that rectangle.
@@ -150,10 +183,10 @@ pub struct LatitudeLongitude {
 
 impl LatitudeLongitude {
     /// Constructs the object and makes sure, that both coordinates are in the valid range
-    /// (latitude: -90 .. 90, longitude: -180 .. 180)
+    /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
     pub fn new(latitude: f64, longitude: f64) -> Self {
         Self {
-            latitude: latitude.clamp(-90.0, 90.0),
+            latitude: latitude.clamp(-BOUNDARY_LATITUDE, BOUNDARY_LATITUDE),
             longitude: longitude.clamp(-180.0, 180.0),
         }
     }
