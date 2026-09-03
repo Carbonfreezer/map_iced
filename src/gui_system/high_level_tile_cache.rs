@@ -73,7 +73,7 @@ impl<T: Requester> TileCache<T> {
     }
 
     /// Extracts the receiver out of the class. Can only be done one time.
-    pub fn get_receiver(&self) -> Option<Receiver<CachingResultMessage>> {
+    pub fn get_receiver(&mut self) -> Option<Receiver<CachingResultMessage>> {
         self.core.get_receiver()
     }
 

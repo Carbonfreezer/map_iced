@@ -4,6 +4,7 @@
 //! It is the responsibility of the user to make sure that no two requests for the same
 //! tile type are in flight at the same time.
 
+use std::fmt::Debug;
 use crate::tile_cache::file_util::{FileUtil, round_to_final_consumption};
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
@@ -38,7 +39,7 @@ struct ShareableEntries<T: Requester> {
 }
 
 /// The different messages that come from the caching system,
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum CachingResultMessage {
     /// We have encountered an error, message included.
     Error { message: String },
@@ -68,12 +69,23 @@ pub enum CachingResultMessage {
     },
 }
 
+impl Debug for CachingResultMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CachingResultMessage::Error { message } => write!(f, "Caching error: {}", message),
+            CachingResultMessage::InitializationCompleted => write!(f, "Initialization completed"),
+            CachingResultMessage::TileData { level, x, y, data } => {write!(f, "Tile data level {}, x {}, y {}, size {}", level, x, y, data.len())},
+            CachingResultMessage::TileFailed { level, x, y, message } => {write!(f, "Tile failed level {}, x {}, y {}, message {}", level, x, y,message)},
+        }
+    }
+}
+
 /// The caching system we also represent to the outside.
 pub struct CachingSystem<T: Requester> {
     /// The entry that gets cloned for every working thread.
     cloneable_entry: Arc<ShareableEntries<T>>,
     /// The stream reader for the tokio stream.
-    stream_reader: Mutex<Option<Receiver<CachingResultMessage>>>,
+    stream_reader: Option<Receiver<CachingResultMessage>>,
     /// The sender used for data,
     stream_sender: Sender<CachingResultMessage>,
     /// The atomic counter we use for saving the lru cache.
@@ -106,7 +118,7 @@ impl<T: Requester> CachingSystem<T> {
 
         Self {
             cloneable_entry: arc_sharable_entry,
-            stream_reader: Mutex::new(Some(rx)),
+            stream_reader: Some(rx),
             stream_sender: tx,
             savings_counter,
             timer_handle,
@@ -131,8 +143,8 @@ impl<T: Requester> CachingSystem<T> {
     }
 
     /// Extracts the receiver out of the class. Can only be done one time.
-    pub fn get_receiver(&self) -> Option<Receiver<CachingResultMessage>> {
-        self.stream_reader.lock().unwrap().take()
+    pub fn get_receiver(&mut self) -> Option<Receiver<CachingResultMessage>> {
+        self.stream_reader.take()
     }
 
     /// Asynchronous initialization function to set up the system.
@@ -391,7 +403,7 @@ mod tests {
     #[tokio::test]
     // #[ignore]
     async fn first_setup() {
-        let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
+        let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
         // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
@@ -402,7 +414,7 @@ mod tests {
 
     #[tokio::test]
     async fn first_fill() {
-        let cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
+        let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
         // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize().expect("Already initialized.");
         let mut receiver = cache.get_receiver().unwrap();
