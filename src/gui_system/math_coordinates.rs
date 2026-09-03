@@ -3,6 +3,9 @@
 use itertools::iproduct;
 use std::f64::consts::PI;
 
+/// The maximum zoom level we allow.
+pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;
+
 /// The tile coordinates in float space,
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct TileCoordinates {
@@ -21,7 +24,10 @@ pub struct TilePosition {
 
 impl TilePosition {
     fn check_sanity(&self) {
-        debug_assert!((0..=19).contains(&self.zoom), "zoom out of range");
+        debug_assert!(
+            (0..=MAXIMUM_ZOOM_LEVEL).contains(&self.zoom),
+            "zoom out of range"
+        );
         let max_value = (1u32 << self.zoom) - 1;
         debug_assert!((0..=max_value).contains(&self.x));
         debug_assert!((0..=max_value).contains(&self.y));
@@ -31,7 +37,10 @@ impl TilePosition {
 impl From<TileCoordinates> for TilePosition {
     /// Along the way we clamp to the legal range.
     fn from(value: TileCoordinates) -> Self {
-        debug_assert!((0..=19).contains(&value.zoom), "zoom out of range");
+        debug_assert!(
+            (0..=MAXIMUM_ZOOM_LEVEL).contains(&value.zoom),
+            "zoom out of range"
+        );
         let max_value = ((1u32 << value.zoom) - 1) as f64;
 
         Self {
@@ -53,12 +62,13 @@ impl From<TilePosition> for TileCoordinates {
 }
 
 /// A frame around rectangles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundingRectangle {
     pub x_min: u32,
     pub y_min: u32,
     pub width: u32,
     pub height: u32,
+    pub zoom: u8,
 }
 
 /// Describe what tiles have changed.
@@ -68,21 +78,18 @@ pub struct TileChange {
     pub added: Vec<TilePosition>,
 }
 
-
 /// The boundary latitude we do not overshoot.
 const BOUNDARY_LATITUDE: f64 = 85.05112878;
 
 impl BoundingRectangle {
     /// Gets the bounding rectangle from a bunch of tile coordinates.
     pub fn new(positions: &[TilePosition]) -> Self {
-        debug_assert!(!positions.is_empty(), "We must contain some data");
+        assert!(!positions.is_empty(), "We must contain some data");
         debug_assert!(
             positions.windows(2).all(|w| w[0].zoom == w[1].zoom),
             "All positions must share the same zoom level"
         );
-        let (x_min, y_min, x_max, y_max) = positions.iter()
-            .inspect(|x| x.check_sanity())
-            .fold(
+        let (x_min, y_min, x_max, y_max) = positions.iter().inspect(|x| x.check_sanity()).fold(
             (u32::MAX, u32::MAX, 0, 0),
             |(x_min, y_min, x_max, y_max), tile| {
                 (
@@ -99,11 +106,16 @@ impl BoundingRectangle {
             y_min,
             width: x_max - x_min + 1,
             height: y_max - y_min + 1,
+            zoom: positions[0].zoom,
         }
     }
 
+    // TODO: Check if really needed later.
     pub fn clamped(x_min: i64, y_min: i64, width: u32, height: u32, zoom: u8) -> Option<Self> {
-        debug_assert!((0..=19).contains(&zoom), "zoom out of range");
+        debug_assert!(
+            (0..=MAXIMUM_ZOOM_LEVEL).contains(&zoom),
+            "zoom out of range"
+        );
         let max_index = (1i64 << zoom) - 1;
 
         if width == 0 || height == 0 {
@@ -128,20 +140,24 @@ impl BoundingRectangle {
             y_min: y_min_new,
             width: x_max_new - x_min_new + 1,
             height: y_max_new - y_min_new + 1,
+            zoom,
         })
     }
 
     /// Gets an iterator for the tile positions in that rectangle.
-    pub fn get_iterator(&self, zoom: u8) -> impl Iterator<Item = TilePosition> {
-        iproduct!(0..self.width, 0..self.height).map(move |(w, h)| TilePosition {
-            x: self.x_min + w,
-            y: self.y_min + h,
-            zoom,
-        }).inspect(|p| p.check_sanity())
+    pub fn get_iterator(&self) -> impl Iterator<Item = TilePosition> {
+        iproduct!(0..self.width, 0..self.height)
+            .map(move |(w, h)| TilePosition {
+                x: self.x_min + w,
+                y: self.y_min + h,
+                zoom: self.zoom,
+            })
+            .inspect(|p| p.check_sanity())
     }
 
     /// Generates the bounding rectangle that include both.
     pub fn union(&self, other: &Self) -> Self {
+        debug_assert!(self.zoom == other.zoom, "Zoom must be the same in union.");
         let x_min = self.x_min.min(other.x_min);
         let y_min = self.y_min.min(other.y_min);
         let x_max = (self.x_min + self.width - 1).max(other.x_min + other.width - 1);
@@ -151,25 +167,31 @@ impl BoundingRectangle {
             y_min,
             width: x_max - x_min + 1,
             height: y_max - y_min + 1,
+            zoom: self.zoom,
         }
     }
 
     /// Simply checks if we are in that position.
     pub fn contains_position(&self, coordinates: &TilePosition) -> bool {
-        (self.x_min..self.x_min + self.width).contains(&coordinates.x)
+        (self.zoom == coordinates.zoom)
+            && (self.x_min..self.x_min + self.width).contains(&coordinates.x)
             && (self.y_min..self.y_min + self.height).contains(&coordinates.y)
     }
 
     /// Compares ourselves against a new rectangle and flags which positions have arrived and which have left.
-    pub fn generate_deletion_creation_list(
-        &self,
-        new_rectangle: &BoundingRectangle,
-        zoom: u8,
-    ) -> TileChange {
+    pub fn generate_deletion_creation_list(&self, new_rectangle: &BoundingRectangle) -> TileChange {
+        // If they ara  on different zoom levels we must completely replace it.
+        if self.zoom != new_rectangle.zoom {
+            return TileChange {
+                deleted: self.get_iterator().collect(),
+                added: new_rectangle.get_iterator().collect(),
+            };
+        }
+
         let mut added = Vec::new();
         let mut deleted = Vec::new();
         let frame = self.union(new_rectangle);
-        for position in frame.get_iterator(zoom) {
+        for position in frame.get_iterator() {
             let is_in_old = self.contains_position(&position);
             let is_in_new = new_rectangle.contains_position(&position);
 
@@ -197,6 +219,13 @@ pub struct LatitudeLongitude {
 }
 
 impl LatitudeLongitude {
+    
+    /// Getter latitude.
+    pub fn latitude(&self) -> f64 {self.latitude}
+    
+    /// Getter longitude.
+    pub fn longitude(&self) -> f64 {self.longitude}
+    
     /// Constructs the object and makes sure, that both coordinates are in the valid range
     /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
     pub fn new(latitude: f64, longitude: f64) -> Self {
@@ -242,7 +271,7 @@ mod tests {
         }]);
         assert_eq!(rect.width, 1);
         assert_eq!(rect.height, 1);
-        assert_eq!(rect.get_iterator(0).count(), 1);
+        assert_eq!(rect.get_iterator().count(), 1);
     }
 
     #[test]
@@ -266,7 +295,7 @@ mod tests {
         ]);
         assert_eq!(rect.width, 3);
         assert_eq!(rect.height, 3);
-        assert_eq!(rect.get_iterator(2).count(), 9);
+        assert_eq!(rect.get_iterator().count(), 9);
     }
 
     #[test]
@@ -275,15 +304,15 @@ mod tests {
             TilePosition {
                 x: 0,
                 y: 0,
-                zoom: 1,
+                zoom: 2,
             },
             TilePosition {
                 x: 1,
                 y: 1,
-                zoom: 1,
+                zoom: 2,
             },
         ]);
-        let change = first_rect.generate_deletion_creation_list(&first_rect, 1);
+        let change = first_rect.generate_deletion_creation_list(&first_rect);
         assert!(change.added.is_empty());
         assert!(change.deleted.is_empty());
         let second_rect = BoundingRectangle::new(&[
@@ -298,7 +327,7 @@ mod tests {
                 zoom: 2,
             },
         ]);
-        let change = first_rect.generate_deletion_creation_list(&second_rect, 2);
+        let change = first_rect.generate_deletion_creation_list(&second_rect);
         assert_eq!(change.added.len(), 3);
         assert_eq!(change.deleted.len(), 3);
 
@@ -314,14 +343,14 @@ mod tests {
         };
         let simple_a = BoundingRectangle::new(&[first_tile]);
         let simple_b = BoundingRectangle::new(&[second_tile]);
-        let change = simple_a.generate_deletion_creation_list(&simple_b, 1);
+        let change = simple_a.generate_deletion_creation_list(&simple_b);
         assert_eq!(change.deleted, vec![first_tile]);
         assert_eq!(change.added, vec![second_tile]);
     }
 
     proptest! {
         #[test]
-        fn coordinate_test(latitude in -90f64 .. 90f64, longitude in -180f64 .. 180f64, zoom in 0u8 .. 19) {
+        fn coordinate_test(latitude in -90f64 .. 90f64, longitude in -180f64 .. 180f64, zoom in 0u8 ..=MAXIMUM_ZOOM_LEVEL) {
             let orig_pos = LatitudeLongitude::new(latitude, longitude);
             let tile = orig_pos.get_tile_coordinates(zoom);
             let new_pos :LatitudeLongitude = tile.into();

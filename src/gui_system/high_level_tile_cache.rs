@@ -17,13 +17,6 @@ struct ImageEntry {
     usage_counter: u32,
 }
 
-/// Contains the info the client is currently subscribed for.
-#[derive(Debug, Clone, Copy)]
-struct ClientSubscriptionRecord {
-    area: BoundingRectangle,
-    zoom: u8,
-}
-
 /// The update messages that can be drained from the system.
 #[derive(Clone, Debug)]
 pub enum UpdateMessage {
@@ -41,7 +34,7 @@ pub struct TileCache<T: Requester> {
     /// Stores the currently associated image for a certain tile coordinate. Contains the image and a usage counter.
     content_tiles: FxHashMap<TilePosition, ImageEntry>,
     /// The subscription list which client has subscribed for which region.
-    subscription_region: FxHashMap<u32, ClientSubscriptionRecord>,
+    subscription_region: FxHashMap<u32, BoundingRectangle>,
     /// Stores, if we have passed the initialization phase.
     is_initialized: bool,
     /// The accumulated error string.
@@ -152,7 +145,7 @@ impl<T: Requester> TileCache<T> {
                 debug_assert!(cache_entry.image.is_none(), "The image should be empty now");
                 cache_entry.image = Some(Handle::from_bytes(data));
                 for (client, region) in &self.subscription_region {
-                    if region.zoom == level && region.area.contains_position(&pos) {
+                    if region.contains_position(&pos) {
                         self.client_notifications.insert(*client);
                     }
                 }
@@ -178,26 +171,20 @@ impl<T: Requester> TileCache<T> {
             return;
         };
 
-        for x in region.area.get_iterator(region.zoom) {
+        for x in region.get_iterator() {
             self.decrement_usage(&x);
         }
     }
 
     /// We register for a new entrance area.
-    pub fn register_new_interest_area(&mut self, client: u32, area: BoundingRectangle, zoom: u8) {
+    pub fn register_new_interest_area(&mut self, client: u32, area: BoundingRectangle) {
         let mut tile_change = TileChange::default();
         // Do we already have something?
         if let Some(old_area) = self.subscription_region.remove(&client) {
-            // See if we have switched levels.
-            if old_area.zoom != zoom {
-                tile_change.deleted = old_area.area.get_iterator(old_area.zoom).collect();
-                tile_change.added = area.get_iterator(zoom).collect();
-            } else {
-                tile_change = old_area.area.generate_deletion_creation_list(&area, zoom);
-            }
+            tile_change = old_area.generate_deletion_creation_list(&area);
         } else {
             // This is a new region completely register it.
-            tile_change.added = area.get_iterator(zoom).collect();
+            tile_change.added = area.get_iterator().collect();
         }
         for pos in tile_change.added {
             self.increment_usage(&pos);
@@ -206,8 +193,7 @@ impl<T: Requester> TileCache<T> {
             self.decrement_usage(&pos);
         }
 
-        self.subscription_region
-            .insert(client, ClientSubscriptionRecord { area, zoom });
+        self.subscription_region.insert(client, area);
     }
 
     /// Tries to get the image from the store.
@@ -293,9 +279,9 @@ mod tests {
         let mut receiver = high_level.get_receiver().unwrap();
 
         // Register, drop and register again before the answers arrive.
-        high_level.register_new_interest_area(0, test_rect, 5);
+        high_level.register_new_interest_area(0, test_rect);
         high_level.completely_unsubscribe(0);
-        high_level.register_new_interest_area(0, test_rect, 5);
+        high_level.register_new_interest_area(0, test_rect);
 
         let message = receiver.recv().await.unwrap();
         assert_matches!(message, CachingResultMessage::InitializationCompleted);
