@@ -2,7 +2,6 @@
 
 use itertools::iproduct;
 use std::f64::consts::PI;
-use iced::border::width;
 
 /// The maximum zoom level we allow.
 pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;

@@ -1,14 +1,9 @@
 use std::path::PathBuf;
 use iced::{Element, Task, Theme, Fill};
 use iced::widget::{canvas, Column, container};
-use map_iced::gui_system::high_level_tile_cache::TileCache;
 use map_iced::gui_system::tile_cache_construction::{generate_debug_tile_cache, CachingDirectory};
-use map_iced::tile_cache::cache_core::CachingResultMessage;
 use map_iced::tile_cache::web_requester::DummyRequester;
-use tokio_stream::wrappers::ReceiverStream;
-use map_iced::gui_system::map_widget::MapInteractionCommand;
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
-use map_iced::gui_system::math_coordinates::BoundingRectangle;
 
 struct BasicApplication {
     widget_system : MapWidgetSystem<DummyRequester>,
@@ -22,16 +17,11 @@ enum Message {
 
 impl BasicApplication {
     pub fn boot() -> (BasicApplication,Task<Message>)  {
-        let mut cache = generate_debug_tile_cache(CachingDirectory::FullyConstructed(PathBuf::from("transient")), 100_000).unwrap();
-        let receiver = cache.get_receiver().unwrap();
-        let mut widget_system = MapWidgetSystem::new(cache);
-        let widget_id = widget_system.request_new_widget();
-        let task = Task::run(ReceiverStream::new(receiver),  |x| Message::WidgetMessage(MapWidgetMessage::CachingResultMessage(x)));
+        let cache = generate_debug_tile_cache(CachingDirectory::FullyConstructed(PathBuf::from("transient")), 100_000).unwrap();
 
-        (Self {
-            widget_system,
-            widget_id,
-        }, task)
+        let (mut widget_system, task) = MapWidgetSystem::boot(cache);
+        let widget_id = widget_system.request_new_widget();
+        (Self { widget_system, widget_id }, task.map(Message::WidgetMessage))
     }
 
     fn update(&mut self, message : Message) {

@@ -1,6 +1,8 @@
 //! This module contains a structure that administrates all the different map widgets and
 //! the internal cache.
 
+use iced::Task;
+use tokio_stream::wrappers::ReceiverStream;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::map_widget::{MapInteractionCommand, MapWidget};
 use crate::gui_system::math_coordinates::{
@@ -31,12 +33,11 @@ pub struct MapWidgetSystem<T: Requester> {
 }
 
 impl<T: Requester> MapWidgetSystem<T> {
-    /// Generates a new
-    pub fn new(tile_cache: TileCache<T>) -> Self {
-        Self {
-            tile_cache,
-            widget_collection: Vec::new(),
-        }
+    /// Generates our instance and the stream for the messages.
+    pub fn boot(mut tile_cache: TileCache<T>) -> (Self, Task<MapWidgetMessage>) {
+        let receiver = tile_cache.get_receiver().expect("fresh cache has a receiver");
+        let task = Task::run(ReceiverStream::new(receiver), MapWidgetMessage::CachingResultMessage);
+        (Self { tile_cache, widget_collection: Vec::new() }, task)
     }
 
     ///  The messages going into the caching system are processed here.

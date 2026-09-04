@@ -4,7 +4,7 @@ use iced::{Event, Rectangle, Renderer, Theme};
 use iced::mouse::{Cursor, Interaction};
 use iced::widget::{canvas, Action};
 use iced::widget::canvas::{Cache, Geometry};
-use crate::gui_system::high_level_tile_cache::{TileCache, TilesToDraw};
+use crate::gui_system::high_level_tile_cache::TilesToDraw;
 
 /// These become the interaction commands with the rest of the system later on.
 #[derive(Debug, Clone)]
