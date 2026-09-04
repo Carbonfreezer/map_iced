@@ -5,25 +5,18 @@ use iced::mouse::{Cursor, Interaction};
 use iced::widget::{canvas, Action};
 use iced::widget::canvas::{Cache, Geometry};
 use crate::gui_system::high_level_tile_cache::{TileCache, TilesToDraw};
-use crate::gui_system::map_widget_system::MapWidgetSystem;
-use crate::gui_system::math_coordinates::TileCoordinates;
-use crate::tile_cache::web_requester::Requester;
 
 /// These become the interaction commands with the rest of the system later on.
-pub enum MapInteractionCommands {
-    SetCentralTileCoordinates(TileCoordinates),
-    SetZoomScaling(f32),
+#[derive(Debug, Clone)]
+pub struct MapInteractionCommand {
+    pub client_id: u32,
+    pub command : u32   // TODO: Here comes an enum for the real command.
 }
 
 
 /// The internal state for mouse processing.
 #[derive(Default)]
-pub struct InteractionState {
-    /// The center point of the drawing area in tile coordinates.
-    center_point : TileCoordinates,
-    /// The zoom scaling factor.
-    zoom_scaling : f32,
-}
+pub struct InteractionState { }
 
 
 /// The widget used for rendering a tile.
@@ -54,21 +47,20 @@ impl MapWidget {
     }
 }
 
-impl canvas::Program<MapInteractionCommands> for MapWidget {
+impl canvas::Program<MapInteractionCommand> for MapWidget {
     type State = InteractionState;
 
 
-
-    fn draw(&self, state: &Self::State, renderer: &Renderer, theme: &Theme, bounds: Rectangle, cursor: Cursor) -> Vec<Geometry<Renderer>> {
-        todo!()
+    fn update(&self, _state: &mut Self::State, _event: &Event, _bounds: Rectangle, _cursor: Cursor) -> Option<Action<MapInteractionCommand>> {
+        None
     }
 
-    fn update(&self, _state: &mut Self::State, _event: &Event, _bounds: Rectangle, _cursor: Cursor) -> Option<Action<MapInteractionCommands>> {
-        todo!()
+    fn draw(&self, state: &Self::State, renderer: &Renderer, theme: &Theme, bounds: Rectangle, cursor: Cursor) -> Vec<Geometry<Renderer>> {
+        vec![]
     }
 
     fn mouse_interaction(&self, _state: &Self::State, _bounds: Rectangle, _cursor: Cursor) -> Interaction {
-        todo!()
+        Interaction::None
     }
 }
 
