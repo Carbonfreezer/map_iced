@@ -9,7 +9,6 @@ use crate::gui_system::math_coordinates::{
     BoundingRectangle, RectConversionError, RequestRectangle,
 };
 use crate::tile_cache::cache_core::CachingResultMessage;
-use crate::tile_cache::web_requester::Requester;
 
 #[derive(Debug, Clone)]
 pub enum MapWidgetMessage {
