@@ -19,11 +19,17 @@ struct ImageEntry {
 
 /// The update messages that can be drained from the system.
 #[derive(Clone, Debug)]
-pub enum UpdateMessage {
+pub enum CacheUpdateMessage {
     /// An internal error in the caching system has occurred and can be obtained here.
     ErrorMessage { text: String },
     /// A new tile has arrived that the indicated client is waiting for.
     RelevantTilesArrived { client: u32 },
+}
+
+/// The tiles to draw as a  result for a specific client.
+pub struct TilesToDraw {
+    pub position: TilePosition,
+    pub image: Handle,
 }
 
 pub struct TileCache<T: Requester> {
@@ -71,19 +77,19 @@ impl<T: Requester> TileCache<T> {
     }
 
     /// Gets the internal update messages that have been accumulated,
-    pub fn drain_result_messages(&mut self) -> Vec<UpdateMessage> {
-        let mut result: Vec<UpdateMessage> = Vec::new();
+    pub fn drain_result_messages(&mut self) -> Vec<CacheUpdateMessage> {
+        let mut result: Vec<CacheUpdateMessage> = Vec::new();
 
         if !self.error_msg.is_empty() || !self.tile_error_msg.is_empty() {
             let mut text = take(&mut self.error_msg);
             text.push_str(&take(&mut self.tile_error_msg));
-            result.push(UpdateMessage::ErrorMessage {
+            result.push(CacheUpdateMessage::ErrorMessage {
                 text: text.trim().into(),
             });
         }
 
         for &client in &self.client_notifications {
-            result.push(UpdateMessage::RelevantTilesArrived { client });
+            result.push(CacheUpdateMessage::RelevantTilesArrived { client });
         }
         self.client_notifications.clear();
         result
@@ -196,11 +202,24 @@ impl<T: Requester> TileCache<T> {
         self.subscription_region.insert(client, area);
     }
 
-    /// Tries to get the image from the store.
-    pub fn try_get_image(&self, position: &TilePosition) -> Option<Handle> {
-        self.content_tiles
-            .get(position)
-            .and_then(|entry| entry.image.clone())
+    /// We get all the images for a specific client we are subscrobed to.
+    pub fn get_all_images_for_client(&self, client: u32) -> Vec<TilesToDraw> {
+        let Some(bounding_rect) = self.subscription_region.get(&client) else {
+            return vec![];
+        };
+        bounding_rect
+            .get_iterator()
+            .filter_map(|position| {
+                match self
+                    .content_tiles
+                    .get(&position)
+                    .and_then(|image| image.image.clone())
+                {
+                    Some(image) => Some(TilesToDraw { position, image }),
+                    None => None,
+                }
+            })
+            .collect()
     }
 
     /// Deals with the fact, that someone stops using a specific tile, eventually it will get deleted.
@@ -298,23 +317,12 @@ mod tests {
         }
         assert_eq!(high_level.number_of_tiles_failed(), 0);
 
-        for (x, y) in iproduct!(0..TILE_DIMENSION, 0..TILE_DIMENSION) {
-            let check = high_level.try_get_image(&TilePosition {
-                x: x,
-                y: y,
-                zoom: 5,
-            });
-            assert!(check.is_some());
-        }
-
+        let client_images = high_level.get_all_images_for_client(0);
+        assert_eq!(client_images.len(), TILE_DIMENSION as usize * TILE_DIMENSION as usize);
+        assert_eq!(client_images[0].position.zoom, 5);
+   
         high_level.completely_unsubscribe(0);
-        for (x, y) in iproduct!(0..TILE_DIMENSION, 0..TILE_DIMENSION) {
-            let check = high_level.try_get_image(&TilePosition {
-                x: x,
-                y: y,
-                zoom: 5,
-            });
-            assert!(check.is_none());
-        }
+        let client_images = high_level.get_all_images_for_client(0);
+        assert!(client_images.is_empty());
     }
 }

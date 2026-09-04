@@ -2,9 +2,13 @@
 
 use itertools::iproduct;
 use std::f64::consts::PI;
+use iced::border::width;
 
 /// The maximum zoom level we allow.
 pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;
+
+/// the size of a tile in pixel coordinates.
+pub const TILE_SIZE_PIXEL : u32 = 256; 
 
 /// The tile coordinates in float space,
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -61,6 +65,7 @@ impl From<TilePosition> for TileCoordinates {
     }
 }
 
+
 /// A frame around rectangles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundingRectangle {
@@ -80,6 +85,57 @@ pub struct TileChange {
 
 /// The boundary latitude we do not overshoot.
 const BOUNDARY_LATITUDE: f64 = 85.05112878;
+
+
+
+/// The central request for a rectangle to subscribe to. We have a center point in tile coordinates and a 
+/// total width and height also in tile coordinates. This can be transfered into an optional bounding rectangle. 
+#[derive(Debug, Clone)]
+pub struct RequestRectangle {
+    pub center_x : f32,
+    pub center_y : f32,
+    pub width : f32,
+    pub height : f32,
+    pub zoom : u8,
+}
+
+
+#[derive(Debug, Clone, Copy)]
+pub enum RectConversionError {
+    NegativeSize,
+    OutOfWorld
+}
+impl TryFrom<&RequestRectangle> for BoundingRectangle {
+   
+    type Error = RectConversionError;
+
+    fn try_from(rect: &RequestRectangle) -> Result<Self, Self::Error> {
+        if (rect.width<= 0.0) || (rect.height <= 0.0) { return Err(RectConversionError::NegativeSize) ; }
+
+        let max_value = ((1u64 << rect.zoom) - 1) as f32;
+
+        let min_x = (rect.center_x - rect.width * 0.5).floor();
+        let min_y = (rect.center_y - rect.height * 0.5).floor();
+        let max_x = (rect.center_x + rect.width * 0.5).floor();
+        let max_y = (rect.center_y + rect.height * 0.5).floor();
+
+        // Check if we are totally empty.
+        if max_x < 0.0 || max_y < 0.0 || min_x > max_value || min_y > max_value { return Err(RectConversionError::OutOfWorld); }
+
+        let x_min_new = min_x.clamp(0.0, max_value) as u32;
+        let y_min_new = min_y.clamp(0.0, max_value) as u32;
+        let x_max_new = max_x.clamp(0.0, max_value) as u32;
+        let y_max_new = max_y.clamp(0.0, max_value) as u32;
+
+        Ok ( BoundingRectangle{
+            x_min: x_min_new,
+            y_min: y_min_new,
+            width: x_max_new - x_min_new,
+            height: y_max_new - y_min_new,
+            zoom: rect.zoom,
+        })
+    }
+}
 
 impl BoundingRectangle {
     /// Gets the bounding rectangle from a bunch of tile coordinates.
@@ -110,40 +166,7 @@ impl BoundingRectangle {
         }
     }
 
-    // TODO: Check if really needed later.
-    pub fn clamped(x_min: i64, y_min: i64, width: u32, height: u32, zoom: u8) -> Option<Self> {
-        debug_assert!(
-            (0..=MAXIMUM_ZOOM_LEVEL).contains(&zoom),
-            "zoom out of range"
-        );
-        let max_index = (1i64 << zoom) - 1;
-
-        if width == 0 || height == 0 {
-            return None;
-        }
-
-        let x_max = x_min + width as i64 - 1;
-        let y_max = y_min + height as i64 - 1;
-
-        // Complete outside the world.
-        if x_max < 0 || x_min > max_index || y_max < 0 || y_min > max_index {
-            return None;
-        }
-
-        let x_min_new = x_min.clamp(0, max_index) as u32;
-        let y_min_new = y_min.clamp(0, max_index) as u32;
-        let x_max_new = x_max.clamp(0, max_index) as u32;
-        let y_max_new = y_max.clamp(0, max_index) as u32;
-
-        Some(Self {
-            x_min: x_min_new,
-            y_min: y_min_new,
-            width: x_max_new - x_min_new + 1,
-            height: y_max_new - y_min_new + 1,
-            zoom,
-        })
-    }
-
+   
     /// Gets an iterator for the tile positions in that rectangle.
     pub fn get_iterator(&self) -> impl Iterator<Item = TilePosition> {
         iproduct!(0..self.width, 0..self.height)
