@@ -261,7 +261,13 @@ impl From<TileCoordinates> for LatitudeLongitude {
 mod tests {
     use super::*;
     use proptest::{prop_assert, proptest};
-
+    
+    #[test]
+    fn boundary_test() {
+        let coord = LatitudeLongitude::from(TileCoordinates{x:0.0,y:0.0,zoom:0});
+        assert!(f64::abs(coord.latitude() -BOUNDARY_LATITUDE) < 1e-9 );
+    }
+    
     #[test]
     fn creation_test() {
         let rect = BoundingRectangle::new(&[TilePosition {
