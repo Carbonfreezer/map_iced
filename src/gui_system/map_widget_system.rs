@@ -27,14 +27,14 @@ impl From<MapInteractionCommand> for MapWidgetMessage {
     }
 }
 
-pub struct MapWidgetSystem<T: Requester> {
-    tile_cache: TileCache<T>,
+pub struct MapWidgetSystem {
+    tile_cache: TileCache,
     widget_collection: Vec<MapWidget>,
 }
 
-impl<T: Requester> MapWidgetSystem<T> {
+impl MapWidgetSystem {
     /// Generates our instance and the stream for the messages.
-    pub fn boot(mut tile_cache: TileCache<T>) -> (Self, Task<MapWidgetMessage>) {
+    pub fn boot(mut tile_cache: TileCache) -> (Self, Task<MapWidgetMessage>) {
         let receiver = tile_cache.get_receiver().expect("fresh cache has a receiver");
         let task = Task::run(ReceiverStream::new(receiver), MapWidgetMessage::CachingResultMessage);
         (Self { tile_cache, widget_collection: Vec::new() }, task)

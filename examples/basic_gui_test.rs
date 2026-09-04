@@ -2,11 +2,10 @@ use std::path::PathBuf;
 use iced::{Element, Task, Theme, Fill};
 use iced::widget::{canvas, Column, container};
 use map_iced::gui_system::tile_cache_construction::{generate_debug_tile_cache, CachingDirectory};
-use map_iced::tile_cache::web_requester::DummyRequester;
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
 
 struct BasicApplication {
-    widget_system : MapWidgetSystem<DummyRequester>,
+    widget_system : MapWidgetSystem,
     widget_id : u32,
 }
 

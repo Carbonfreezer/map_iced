@@ -2,7 +2,6 @@
 
 use crate::gui_system::high_level_tile_cache::TileCache;
 use crate::tile_cache::cache_core::{generate_cache, generate_dummy_cache};
-use crate::tile_cache::web_requester::{DummyRequester, WebRequester};
 use dirs::cache_dir;
 use std::path::PathBuf;
 
@@ -101,7 +100,7 @@ impl TileSource {
 pub fn generate_debug_tile_cache(
     dir_info: CachingDirectory,
     cache_size: u64,
-) -> Result<TileCache<DummyRequester>, String> {
+) -> Result<TileCache, String> {
     TileCache::new(generate_dummy_cache(dir_info.get_path()?, cache_size))
 }
 
@@ -109,7 +108,7 @@ pub fn generate_web_tile_cache(
     dir_info: CachingDirectory,
     cache_size: u64,
     tile_source: TileSource,
-) -> Result<TileCache<WebRequester>, String> {
+) -> Result<TileCache, String> {
     let description = tile_source.get_triple();
     TileCache::new(generate_cache(
         &description.start_url,
@@ -117,5 +116,5 @@ pub fn generate_web_tile_cache(
         &description.user_agent,
         dir_info.get_path()?,
         cache_size,
-    ))
+    )?)
 }

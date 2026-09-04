@@ -8,7 +8,7 @@ use std::fmt::Debug;
 use crate::tile_cache::file_util::{FileUtil, round_to_final_consumption};
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
-use crate::tile_cache::web_requester::{DummyRequester, Requester, WebRequester};
+use crate::tile_cache::web_requester::{Requester};
 use bytes::Bytes;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -27,13 +27,13 @@ const LRU_TABLE_FILE: &str = "LRU.bin";
 const AMOUNT_OF_SECONDS_TILL_SAVE: u8 = 5;
 
 /// This struct contains the elements that must be shared across different tasks.
-struct ShareableEntries<T: Requester> {
+struct ShareableEntries {
     /// The file utility for file access.
     file_util: FileUtil,
     /// The lru list behind a mutex.
     lru_list: Mutex<LastRecentlyUsedList>,
     /// The requester we use for making web requests.
-    requester: T,
+    requester: Requester,
     /// Flags that the initialization is completed.
     initialization_completed: AtomicBool,
 }
@@ -81,9 +81,9 @@ impl Debug for CachingResultMessage {
 }
 
 /// The caching system we also represent to the outside.
-pub struct CachingSystem<T: Requester> {
+pub struct CachingSystem {
     /// The entry that gets cloned for every working thread.
-    cloneable_entry: Arc<ShareableEntries<T>>,
+    cloneable_entry: Arc<ShareableEntries>,
     /// The stream reader for the tokio stream.
     stream_reader: Option<Receiver<CachingResultMessage>>,
     /// The sender used for data,
@@ -94,12 +94,12 @@ pub struct CachingSystem<T: Requester> {
     timer_handle: JoinHandle<()>,
 }
 
-impl<T: Requester> CachingSystem<T> {
+impl CachingSystem {
     pub fn new(
-        requester: T,
+        requester: Requester,
         cache_base_dir: impl AsRef<Path>,
         maximum_amount_of_data: u64,
-    ) -> CachingSystem<T> {
+    ) -> CachingSystem {
         let (tx, rx) = mpsc::channel::<CachingResultMessage>(MAXIMUM_MESSAGE_CHANNEL);
         let sharable_entry = ShareableEntries {
             file_util: FileUtil::new(cache_base_dir),
@@ -128,7 +128,7 @@ impl<T: Requester> CachingSystem<T> {
     /// Timer function that does an autosave after a couple of idle seconds.
     async fn savings_timer(
         counter: Arc<AtomicU8>,
-        shareable_entries: Arc<ShareableEntries<T>>,
+        shareable_entries: Arc<ShareableEntries>,
         sender: Sender<CachingResultMessage>,
     ) {
         loop {
@@ -149,7 +149,7 @@ impl<T: Requester> CachingSystem<T> {
 
     /// Asynchronous initialization function to set up the system.
     async fn process_initialize(
-        sharable_entry: Arc<ShareableEntries<T>>,
+        sharable_entry: Arc<ShareableEntries>,
         sender: Sender<CachingResultMessage>,
         savings_counter: Arc<AtomicU8>,
     ) {
@@ -238,7 +238,7 @@ impl<T: Requester> CachingSystem<T> {
         level: u8,
         x: u32,
         y: u32,
-        sharable_entry: Arc<ShareableEntries<T>>,
+        sharable_entry: Arc<ShareableEntries>,
         sender: Sender<CachingResultMessage>,
         savings_counter: Arc<AtomicU8>,
     ) {
@@ -273,7 +273,7 @@ impl<T: Requester> CachingSystem<T> {
 
     /// The cache miss part is more complicated but tries to serve the data as fast as possible.
     async fn deal_with_cache_miss(
-        sharable_entry: &Arc<ShareableEntries<T>>,
+        sharable_entry: &Arc<ShareableEntries>,
         sender: Sender<CachingResultMessage>,
         destination: TileSpecification,
     ) {
@@ -339,7 +339,7 @@ impl<T: Requester> CachingSystem<T> {
 
     /// Helper routine to write out the cache file.
     async fn save_lru_table(
-        sharable_entry: &Arc<ShareableEntries<T>>,
+        sharable_entry: &Arc<ShareableEntries>,
         sender: &Sender<CachingResultMessage>,
     ) {
         let raw_data = sharable_entry
@@ -364,7 +364,7 @@ impl<T: Requester> CachingSystem<T> {
     }
 }
 
-impl<T: Requester> Drop for CachingSystem<T> {
+impl Drop for CachingSystem {
     fn drop(&mut self) {
         self.timer_handle.abort();
     }
@@ -374,8 +374,8 @@ impl<T: Requester> Drop for CachingSystem<T> {
 pub fn generate_dummy_cache(
     cache_base_dir: impl AsRef<Path>,
     maximum_amount_of_data: u64,
-) -> CachingSystem<DummyRequester> {
-    CachingSystem::new(DummyRequester, cache_base_dir, maximum_amount_of_data)
+) -> CachingSystem {
+    CachingSystem::new(Requester::dummy(), cache_base_dir, maximum_amount_of_data)
 }
 
 /// Generates the real cache. The first 3 entries refer to the url and the username to access the web service.
@@ -386,12 +386,12 @@ pub fn generate_cache(
     user_agent: &str,
     cache_base_dir: impl AsRef<Path>,
     maximum_amount_of_data: u64,
-) -> CachingSystem<WebRequester> {
-    CachingSystem::new(
-        WebRequester::new(intro_url, post_url, user_agent),
+) -> Result<CachingSystem, String> {
+    Ok (CachingSystem::new(
+        Requester::new(intro_url, post_url, user_agent)?,
         cache_base_dir,
         maximum_amount_of_data,
-    )
+    ))
 }
 
 #[cfg(test)]

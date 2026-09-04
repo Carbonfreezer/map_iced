@@ -32,9 +32,9 @@ pub struct TilesToDraw {
     pub image: Handle,
 }
 
-pub struct TileCache<T: Requester> {
+pub struct TileCache {
     /// The core we have access too.
-    core: CachingSystem<T>,
+    core: CachingSystem,
     /// This stores the requests and delays delivery until the system is initialized.
     pending_requests: Vec<TilePosition>,
     /// Stores the currently associated image for a certain tile coordinate. Contains the image and a usage counter.
@@ -53,9 +53,9 @@ pub struct TileCache<T: Requester> {
     tiles_in_flight: FxHashSet<TilePosition>,
 }
 
-impl<T: Requester> TileCache<T> {
+impl TileCache {
     /// Creates a tile cache from the low level system handed over.
-    pub fn new(requestor: CachingSystem<T>) -> Result<Self, String> {
+    pub fn new(requestor: CachingSystem) -> Result<Self, String> {
         // Kick off the initialization process.
         requestor.initialize()?;
         Ok(Self {
