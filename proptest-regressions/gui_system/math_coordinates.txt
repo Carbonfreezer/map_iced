@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 49224ac855a09ff88ccfc415afc962f77171f1425b6e5b193efc1d61d552191d # shrinks to latitude = -85.45856, longitude = 0.0
+cc 84b9223e886a177e40e1db1af178355d1ebe4d87a0eb55a74171f4fa0cfb85de # shrinks to latitude = 0.0, longitude = 0.0, zoom = 16, width = 1.0, height = 901.59955

@@ -2,7 +2,6 @@
 
 use crate::gui_system::math_coordinates::{BoundingRectangle, TileChange, TilePosition};
 use crate::tile_cache::cache_core::{CachingResultMessage, CachingSystem};
-use crate::tile_cache::web_requester::Requester;
 use fxhash::{FxHashMap, FxHashSet};
 use iced::advanced::image::Handle;
 use std::mem::take;
@@ -202,7 +201,7 @@ impl TileCache {
         self.subscription_region.insert(client, area);
     }
 
-    /// We get all the images for a specific client we are subscrobed to.
+    /// We get all the images for a specific client we are subscribed to.
     pub fn get_all_images_for_client(&self, client: u32) -> Vec<TilesToDraw> {
         let Some(bounding_rect) = self.subscription_region.get(&client) else {
             return vec![];
@@ -275,7 +274,6 @@ impl TileCache {
 mod tests {
     use super::*;
     use crate::tile_cache::cache_core::generate_dummy_cache;
-    use itertools::iproduct;
     use std::assert_matches;
 
     #[tokio::test]

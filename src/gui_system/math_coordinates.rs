@@ -1,5 +1,6 @@
 //! This module contains all related to math and coordinates.
 
+use iced::Rectangle;
 use itertools::iproduct;
 use std::f64::consts::PI;
 
@@ -7,7 +8,7 @@ use std::f64::consts::PI;
 pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;
 
 /// the size of a tile in pixel coordinates.
-pub const TILE_SIZE_PIXEL : u32 = 256; 
+pub const TILE_SIZE_PIXEL: u32 = 256;
 
 /// The tile coordinates in float space,
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -64,7 +65,6 @@ impl From<TilePosition> for TileCoordinates {
     }
 }
 
-
 /// A frame around rectangles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundingRectangle {
@@ -85,31 +85,29 @@ pub struct TileChange {
 /// The boundary latitude we do not overshoot.
 const BOUNDARY_LATITUDE: f64 = 85.05112878;
 
-
-
-/// The central request for a rectangle to subscribe to. We have a center point in tile coordinates and a 
-/// total width and height also in tile coordinates. This can be transfered into an optional bounding rectangle. 
+/// The central request for a rectangle to subscribe to. We have a center point in tile coordinates and a
+/// total width and height also in tile coordinates. This can be transfered into an optional bounding rectangle.
 #[derive(Debug, Clone)]
 pub struct RequestRectangle {
-    pub center_x : f32,
-    pub center_y : f32,
-    pub width : f32,
-    pub height : f32,
-    pub zoom : u8,
+    pub center_x: f32,
+    pub center_y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub zoom: u8,
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub enum RectConversionError {
     NegativeSize,
-    OutOfWorld
+    OutOfWorld,
 }
 impl TryFrom<&RequestRectangle> for BoundingRectangle {
-   
     type Error = RectConversionError;
 
     fn try_from(rect: &RequestRectangle) -> Result<Self, Self::Error> {
-        if (rect.width<= 0.0) || (rect.height <= 0.0) { return Err(RectConversionError::NegativeSize) ; }
+        if (rect.width <= 0.0) || (rect.height <= 0.0) {
+            return Err(RectConversionError::NegativeSize);
+        }
 
         let max_value = ((1u64 << rect.zoom) - 1) as f32;
 
@@ -119,14 +117,16 @@ impl TryFrom<&RequestRectangle> for BoundingRectangle {
         let max_y = (rect.center_y + rect.height * 0.5).floor();
 
         // Check if we are totally empty.
-        if max_x < 0.0 || max_y < 0.0 || min_x > max_value || min_y > max_value { return Err(RectConversionError::OutOfWorld); }
+        if max_x < 0.0 || max_y < 0.0 || min_x > max_value || min_y > max_value {
+            return Err(RectConversionError::OutOfWorld);
+        }
 
         let x_min_new = min_x.clamp(0.0, max_value) as u32;
         let y_min_new = min_y.clamp(0.0, max_value) as u32;
         let x_max_new = max_x.clamp(0.0, max_value) as u32;
         let y_max_new = max_y.clamp(0.0, max_value) as u32;
 
-        Ok ( BoundingRectangle{
+        Ok(BoundingRectangle {
             x_min: x_min_new,
             y_min: y_min_new,
             width: x_max_new - x_min_new,
@@ -165,7 +165,6 @@ impl BoundingRectangle {
         }
     }
 
-   
     /// Gets an iterator for the tile positions in that rectangle.
     pub fn get_iterator(&self) -> impl Iterator<Item = TilePosition> {
         iproduct!(0..self.width, 0..self.height)
@@ -241,13 +240,16 @@ pub struct LatitudeLongitude {
 }
 
 impl LatitudeLongitude {
-    
     /// Getter latitude.
-    pub fn latitude(&self) -> f64 {self.latitude}
-    
+    pub fn latitude(&self) -> f64 {
+        self.latitude
+    }
+
     /// Getter longitude.
-    pub fn longitude(&self) -> f64 {self.longitude}
-    
+    pub fn longitude(&self) -> f64 {
+        self.longitude
+    }
+
     /// Constructs the object and makes sure, that both coordinates are in the valid range
     /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
     pub fn new(latitude: f64, longitude: f64) -> Self {
@@ -279,17 +281,124 @@ impl From<TileCoordinates> for LatitudeLongitude {
     }
 }
 
+/// Splits the scaling factor coming in in float to the zoom level to be asked for and the scaling
+/// to be applied to the rendering.
+pub fn split_scaling(input: f32) -> (u8, f32) {
+    let rounded = input.clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32).round();
+    (rounded as u8, 2.0f32.powf(input - rounded))
+}
+
+/// Helper structure to convert coordinates into actual drawing positions
+pub struct DrawingPositionConverter {
+    /// The offset in x,y that needs to get added.
+    central_offset: (f64, f64),
+    /// The scaling factor that needs to get applied in combination with offset for transformation.
+    transform_scaling: f64,
+    /// The scaling we need to apply to out sprite to render it.
+    render_scaling: f32,
+    /// The zoom step we work on.
+    zoom: u8,
+    /// The boundary rectangle needed for quering tiles.
+    bounding_rectangle: Option<BoundingRectangle>,
+}
+
+impl DrawingPositionConverter {
+    pub fn new(
+        central_position: &LatitudeLongitude,
+        scaling_global: f32,
+        drawing_rect: &Rectangle,
+    ) -> Self {
+        let (zoom, render_scaling) = split_scaling(scaling_global);
+        let transform_scaling = (render_scaling * TILE_SIZE_PIXEL as f32) as f64;
+        let tile_center = central_position.get_tile_coordinates(zoom);
+        let rect_center = (
+            (drawing_rect.x + drawing_rect.width * 0.5) as f64,
+            (drawing_rect.y + drawing_rect.height * 0.5) as f64,
+        );
+        let central_offset = (
+            rect_center.0 - (tile_center.x * transform_scaling),
+            rect_center.1 - (tile_center.y * transform_scaling),
+        );
+
+        let width_new = drawing_rect.width as f64 / transform_scaling;
+        let height_new = drawing_rect.height as f64 / transform_scaling;
+
+        let inner_rectangle = BoundingRectangle::try_from(&RequestRectangle {
+            center_x: tile_center.x as f32,
+            center_y: tile_center.y as f32,
+            width: width_new as f32,
+            height: height_new as f32,
+            zoom,
+        });
+
+        debug_assert!(
+            !matches!(inner_rectangle, Err(RectConversionError::NegativeSize)),
+            "Negative size should not happen in calculation."
+        );
+
+        Self {
+            central_offset,
+            transform_scaling,
+            render_scaling,
+            zoom,
+            bounding_rectangle: inner_rectangle.ok(),
+        }
+    }
+
+    /// Asks for the bounding retangle if existing.
+    pub fn bounding_rectangle(&self) -> Option<BoundingRectangle> {
+        self.bounding_rectangle
+    }
+
+    /// Asks for the scaling that has to be applied when rendering a tile.
+    pub fn get_drawing_scale(&self) -> f32 {
+        self.render_scaling
+    }
+
+    /// Gets the drawin position of a tile handed over
+    pub fn get_drawing_position(&self, tile_pos: TileCoordinates) -> (f64, f64) {
+        debug_assert_eq!(tile_pos.zoom, self.zoom, "Zoom level incompatible.");
+        (
+            tile_pos.x * self.transform_scaling + self.central_offset.0,
+            tile_pos.y * self.transform_scaling + self.central_offset.1,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use iced::{Point, Size};
     use proptest::{prop_assert, proptest};
-    
+
+    proptest! {
+        #[test]
+        fn drawing_position_converter(latitude in -90f64 .. 90f64, longitude in -180f64 .. 180f64,
+            zoom in 0u8 ..=MAXIMUM_ZOOM_LEVEL, width in 1f32..1000.0, height in 1f32..1000.0) {
+
+            let bounding_rect = Rectangle::new(Point{x: 0.0, y: 0.0}, Size {width, height});
+            let compound_zoom = zoom as f32;
+            let focus_point = LatitudeLongitude::new(latitude, longitude);
+
+            let transformer = DrawingPositionConverter::new(&focus_point, compound_zoom, &bounding_rect);
+
+            prop_assert!((1.0 - transformer.get_drawing_scale()).abs() < 1e-5, "There should be no scale.");
+            let drawing = transformer.get_drawing_position(focus_point.get_tile_coordinates(zoom));
+            prop_assert!((width * 0.5 - drawing.0 as f32).abs() < 0.01, "x coordinate off" );
+            prop_assert!((height * 0.5 - drawing.1 as f32).abs() < 0.01, "x coordinate off" );
+        }
+    }
+
     #[test]
     fn boundary_test() {
-        let coord = LatitudeLongitude::from(TileCoordinates{x:0.0,y:0.0,zoom:0});
-        assert!(f64::abs(coord.latitude() -BOUNDARY_LATITUDE) < 1e-9 );
+        let coord = LatitudeLongitude::from(TileCoordinates {
+            x: 0.0,
+            y: 0.0,
+            zoom: 0,
+        });
+        assert!(f64::abs(coord.latitude() - BOUNDARY_LATITUDE) < 1e-9);
     }
-    
+
     #[test]
     fn creation_test() {
         let rect = BoundingRectangle::new(&[TilePosition {
