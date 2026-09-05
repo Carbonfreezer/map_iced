@@ -288,6 +288,15 @@ pub fn split_scaling(input: f32) -> (u8, f32) {
     (rounded as u8, f32::exp2(input - rounded))
 }
 
+/// Everything needed to render one tile sprite into the current view.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TileDrawInstruction {
+    /// Translation of the tile's top left corner in widget coordinates.
+    pub offset: Vector,
+    /// Uniform scale applied to the 256x256 sprite after translating.
+    pub scale: f32,
+}
+
 /// Helper structure to convert coordinates into actual drawing positions
 pub struct DrawingPositionConverter {
     /// The offset in x,y that needs to get added.
@@ -298,6 +307,8 @@ pub struct DrawingPositionConverter {
     render_scaling: f32,
     /// The zoom step we work on.
     zoom: u8,
+    /// Size of the drawing area in pixels, needed to cull tiles of any zoom level.
+    drawing_size: (f64, f64),
     /// The boundary rectangle needed for quering tiles.
     bounding_rectangle: Option<BoundingRectangle>,
     /// The original position in latitude longitude.
@@ -316,13 +327,14 @@ impl DrawingPositionConverter {
         let transform_scaling = (render_scaling * TILE_SIZE_PIXEL as f32) as f64;
         let tile_center = central_position.get_tile_coordinates(zoom);
         let rect_center = (
-            (drawing_rect.x + drawing_rect.width * 0.5) as f64,
-            (drawing_rect.y + drawing_rect.height * 0.5) as f64,
+            (drawing_rect.width * 0.5) as f64,
+            (drawing_rect.height * 0.5) as f64,
         );
         let central_offset = (
             rect_center.0 - (tile_center.x * transform_scaling),
             rect_center.1 - (tile_center.y * transform_scaling),
         );
+        let drawing_size = (drawing_rect.width as f64, drawing_rect.height as f64);
 
         let width_new = drawing_rect.width as f64 / transform_scaling;
         let height_new = drawing_rect.height as f64 / transform_scaling;
@@ -345,6 +357,7 @@ impl DrawingPositionConverter {
             transform_scaling,
             render_scaling,
             zoom,
+            drawing_size,
             bounding_rectangle: inner_rectangle.ok(),
             original_position: *central_position,
             original_scaling: scaling_global,
@@ -352,6 +365,10 @@ impl DrawingPositionConverter {
         }
     }
 
+    /// Gets the discreet zoom level.
+    pub fn zoom(&self) -> u8 {self.zoom}
+    
+    
     /// Gets the original position.
     pub fn original_position(&self) -> LatitudeLongitude {self.original_position}
 
@@ -367,15 +384,29 @@ impl DrawingPositionConverter {
         self.render_scaling
     }
 
-    /// Gets the drawin position of a tile handed over returns a vector from iced. If the registered
-    /// zoom and contained zoom are not the same a None is returned.
-    pub fn get_drawing_position(&self, tile_pos: TileCoordinates) -> Option<Vector> {
-        (tile_pos.zoom == self.zoom).then(||
-        Vector::new
-        (
-            (tile_pos.x * self.transform_scaling + self.central_offset.0) as f32,
-            (tile_pos.y * self.transform_scaling + self.central_offset.1) as f32,
-        ))
+    /// Draw instruction for a tile of *any* zoom level. `None` when the tile
+    /// cannot contribute a pixel to the current viewport.
+    pub fn get_draw_instruction(&self, tile: TileCoordinates) -> Option<TileDrawInstruction> {
+        debug_assert!(tile.zoom <= MAXIMUM_ZOOM_LEVEL, "zoom out of range");
+
+        let factor = f64::exp2(self.zoom as f64 - tile.zoom as f64);
+        let extent = factor * self.transform_scaling; // on-screen edge length
+
+        let x = tile.x * extent + self.central_offset.0;
+        let y = tile.y * extent + self.central_offset.1;
+
+        if x + extent <= 0.0
+            || y + extent <= 0.0
+            || x >= self.drawing_size.0
+            || y >= self.drawing_size.1
+        {
+            return None;
+        }
+
+        Some(TileDrawInstruction {
+            offset: Vector::new(x as f32, y as f32),
+            scale: (self.render_scaling as f64 * factor) as f32,
+        })
     }
 }
 
@@ -397,9 +428,9 @@ mod tests {
             let transformer = DrawingPositionConverter::new(&focus_point, compound_zoom, &bounding_rect);
 
             prop_assert!((1.0 - transformer.get_drawing_scale()).abs() < 1e-5, "There should be no scale.");
-            let drawing = transformer.get_drawing_position(focus_point.get_tile_coordinates(zoom)).expect("Zoom level should fit.");
-            prop_assert!((width * 0.5 - drawing.x).abs() < 0.01, "x coordinate off" );
-            prop_assert!((height * 0.5 - drawing.y).abs() < 0.01, "x coordinate off" );
+            let drawing = transformer.get_draw_instruction(focus_point.get_tile_coordinates(zoom)).expect("Zoom level should fit.");
+            prop_assert!((width * 0.5 - drawing.offset.x).abs() < 0.01, "x coordinate off" );
+            prop_assert!((height * 0.5 - drawing.offset.y).abs() < 0.01, "x coordinate off" );
         }
     }
 

@@ -2,7 +2,7 @@
 
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::math_coordinates::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
-use iced::advanced::image::{Handle, Image};
+use iced::advanced::image:: Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
@@ -39,13 +39,14 @@ pub struct InteractionState {
 
 /// The widget used for rendering a tile.
 pub struct MapWidget {
-    /// The drawing cache for the different tiles.
     tile_drawing_cache: Cache,
-    /// The tiles we need to draw.
+    /// Tiles for the current view, possibly still filling up.
     drawing_tiles: Vec<TilesToDraw>,
-    /// The client id we belong to.
+    /// Tile count `drawing_tiles` needs before it covers the viewport alone.
+    expected_tile_count: usize,
+    /// Last complete set, kept as backdrop while the current one fills up.
+    fallback_tiles: Vec<TilesToDraw>,
     client_id: u32,
-    /// The position converter.
     position_converter: Option<DrawingPositionConverter>,
 }
 
@@ -64,33 +65,47 @@ impl MapWidget {
         Self {
             tile_drawing_cache: Default::default(),
             drawing_tiles: vec![],
+            fallback_tiles: vec![],
+            expected_tile_count: 0,
             client_id,
             position_converter: None,
         }
     }
 
-    /// Sets the drawing tiles from the our
-    pub fn set_drawing_tiles(&mut self, drawing_tiles: Vec<TilesToDraw>) {
-        self.drawing_tiles = drawing_tiles;
-        self.tile_drawing_cache.clear();
-    }
-    
-    /// Sets the focal points and gets the bounding rectangle for subscription
     pub fn set_zoom_level_and_get_bounding_rect(
         &mut self,
         focal_point: FocalPoint,
         bounds: Rectangle,
     ) -> Option<BoundingRectangle> {
-        self.tile_drawing_cache.clear();
-        self.position_converter = Some(DrawingPositionConverter::new(
+        let converter = DrawingPositionConverter::new(
             &focal_point.position,
             focal_point.continuous_zoom_level,
             &bounds,
-        ));
-        self.position_converter
-            .as_ref()
-            .unwrap()
-            .bounding_rectangle()
+        );
+        let new_rect = converter.bounding_rectangle();
+
+        let zoom_changed =
+            self.position_converter.as_ref().map(|c| c.zoom()) != Some(converter.zoom());
+
+        if zoom_changed {
+            // Only ever promote a set that actually covered the viewport, otherwise a
+            // fast scroll would replace a good backdrop with a half-filled one.
+            if self.drawing_tiles.len() >= self.expected_tile_count && !self.drawing_tiles.is_empty() {
+                self.fallback_tiles = std::mem::take(&mut self.drawing_tiles);
+            } else {
+                self.drawing_tiles.clear();
+            }
+        }
+
+        self.expected_tile_count = new_rect.map_or(0, |r| (r.width * r.height) as usize);
+        self.position_converter = Some(converter);
+        self.tile_drawing_cache.clear();
+        new_rect
+    }
+
+    pub fn set_drawing_tiles(&mut self, drawing_tiles: Vec<TilesToDraw>) {
+        self.drawing_tiles = drawing_tiles;
+        self.tile_drawing_cache.clear();
     }
 }
 
@@ -163,20 +178,18 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         let Some(converter) = &self.position_converter else {
             return vec![];
         };
-        let drawing_scale = converter.get_drawing_scale();
-        let content = self
-            .tile_drawing_cache
-            .draw(renderer, bounds.size(), |frame| {
-                for tile_and_pos in &self.drawing_tiles {
-                    let Some(final_pos) = converter.get_drawing_position(tile_and_pos.position.into()) else {continue};
-                    frame.with_save(|frame| {
-                        frame.translate(final_pos);
-                        frame.scale(drawing_scale);
-                        let image: Image<Handle> = Image::new(tile_and_pos.image.clone());
-                        frame.draw_image(STANDARD_RECTANGLE, image);
-                    })
-                }
-            });
+        let content = self.tile_drawing_cache.draw(renderer, bounds.size(), |frame| {
+            for tile_and_pos in self.fallback_tiles.iter().chain(self.drawing_tiles.iter()) {
+                let Some(draw) = converter.get_draw_instruction(tile_and_pos.position.into()) else {
+                    continue;
+                };
+                frame.with_save(|frame| {
+                    frame.translate(draw.offset);
+                    frame.scale(draw.scale);
+                    frame.draw_image(STANDARD_RECTANGLE, Image::new(tile_and_pos.image.clone()));
+                })
+            }
+        });
 
         vec![content]
     }
