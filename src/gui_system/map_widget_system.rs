@@ -75,7 +75,7 @@ impl MapWidgetSystem {
                 request_rectangle,
                 client_id,
             } => self.process_request(request_rectangle, client_id),
-            MapWidgetMessage::MapInteractionCommand(MapInteractionCommand{client_id, command}) => {} // TODO: Pass on the interaction command to the client.
+            MapWidgetMessage::MapInteractionCommand(MapInteractionCommand{client_id, command}) => {todo!("Command processing missing.")} // TODO: Pass on the interaction command to the client.
         }
     }
 
