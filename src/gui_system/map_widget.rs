@@ -1,15 +1,12 @@
 //! This contains the core map widget.
 
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::math_coordinates::{
-    BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, TILE_SIZE_PIXEL,
-    TileCoordinates,
-};
+use crate::gui_system::math_coordinates::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, TileCoordinates, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
 use iced::advanced::image::{Handle, Image};
-use iced::mouse::{Cursor, Interaction};
+use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
-use iced::{Event, Rectangle, Renderer, Theme, Vector, window};
+use iced::{mouse, window, Event, Rectangle, Renderer, Theme, Vector};
 
 /// These become the interaction commands with the rest of the system later on.
 #[derive(Debug, Clone)]
@@ -66,13 +63,14 @@ impl MapWidget {
         self.drawing_tiles = drawing_tiles;
         self.tile_drawing_cache.clear();
     }
-
+    
     /// Sets the focal points and gets the bounding rectangle for subscription
     pub fn set_zoom_level_and_get_bounding_rect(
         &mut self,
         focal_point: FocalPoint,
         bounds: Rectangle,
     ) -> Option<BoundingRectangle> {
+        self.tile_drawing_cache.clear();
         self.position_converter = Some(DrawingPositionConverter::new(
             &focal_point.position,
             focal_point.continuous_zoom_level,
@@ -112,6 +110,20 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                         ),
                     }))
                 }
+                Event::Mouse(mouse::Event::WheelScrolled {delta : ScrollDelta::Lines{y,..}} ) =>  {
+                    let global_scale = (converter.original_scaling() + y / 10.0).clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
+
+                    Some(Action::publish(MapInteractionCommand {
+                        client_id: self.client_id,
+                        command: SpecificInteractionCommand::SetFocalPoint(
+                            FocalPoint {
+                                position: converter.original_position(),
+                                continuous_zoom_level: global_scale,
+                            },
+                            bounds,
+                        ),
+                    }))
+                },
                 _ => None,
             }
         } else {
