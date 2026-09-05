@@ -5,16 +5,12 @@ use iced::Task;
 use tokio_stream::wrappers::ReceiverStream;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::map_widget::{FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand};
-use crate::gui_system::math_coordinates::{BoundingRectangle, LatitudeLongitude, RectConversionError, RequestRectangle};
+use crate::gui_system::math_coordinates::{LatitudeLongitude};
 use crate::tile_cache::cache_core::CachingResultMessage;
 
 #[derive(Debug, Clone)]
 pub enum MapWidgetMessage {
     CachingResultMessage(CachingResultMessage),
-    TileRequesterMessage {
-        request_rectangle: RequestRectangle,
-        client_id: u32,
-    },
     MapInteractionCommand(MapInteractionCommand),
 }
 
@@ -39,7 +35,7 @@ impl MapWidgetSystem {
 
     ///  The messages going into the caching system are processed here.
     fn process_caching_message(&mut self, message: CachingResultMessage) {
-        self.tile_cache.process_caching_message(message.clone());
+        self.tile_cache.process_caching_message(message);
         for msg in self.tile_cache.drain_result_messages() {
             match msg {
                 CacheUpdateMessage::ErrorMessage { text:_ } => {todo!("Implement error case.")} // TODO: Error display has be be added later.
@@ -66,28 +62,11 @@ impl MapWidgetSystem {
         }
     }
 
-    /// Processes the request for a new rectangle.
-    fn process_request(&mut self, request_rectangle: RequestRectangle, client_id: u32) {
-        match BoundingRectangle::try_from(&request_rectangle) {
-            Ok(plain_rect) => {
-                self.tile_cache
-                    .register_new_interest_area(client_id, plain_rect);
-            }
-            Err(RectConversionError::NegativeSize) => {
-                debug_assert!(false, "Negative size on incoming rect");
-            }
-            Err(RectConversionError::OutOfWorld) => {} // This is ok nothing to do here.
-        }
-    }
 
     /// Processes all the relevant messages.
     pub fn process_message(&mut self, message: MapWidgetMessage) {
         match message {
             MapWidgetMessage::CachingResultMessage(msg) => self.process_caching_message(msg),
-            MapWidgetMessage::TileRequesterMessage {
-                request_rectangle,
-                client_id,
-            } => self.process_request(request_rectangle, client_id),
             MapWidgetMessage::MapInteractionCommand(MapInteractionCommand{client_id, command}) => {self.process_widget_message(client_id, command)}
         }
     }
