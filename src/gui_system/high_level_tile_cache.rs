@@ -209,14 +209,10 @@ impl TileCache {
         bounding_rect
             .get_iterator()
             .filter_map(|position| {
-                match self
+                self
                     .content_tiles
                     .get(&position)
-                    .and_then(|image| image.image.clone())
-                {
-                    Some(image) => Some(TilesToDraw { position, image }),
-                    None => None,
-                }
+                    .and_then(|image| image.image.clone()).map(|image| TilesToDraw { position, image })
             })
             .collect()
     }

@@ -291,7 +291,7 @@ impl CachingSystem {
                     .await;
                 return;
             }
-            Ok(data) => Bytes::from(data),
+            Ok(data) => data,
             Err(text) => {
                 let _ = sender
                     .send(CachingResultMessage::TileFailed {
