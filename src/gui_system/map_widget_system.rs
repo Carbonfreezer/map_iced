@@ -2,6 +2,7 @@
 //! the internal cache.
 
 use iced::Task;
+use iced::widget::{canvas, Canvas};
 use tokio_stream::wrappers::ReceiverStream;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::map_widget::{FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand};
@@ -78,8 +79,9 @@ impl MapWidgetSystem {
         id
     }
 
-    /// Gets a read only version of the indicated widget.
-    pub fn get_widget_access(&self, id: u32) -> Option<&MapWidget> {
-        self.widget_collection.get(id as usize)
+    /// The canvas for one widget. Returns `Canvas`, not `Element`, so the
+    /// caller keeps full control over layout.
+    pub fn canvas(&self, id: u32) -> Canvas<&MapWidget, MapInteractionCommand> {
+        canvas(self.widget_collection.get(id as usize).expect("unknown widget id"))
     }
 }

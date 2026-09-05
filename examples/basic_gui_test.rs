@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use iced::{Element, Task, Theme, Fill, Size};
-use iced::widget::{canvas,  container};
+use iced::widget::container;
 use map_iced::gui_system::tile_cache_construction::{generate_debug_tile_cache, CachingDirectory};
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
 
@@ -35,7 +35,7 @@ impl BasicApplication {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let map_canvas = canvas(self.widget_system.get_widget_access(self.widget_id).unwrap())
+        let map_canvas = self.widget_system.canvas(self.widget_id)
             .width(Fill)
             .height(Fill);
 
