@@ -25,7 +25,7 @@ impl BasicApplication {
 
     fn update(&mut self, message : Message) {
         
-        println!("New message: {:?}", message);
+        // println!("New message: {:?}", message);
 
 
         match message {

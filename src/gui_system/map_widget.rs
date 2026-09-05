@@ -71,7 +71,6 @@ impl MapWidget {
 
     /// Sets the drawing tiles from the our
     pub fn set_drawing_tiles(&mut self, drawing_tiles: Vec<TilesToDraw>) {
-        println!("Set drawing tiles num {}", drawing_tiles.len());
         self.drawing_tiles = drawing_tiles;
         self.tile_drawing_cache.clear();
     }
@@ -168,19 +167,15 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         let content = self
             .tile_drawing_cache
             .draw(renderer, bounds.size(), |frame| {
-                let mut count = 0;
                 for tile_and_pos in &self.drawing_tiles {
+                    let Some(final_pos) = converter.get_drawing_position(tile_and_pos.position.into()) else {continue};
                     frame.with_save(|frame| {
-                        frame.translate(
-                            converter.get_drawing_position(tile_and_pos.position.into()),
-                        );
+                        frame.translate(final_pos);
                         frame.scale(drawing_scale);
                         let image: Image<Handle> = Image::new(tile_and_pos.image.clone());
                         frame.draw_image(STANDARD_RECTANGLE, image);
-                        count += 1;
                     })
                 }
-                println!("Drawn tiles {}", count);
             });
 
         vec![content]

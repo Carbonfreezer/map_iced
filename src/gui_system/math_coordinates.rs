@@ -367,14 +367,15 @@ impl DrawingPositionConverter {
         self.render_scaling
     }
 
-    /// Gets the drawin position of a tile handed over returns a vector from iced. 
-    pub fn get_drawing_position(&self, tile_pos: TileCoordinates) -> Vector {
-        debug_assert_eq!(tile_pos.zoom, self.zoom, "Zoom level incompatible.");
+    /// Gets the drawin position of a tile handed over returns a vector from iced. If the registered 
+    /// zoom and contained zoom are not the same a None is returned.
+    pub fn get_drawing_position(&self, tile_pos: TileCoordinates) -> Option<Vector> {
+        (tile_pos.zoom == self.zoom).then(||
         Vector::new
         (
             (tile_pos.x * self.transform_scaling + self.central_offset.0) as f32,
             (tile_pos.y * self.transform_scaling + self.central_offset.1) as f32,
-        )
+        ))
     }
 }
 
@@ -396,7 +397,7 @@ mod tests {
             let transformer = DrawingPositionConverter::new(&focus_point, compound_zoom, &bounding_rect);
 
             prop_assert!((1.0 - transformer.get_drawing_scale()).abs() < 1e-5, "There should be no scale.");
-            let drawing = transformer.get_drawing_position(focus_point.get_tile_coordinates(zoom));
+            let drawing = transformer.get_drawing_position(focus_point.get_tile_coordinates(zoom)).expect("Zoom level should fit.");
             prop_assert!((width * 0.5 - drawing.x).abs() < 0.01, "x coordinate off" );
             prop_assert!((height * 0.5 - drawing.y).abs() < 0.01, "x coordinate off" );
         }
