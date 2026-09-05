@@ -6,7 +6,7 @@ use iced::advanced::image:: Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
-use iced::{mouse, window, Event, Rectangle, Renderer, Theme};
+use iced::{mouse, window, Event, Rectangle, Renderer, Theme, Point};
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -34,7 +34,10 @@ pub enum SpecificInteractionCommand {
 /// The internal state for mouse processing.
 #[derive(Default)]
 pub struct InteractionState {
+    /// Flags initialization.
     is_initialized: bool,
+    /// Contains the last position, when the middle mouse button is pressed.
+    middle_mouse_button_pressed_position: Option<Point>
 }
 
 /// The widget used for rendering a tile.
@@ -117,7 +120,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         state: &mut Self::State,
         event: &Event,
         bounds: Rectangle,
-        _cursor: Cursor,
+        cursor: Cursor,
     ) -> Option<Action<MapInteractionCommand>> {
         if state.is_initialized {
             let Some(converter) = self.position_converter.as_ref() else {
@@ -150,7 +153,31 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                         ),
                     }))
                 },
-                _ => None,
+                Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle)) => {state.middle_mouse_button_pressed_position = cursor.position_in(bounds); None},
+                Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) => {state.middle_mouse_button_pressed_position = None; None},
+
+                _ => {
+
+                    // Here we deal with panning.
+                    let Some(old_position) = state.middle_mouse_button_pressed_position  else {return None;};
+                    let Some(new_position) = cursor.position_in(bounds)  else {return None;};
+                    let Some(converter) = self.position_converter.as_ref() else {return None;};
+
+                    let delta = new_position - old_position;
+                    let new_coordinate = converter.get_new_coord_for_mouse_delta(delta);
+
+                    state.middle_mouse_button_pressed_position = Some(new_position);
+                    Some(Action::publish(MapInteractionCommand {
+                        client_id: self.client_id,
+                        command: SpecificInteractionCommand::SetFocalPoint(
+                            FocalPoint {
+                                position: new_coordinate,
+                                continuous_zoom_level: converter.original_scaling(),
+                            },
+                            bounds,
+                        ),
+                    }))
+                },
             }
         } else {
             state.is_initialized = true;

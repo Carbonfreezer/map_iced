@@ -408,6 +408,18 @@ impl DrawingPositionConverter {
             scale: (self.render_scaling as f64 * factor) as f32,
         })
     }
+
+
+    /// Hands over the mouse delta and gets the new focal point that corresponds to the new position.
+    pub fn get_new_coord_for_mouse_delta(&self, delta: Vector) -> LatitudeLongitude {
+        let tile_center = self.original_position.get_tile_coordinates(self.zoom);
+        let delta_in_tiles = delta / self.transform_scaling as f32;
+        let x = tile_center.x - delta_in_tiles.x as f64;
+        let y = tile_center.y - delta_in_tiles.y as f64;
+
+        let point = TileCoordinates { x,y, zoom: self.zoom};
+        point.into()
+    }
 }
 
 #[cfg(test)]
