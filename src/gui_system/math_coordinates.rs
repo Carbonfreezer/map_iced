@@ -367,7 +367,7 @@ impl DrawingPositionConverter {
         self.render_scaling
     }
 
-    /// Gets the drawin position of a tile handed over returns a vector from iced.
+    /// Gets the drawin position of a tile handed over returns a vector from iced. 
     pub fn get_drawing_position(&self, tile_pos: TileCoordinates) -> Vector {
         debug_assert_eq!(tile_pos.zoom, self.zoom, "Zoom level incompatible.");
         Vector::new

@@ -1,12 +1,15 @@
 //! This contains the core map widget.
 
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::math_coordinates::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, TileCoordinates, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
+use crate::gui_system::math_coordinates::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
 use iced::advanced::image::{Handle, Image};
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
-use iced::{mouse, window, Event, Rectangle, Renderer, Theme, Vector};
+use iced::{mouse, window, Event, Rectangle, Renderer, Theme};
+
+/// The velocity we use for mouse scrolling.
+const SCROLLING_SPEED: f32 = 0.05;
 
 /// These become the interaction commands with the rest of the system later on.
 #[derive(Debug, Clone)]
@@ -45,6 +48,15 @@ pub struct MapWidget {
     /// The position converter.
     position_converter: Option<DrawingPositionConverter>,
 }
+
+
+/// The rectangle that covers one tile.
+const STANDARD_RECTANGLE : Rectangle = Rectangle {
+    x: 0.0,
+    y: 0.0,
+    width: TILE_SIZE_PIXEL as f32,
+    height: TILE_SIZE_PIXEL as f32,
+};
 
 impl MapWidget {
     /// Creates a new widget from the client id.
@@ -93,7 +105,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         bounds: Rectangle,
         _cursor: Cursor,
     ) -> Option<Action<MapInteractionCommand>> {
-        if (state.is_initialized) {
+        if state.is_initialized {
             let Some(converter) = self.position_converter.as_ref() else {
                 return None;
             };
@@ -111,7 +123,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                     }))
                 }
                 Event::Mouse(mouse::Event::WheelScrolled {delta : ScrollDelta::Lines{y,..}} ) =>  {
-                    let global_scale = (converter.original_scaling() + y / 10.0).clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
+                    let global_scale = (converter.original_scaling() + y * SCROLLING_SPEED).clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
 
                     Some(Action::publish(MapInteractionCommand {
                         client_id: self.client_id,
@@ -143,22 +155,16 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
 
     fn draw(
         &self,
-        state: &Self::State,
+        _state: &Self::State,
         renderer: &Renderer,
-        theme: &Theme,
+        _theme: &Theme,
         bounds: Rectangle,
-        cursor: Cursor,
+        _cursor: Cursor,
     ) -> Vec<Geometry<Renderer>> {
         let Some(converter) = &self.position_converter else {
             return vec![];
         };
         let drawing_scale = converter.get_drawing_scale();
-        let standard_rect = Rectangle {
-            x: 0.0,
-            y: 0.0,
-            width: TILE_SIZE_PIXEL as f32,
-            height: TILE_SIZE_PIXEL as f32,
-        };
         let content = self
             .tile_drawing_cache
             .draw(renderer, bounds.size(), |frame| {
@@ -168,9 +174,9 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                         frame.translate(
                             converter.get_drawing_position(tile_and_pos.position.into()),
                         );
-                        // frame.scale(drawing_scale);
+                        frame.scale(drawing_scale);
                         let image: Image<Handle> = Image::new(tile_and_pos.image.clone());
-                        frame.draw_image(standard_rect, image);
+                        frame.draw_image(STANDARD_RECTANGLE, image);
                         count += 1;
                     })
                 }

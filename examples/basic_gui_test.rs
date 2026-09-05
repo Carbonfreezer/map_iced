@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use iced::{Element, Task, Theme, Fill, Size};
-use iced::widget::{canvas, Column, container};
+use iced::widget::{canvas,  container};
 use map_iced::gui_system::tile_cache_construction::{generate_debug_tile_cache, CachingDirectory};
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
 

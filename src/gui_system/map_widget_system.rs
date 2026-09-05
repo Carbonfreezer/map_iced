@@ -44,7 +44,7 @@ impl MapWidgetSystem {
         self.tile_cache.process_caching_message(message.clone());
         for msg in self.tile_cache.drain_result_messages() {
             match msg {
-                CacheUpdateMessage::ErrorMessage { text } => {} // TODO: Error display has be be added later.
+                CacheUpdateMessage::ErrorMessage { text:_ } => {todo!("Implement error case.")} // TODO: Error display has be be added later.
                 CacheUpdateMessage::RelevantTilesArrived { client } => {
                     let new_tiles = self.tile_cache.get_all_images_for_client(client);
                     self.widget_collection[client as usize].set_drawing_tiles(new_tiles);
