@@ -4,12 +4,12 @@
 //! It is the responsibility of the user to make sure that no two requests for the same
 //! tile type are in flight at the same time.
 
-use std::fmt::Debug;
 use crate::tile_cache::file_util::{FileUtil, round_to_final_consumption};
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
-use crate::tile_cache::web_requester::{Requester};
+use crate::tile_cache::web_requester::Requester;
 use bytes::Bytes;
+use std::fmt::Debug;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
@@ -74,8 +74,28 @@ impl Debug for CachingResultMessage {
         match self {
             CachingResultMessage::Error { message } => write!(f, "Caching error: {}", message),
             CachingResultMessage::InitializationCompleted => write!(f, "Initialization completed"),
-            CachingResultMessage::TileData { level, x, y, data } => {write!(f, "Tile data level {}, x {}, y {}, size {}", level, x, y, data.len())},
-            CachingResultMessage::TileFailed { level, x, y, message } => {write!(f, "Tile failed level {}, x {}, y {}, message {}", level, x, y,message)},
+            CachingResultMessage::TileData { level, x, y, data } => {
+                write!(
+                    f,
+                    "Tile data level {}, x {}, y {}, size {}",
+                    level,
+                    x,
+                    y,
+                    data.len()
+                )
+            }
+            CachingResultMessage::TileFailed {
+                level,
+                x,
+                y,
+                message,
+            } => {
+                write!(
+                    f,
+                    "Tile failed level {}, x {}, y {}, message {}",
+                    level, x, y, message
+                )
+            }
         }
     }
 }
@@ -387,7 +407,7 @@ pub fn generate_cache(
     cache_base_dir: impl AsRef<Path>,
     maximum_amount_of_data: u64,
 ) -> Result<CachingSystem, String> {
-    Ok (CachingSystem::new(
+    Ok(CachingSystem::new(
         Requester::new(intro_url, post_url, user_agent)?,
         cache_base_dir,
         maximum_amount_of_data,

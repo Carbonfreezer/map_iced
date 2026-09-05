@@ -1,12 +1,10 @@
 //! this module contains the functionality to interact with web requests.
 
-use bytes::Bytes;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
+use bytes::Bytes;
 
 /// The dummy test image we use for test purposes.
 const TEST_IMAGE: &[u8] = include_bytes!("../../assets/Test.png");
-
-
 
 /// A requester struct that does the web requests, defaults to the dummy data
 /// if no client is set.
@@ -21,20 +19,21 @@ impl Requester {
     /// standard tile specification and the post part is what should get postpended. This
     /// is for instance the user id in mat box. The user agent is the agent, that is required for
     /// OSM Example: `MyCoolMappingApp/1.0 (contact@example.com)`
-    pub fn new(intro_url: &str, post_url: &str, user_agent: &str) ->Result<Self, String> {
+    pub fn new(intro_url: &str, post_url: &str, user_agent: &str) -> Result<Self, String> {
         let client = reqwest::Client::builder()
             .default_headers(
                 [(
                     reqwest::header::USER_AGENT,
-                    reqwest::header::HeaderValue::from_str(user_agent).map_err(|e| e.to_string())?,
+                    reqwest::header::HeaderValue::from_str(user_agent)
+                        .map_err(|e| e.to_string())?,
                 )]
-                    .into_iter()
-                    .collect(),
+                .into_iter()
+                .collect(),
             )
             .build()
             .map_err(|e| e.to_string())?;
 
-        Ok (Self {
+        Ok(Self {
             client: Some(client),
             intro_url: intro_url.to_string(),
             post_url: post_url.to_string(),
@@ -43,12 +42,15 @@ impl Requester {
 
     /// Returns a requester that serves a built-in test image for every tile.
     pub fn dummy() -> Self {
-        Self { client: None, intro_url: String::new(), post_url: String::new() }
+        Self {
+            client: None,
+            intro_url: String::new(),
+            post_url: String::new(),
+        }
     }
 
     /// Gets the image data from the tile specification.
     pub async fn get_image_data(&self, specification: TileSpecification) -> Result<Bytes, String> {
-
         if let Some(client) = &self.client {
             let final_url = self.intro_url.clone()
                 + specification.get_partial_url().as_str()
@@ -63,13 +65,11 @@ impl Requester {
                 .bytes()
                 .await
                 .map_err(|x| x.to_string())?)
-        }
-        else {
+        } else {
             Ok(Bytes::from_static(TEST_IMAGE))
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -96,7 +96,8 @@ mod tests {
             "https://tile.openstreetmap.org/",
             "",
             "test_runner christoph.luerig@gmail.com",
-        ).unwrap();
+        )
+        .unwrap();
         let data = requester
             .get_image_data(TileSpecification::new(0, 0, 0))
             .await

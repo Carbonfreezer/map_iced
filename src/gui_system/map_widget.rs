@@ -1,12 +1,15 @@
 //! This contains the core map widget.
 
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::math_coordinates::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, RectConversionError, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
-use iced::advanced::image:: Image;
+use crate::gui_system::math_coordinates::{
+    BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL,
+    RectConversionError, TILE_SIZE_PIXEL,
+};
+use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
-use iced::{mouse, window, Event, Rectangle, Renderer, Theme, Point};
+use iced::{Event, Point, Rectangle, Renderer, Theme, mouse, window};
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -37,10 +40,8 @@ pub struct InteractionState {
     /// Flags initialization.
     is_initialized: bool,
     /// Contains the last position, when the middle mouse button is pressed.
-    drag_origin: Option<Point>
+    drag_origin: Option<Point>,
 }
-
-
 
 /// The widget used for rendering a tile.
 pub struct MapWidget {
@@ -53,12 +54,11 @@ pub struct MapWidget {
     /// The view this widget currently shows. Source of truth for interaction.
     focal_point: FocalPoint,
     /// Derived from `focal_point` plus the canvas bounds, for rendering only.
-    position_converter: Option<DrawingPositionConverter>
+    position_converter: Option<DrawingPositionConverter>,
 }
 
-
 /// The rectangle that covers one tile.
-const STANDARD_RECTANGLE : Rectangle = Rectangle {
+const STANDARD_RECTANGLE: Rectangle = Rectangle {
     x: 0.0,
     y: 0.0,
     width: TILE_SIZE_PIXEL as f32,
@@ -100,7 +100,10 @@ impl MapWidget {
         self.focal_point = focal_point;
         self.position_converter = Some(converter);
         self.tile_drawing_cache.clear();
-        debug_assert!(!matches!(rectangle, Err(RectConversionError::NegativeSize)), "Negative size in rectangle detected.");
+        debug_assert!(
+            !matches!(rectangle, Err(RectConversionError::NegativeSize)),
+            "Negative size in rectangle detected."
+        );
         rectangle.ok()
     }
 
@@ -109,9 +112,11 @@ impl MapWidget {
         self.tile_drawing_cache.clear();
     }
 
-    fn publish(&self, focal_point: FocalPoint, bounds: Rectangle)
-               -> Option<Action<MapInteractionCommand>>
-    {
+    fn publish(
+        &self,
+        focal_point: FocalPoint,
+        bounds: Rectangle,
+    ) -> Option<Action<MapInteractionCommand>> {
         Some(Action::publish(MapInteractionCommand {
             client_id: self.client_id,
             command: SpecificInteractionCommand::SetFocalPoint(focal_point, bounds),
@@ -137,10 +142,18 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         match event {
             Event::Window(window::Event::Resized(_)) => self.publish(self.focal_point, bounds),
 
-            Event::Mouse(mouse::Event::WheelScrolled { delta: ScrollDelta::Lines { y, .. } }) => {
+            Event::Mouse(mouse::Event::WheelScrolled {
+                delta: ScrollDelta::Lines { y, .. },
+            }) => {
                 let zoom = (self.focal_point.continuous_zoom_level + y * SCROLLING_SPEED)
                     .clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
-                self.publish(FocalPoint { continuous_zoom_level: zoom, ..self.focal_point }, bounds)
+                self.publish(
+                    FocalPoint {
+                        continuous_zoom_level: zoom,
+                        ..self.focal_point
+                    },
+                    bounds,
+                )
             }
 
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle)) => {
@@ -175,7 +188,6 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         }
     }
 
-
     fn draw(
         &self,
         _state: &Self::State,
@@ -187,18 +199,22 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         let Some(converter) = &self.position_converter else {
             return vec![];
         };
-        let content = self.tile_drawing_cache.draw(renderer, bounds.size(), |frame| {
-            for tile_and_pos in self.fallback_tiles.iter().chain(self.drawing_tiles.iter()) {
-                let Some(draw) = converter.get_draw_instruction(tile_and_pos.position.into()) else {
-                    continue;
-                };
-                frame.with_save(|frame| {
-                    frame.translate(draw.offset);
-                    frame.scale(draw.scale);
-                    frame.draw_image(STANDARD_RECTANGLE, Image::new(tile_and_pos.image.clone()));
-                })
-            }
-        });
+        let content = self
+            .tile_drawing_cache
+            .draw(renderer, bounds.size(), |frame| {
+                for tile_and_pos in self.fallback_tiles.iter().chain(self.drawing_tiles.iter()) {
+                    let Some(draw) = converter.get_draw_instruction(tile_and_pos.position.into())
+                    else {
+                        continue;
+                    };
+                    frame.with_save(|frame| {
+                        frame.translate(draw.offset);
+                        frame.scale(draw.scale);
+                        frame
+                            .draw_image(STANDARD_RECTANGLE, Image::new(tile_and_pos.image.clone()));
+                    })
+                }
+            });
 
         vec![content]
     }

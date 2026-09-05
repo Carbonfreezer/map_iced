@@ -209,10 +209,10 @@ impl TileCache {
         bounding_rect
             .get_iterator()
             .filter_map(|position| {
-                self
-                    .content_tiles
+                self.content_tiles
                     .get(&position)
-                    .and_then(|image| image.image.clone()).map(|image| TilesToDraw { position, image })
+                    .and_then(|image| image.image.clone())
+                    .map(|image| TilesToDraw { position, image })
             })
             .collect()
     }
@@ -312,9 +312,12 @@ mod tests {
         assert_eq!(high_level.number_of_tiles_failed(), 0);
 
         let client_images = high_level.get_all_images_for_client(0);
-        assert_eq!(client_images.len(), TILE_DIMENSION as usize * TILE_DIMENSION as usize);
+        assert_eq!(
+            client_images.len(),
+            TILE_DIMENSION as usize * TILE_DIMENSION as usize
+        );
         assert_eq!(client_images[0].position.zoom, 5);
-   
+
         high_level.completely_unsubscribe(0);
         let client_images = high_level.get_all_images_for_client(0);
         assert!(client_images.is_empty());

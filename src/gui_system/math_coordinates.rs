@@ -308,7 +308,7 @@ pub struct DrawingPositionConverter {
     /// The scaling we need to apply to out sprite to render it.
     render_scaling: f32,
     /// Size of the drawing area in pixels, needed to cull tiles of any zoom level.
-    drawing_size:  Size<f64>,
+    drawing_size: Size<f64>,
 }
 
 impl DrawingPositionConverter {
@@ -316,7 +316,7 @@ impl DrawingPositionConverter {
         central_position: &LatitudeLongitude,
         scaling_global: f32,
         drawing_rect: &Rectangle,
-    ) ->  (Self, Result<BoundingRectangle, RectConversionError>) {
+    ) -> (Self, Result<BoundingRectangle, RectConversionError>) {
         let (zoom, render_scaling) = split_scaling(scaling_global);
         let transform_scaling = (render_scaling * TILE_SIZE_PIXEL as f32) as f64;
         let tile_center = central_position.get_tile_coordinates(zoom);
@@ -324,7 +324,7 @@ impl DrawingPositionConverter {
             (drawing_rect.width * 0.5) as f64,
             (drawing_rect.height * 0.5) as f64,
         );
-        let central_offset =  Vector::new(
+        let central_offset = Vector::new(
             rect_center.0 - (tile_center.x * transform_scaling),
             rect_center.1 - (tile_center.y * transform_scaling),
         );
@@ -346,19 +346,22 @@ impl DrawingPositionConverter {
             "Negative size should not happen in calculation."
         );
 
-        (Self {
-            tile_center,
-            central_offset,
-            transform_scaling,
-            render_scaling,
-            drawing_size,
-        }, inner_rectangle)
+        (
+            Self {
+                tile_center,
+                central_offset,
+                transform_scaling,
+                render_scaling,
+                drawing_size,
+            },
+            inner_rectangle,
+        )
     }
 
     /// Gets the discreet zoom level.
-    pub fn zoom(&self) -> u8 {self.tile_center.zoom}
-    
-
+    pub fn zoom(&self) -> u8 {
+        self.tile_center.zoom
+    }
 
     /// Asks for the scaling that has to be applied when rendering a tile.
     pub fn get_drawing_scale(&self) -> f32 {
@@ -389,7 +392,6 @@ impl DrawingPositionConverter {
             scale: (self.render_scaling as f64 * factor) as f32,
         })
     }
-
 
     /// Focus that results from dragging the map by `delta` pixels.
     pub fn get_new_coord_for_mouse_delta(&self, delta: Vector) -> LatitudeLongitude {
@@ -425,7 +427,6 @@ mod tests {
             prop_assert!((height * 0.5 - drawing.offset.y).abs() < 0.01, "x coordinate off" );
         }
     }
-
 
     #[test]
     fn boundary_test() {

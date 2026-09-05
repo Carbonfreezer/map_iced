@@ -19,8 +19,12 @@ impl CachingDirectory {
     fn get_path(&self) -> Result<PathBuf, String> {
         match self {
             CachingDirectory::FullyConstructed(path) => Ok(path.clone()),
-            CachingDirectory::CacheDirectory(path) => Ok(cache_dir().ok_or("Cache directory not found on system")?.join(path)),
-            CachingDirectory::CacheDirFixed => Ok(cache_dir().ok_or("Cache directory not found on system")?.join("Tiles")),
+            CachingDirectory::CacheDirectory(path) => Ok(cache_dir()
+                .ok_or("Cache directory not found on system")?
+                .join(path)),
+            CachingDirectory::CacheDirFixed => Ok(cache_dir()
+                .ok_or("Cache directory not found on system")?
+                .join("Tiles")),
         }
     }
 }
