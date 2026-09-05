@@ -229,7 +229,7 @@ impl BoundingRectangle {
 
 /// Conversion between zoom level and scaling factor.
 fn get_scaling_factor(zoom: u8) -> f64 {
-    2u32.pow(zoom as u32) as f64
+    f64::exp2(zoom as f64)
 }
 
 /// The latitude longitude pair. Both are given in degrees.
@@ -285,7 +285,7 @@ impl From<TileCoordinates> for LatitudeLongitude {
 /// to be applied to the rendering.
 pub fn split_scaling(input: f32) -> (u8, f32) {
     let rounded = input.clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32).round();
-    (rounded as u8, 2.0f32.powf(input - rounded))
+    (rounded as u8, f32::exp2(input - rounded))
 }
 
 /// Helper structure to convert coordinates into actual drawing positions
@@ -367,7 +367,7 @@ impl DrawingPositionConverter {
         self.render_scaling
     }
 
-    /// Gets the drawin position of a tile handed over returns a vector from iced. If the registered 
+    /// Gets the drawin position of a tile handed over returns a vector from iced. If the registered
     /// zoom and contained zoom are not the same a None is returned.
     pub fn get_drawing_position(&self, tile_pos: TileCoordinates) -> Option<Vector> {
         (tile_pos.zoom == self.zoom).then(||
