@@ -1,7 +1,7 @@
 //! This contains the core map widget.
 
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::math_coordinates::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
+use crate::gui_system::math_coordinates::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, RectConversionError, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
 use iced::advanced::image:: Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry};
@@ -84,7 +84,7 @@ impl MapWidget {
         focal_point: FocalPoint,
         bounds: Rectangle,
     ) -> Option<BoundingRectangle> {
-        let converter = DrawingPositionConverter::new(
+        let (converter, rectangle) = DrawingPositionConverter::new(
             &focal_point.position,
             focal_point.continuous_zoom_level,
             &bounds,
@@ -100,7 +100,8 @@ impl MapWidget {
         self.focal_point = focal_point;
         self.position_converter = Some(converter);
         self.tile_drawing_cache.clear();
-        self.position_converter.as_ref().unwrap().bounding_rectangle()
+        debug_assert!(!matches!(rectangle, Err(RectConversionError::NegativeSize)), "Negative size in rectangle detected.");
+        rectangle.ok()
     }
 
     pub fn set_drawing_tiles(&mut self, drawing_tiles: Vec<TilesToDraw>) {

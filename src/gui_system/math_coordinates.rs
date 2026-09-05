@@ -1,6 +1,6 @@
 //! This module contains all related to math and coordinates.
 
-use iced::{Rectangle, Vector};
+use iced::{Rectangle, Size, Vector};
 use itertools::iproduct;
 use std::f64::consts::PI;
 
@@ -300,21 +300,15 @@ pub struct TileDrawInstruction {
 /// Helper structure to convert coordinates into actual drawing positions
 pub struct DrawingPositionConverter {
     /// The offset in x,y that needs to get added.
-    central_offset: (f64, f64),
+    central_offset: Vector<f64>,
+    /// The center of the tile in tile coordinates.
+    tile_center: TileCoordinates,
     /// The scaling factor that needs to get applied in combination with offset for transformation.
     transform_scaling: f64,
     /// The scaling we need to apply to out sprite to render it.
     render_scaling: f32,
-    /// The zoom step we work on.
-    zoom: u8,
     /// Size of the drawing area in pixels, needed to cull tiles of any zoom level.
-    drawing_size: (f64, f64),
-    /// The boundary rectangle needed for quering tiles.
-    bounding_rectangle: Option<BoundingRectangle>,
-    /// The original position in latitude longitude.
-    original_position: LatitudeLongitude,
-    /// The original continues scaling factor.
-    original_scaling: f32,
+    drawing_size:  Size<f64>,
 }
 
 impl DrawingPositionConverter {
@@ -322,7 +316,7 @@ impl DrawingPositionConverter {
         central_position: &LatitudeLongitude,
         scaling_global: f32,
         drawing_rect: &Rectangle,
-    ) -> Self {
+    ) ->  (Self, Result<BoundingRectangle, RectConversionError>) {
         let (zoom, render_scaling) = split_scaling(scaling_global);
         let transform_scaling = (render_scaling * TILE_SIZE_PIXEL as f32) as f64;
         let tile_center = central_position.get_tile_coordinates(zoom);
@@ -330,11 +324,11 @@ impl DrawingPositionConverter {
             (drawing_rect.width * 0.5) as f64,
             (drawing_rect.height * 0.5) as f64,
         );
-        let central_offset = (
+        let central_offset =  Vector::new(
             rect_center.0 - (tile_center.x * transform_scaling),
             rect_center.1 - (tile_center.y * transform_scaling),
         );
-        let drawing_size = (drawing_rect.width as f64, drawing_rect.height as f64);
+        let drawing_size = Size::new(drawing_rect.width as f64, drawing_rect.height as f64);
 
         let width_new = drawing_rect.width as f64 / transform_scaling;
         let height_new = drawing_rect.height as f64 / transform_scaling;
@@ -352,32 +346,19 @@ impl DrawingPositionConverter {
             "Negative size should not happen in calculation."
         );
 
-        Self {
+        (Self {
+            tile_center,
             central_offset,
             transform_scaling,
             render_scaling,
-            zoom,
             drawing_size,
-            bounding_rectangle: inner_rectangle.ok(),
-            original_position: *central_position,
-            original_scaling: scaling_global,
-
-        }
+        }, inner_rectangle)
     }
 
     /// Gets the discreet zoom level.
-    pub fn zoom(&self) -> u8 {self.zoom}
+    pub fn zoom(&self) -> u8 {self.tile_center.zoom}
     
-    
-    /// Gets the original position.
-    pub fn original_position(&self) -> LatitudeLongitude {self.original_position}
 
-    /// Asks for the original scaling.
-    pub fn original_scaling(&self) -> f32 {self.original_scaling}
-    /// Asks for the bounding retangle if existing.
-    pub fn bounding_rectangle(&self) -> Option<BoundingRectangle> {
-        self.bounding_rectangle
-    }
 
     /// Asks for the scaling that has to be applied when rendering a tile.
     pub fn get_drawing_scale(&self) -> f32 {
@@ -389,16 +370,16 @@ impl DrawingPositionConverter {
     pub fn get_draw_instruction(&self, tile: TileCoordinates) -> Option<TileDrawInstruction> {
         debug_assert!(tile.zoom <= MAXIMUM_ZOOM_LEVEL, "zoom out of range");
 
-        let factor = f64::exp2(self.zoom as f64 - tile.zoom as f64);
+        let factor = f64::exp2(self.tile_center.zoom as f64 - tile.zoom as f64);
         let extent = factor * self.transform_scaling; // on-screen edge length
 
-        let x = tile.x * extent + self.central_offset.0;
-        let y = tile.y * extent + self.central_offset.1;
+        let x = tile.x * extent + self.central_offset.x;
+        let y = tile.y * extent + self.central_offset.y;
 
         if x + extent <= 0.0
             || y + extent <= 0.0
-            || x >= self.drawing_size.0
-            || y >= self.drawing_size.1
+            || x >= self.drawing_size.width
+            || y >= self.drawing_size.height
         {
             return None;
         }
@@ -410,15 +391,14 @@ impl DrawingPositionConverter {
     }
 
 
-    /// Hands over the mouse delta and gets the new focal point that corresponds to the new position.
+    /// Focus that results from dragging the map by `delta` pixels.
     pub fn get_new_coord_for_mouse_delta(&self, delta: Vector) -> LatitudeLongitude {
-        let tile_center = self.original_position.get_tile_coordinates(self.zoom);
-        let delta_in_tiles = delta / self.transform_scaling as f32;
-        let x = tile_center.x - delta_in_tiles.x as f64;
-        let y = tile_center.y - delta_in_tiles.y as f64;
-
-        let point = TileCoordinates { x,y, zoom: self.zoom};
-        point.into()
+        let shifted = TileCoordinates {
+            x: self.tile_center.x - delta.x as f64 / self.transform_scaling,
+            y: self.tile_center.y - delta.y as f64 / self.transform_scaling,
+            zoom: self.tile_center.zoom,
+        };
+        shifted.into()
     }
 }
 
@@ -437,7 +417,7 @@ mod tests {
             let compound_zoom = zoom as f32;
             let focus_point = LatitudeLongitude::new(latitude, longitude);
 
-            let transformer = DrawingPositionConverter::new(&focus_point, compound_zoom, &bounding_rect);
+            let transformer = DrawingPositionConverter::new(&focus_point, compound_zoom, &bounding_rect).0;
 
             prop_assert!((1.0 - transformer.get_drawing_scale()).abs() < 1e-5, "There should be no scale.");
             let drawing = transformer.get_draw_instruction(focus_point.get_tile_coordinates(zoom)).expect("Zoom level should fit.");
