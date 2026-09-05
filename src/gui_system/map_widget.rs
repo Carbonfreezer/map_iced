@@ -19,7 +19,7 @@ pub struct MapInteractionCommand {
 }
 
 /// Focal point info.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FocalPoint {
     pub position: LatitudeLongitude,
     pub continuous_zoom_level: f32,
@@ -37,20 +37,23 @@ pub struct InteractionState {
     /// Flags initialization.
     is_initialized: bool,
     /// Contains the last position, when the middle mouse button is pressed.
-    middle_mouse_button_pressed_position: Option<Point>
+    drag_origin: Option<Point>
 }
+
+
 
 /// The widget used for rendering a tile.
 pub struct MapWidget {
     tile_drawing_cache: Cache,
     /// Tiles for the current view, possibly still filling up.
     drawing_tiles: Vec<TilesToDraw>,
-    /// Tile count `drawing_tiles` needs before it covers the viewport alone.
-    expected_tile_count: usize,
     /// Last complete set, kept as backdrop while the current one fills up.
     fallback_tiles: Vec<TilesToDraw>,
     client_id: u32,
-    position_converter: Option<DrawingPositionConverter>,
+    /// The view this widget currently shows. Source of truth for interaction.
+    focal_point: FocalPoint,
+    /// Derived from `focal_point` plus the canvas bounds, for rendering only.
+    position_converter: Option<DrawingPositionConverter>
 }
 
 
@@ -64,18 +67,19 @@ const STANDARD_RECTANGLE : Rectangle = Rectangle {
 
 impl MapWidget {
     /// Creates a new widget from the client id.
-    pub fn new(client_id: u32) -> Self {
+    pub fn new(client_id: u32, focal_point: FocalPoint) -> Self {
         Self {
             tile_drawing_cache: Default::default(),
             drawing_tiles: vec![],
             fallback_tiles: vec![],
-            expected_tile_count: 0,
             client_id,
             position_converter: None,
+            focal_point,
         }
     }
 
-    pub fn set_zoom_level_and_get_bounding_rect(
+    /// Rebuilds the converter for a new view and reports the tiles it needs.
+    pub fn apply_focal_point(
         &mut self,
         focal_point: FocalPoint,
         bounds: Rectangle,
@@ -85,30 +89,32 @@ impl MapWidget {
             focal_point.continuous_zoom_level,
             &bounds,
         );
-        let new_rect = converter.bounding_rectangle();
-
         let zoom_changed =
             self.position_converter.as_ref().map(|c| c.zoom()) != Some(converter.zoom());
-
         if zoom_changed {
-            // Only ever promote a set that actually covered the viewport, otherwise a
-            // fast scroll would replace a good backdrop with a half-filled one.
-            if self.drawing_tiles.len() >= self.expected_tile_count && !self.drawing_tiles.is_empty() {
-                self.fallback_tiles = std::mem::take(&mut self.drawing_tiles);
-            } else {
-                self.drawing_tiles.clear();
+            let previous = std::mem::take(&mut self.drawing_tiles);
+            if !previous.is_empty() {
+                self.fallback_tiles = previous;
             }
         }
-
-        self.expected_tile_count = new_rect.map_or(0, |r| (r.width * r.height) as usize);
+        self.focal_point = focal_point;
         self.position_converter = Some(converter);
         self.tile_drawing_cache.clear();
-        new_rect
+        self.position_converter.as_ref().unwrap().bounding_rectangle()
     }
 
     pub fn set_drawing_tiles(&mut self, drawing_tiles: Vec<TilesToDraw>) {
         self.drawing_tiles = drawing_tiles;
         self.tile_drawing_cache.clear();
+    }
+
+    fn publish(&self, focal_point: FocalPoint, bounds: Rectangle)
+               -> Option<Action<MapInteractionCommand>>
+    {
+        Some(Action::publish(MapInteractionCommand {
+            client_id: self.client_id,
+            command: SpecificInteractionCommand::SetFocalPoint(focal_point, bounds),
+        }))
     }
 }
 
@@ -122,77 +128,52 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         bounds: Rectangle,
         cursor: Cursor,
     ) -> Option<Action<MapInteractionCommand>> {
-        if state.is_initialized {
-            let Some(converter) = self.position_converter.as_ref() else {
-                return None;
-            };
-            match event {
-                Event::Window(window::Event::Resized(_)) => {
-                    Some(Action::publish(MapInteractionCommand {
-                        client_id: self.client_id,
-                        command: SpecificInteractionCommand::SetFocalPoint(
-                            FocalPoint {
-                                position: converter.original_position(),
-                                continuous_zoom_level: converter.original_scaling(),
-                            },
-                            bounds,
-                        ),
-                    }))
-                }
-                Event::Mouse(mouse::Event::WheelScrolled {delta : ScrollDelta::Lines{y,..}} ) =>  {
-                    let global_scale = (converter.original_scaling() + y * SCROLLING_SPEED).clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
-
-                    Some(Action::publish(MapInteractionCommand {
-                        client_id: self.client_id,
-                        command: SpecificInteractionCommand::SetFocalPoint(
-                            FocalPoint {
-                                position: converter.original_position(),
-                                continuous_zoom_level: global_scale,
-                            },
-                            bounds,
-                        ),
-                    }))
-                },
-                Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle)) => {state.middle_mouse_button_pressed_position = cursor.position_in(bounds); None},
-                Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) => {state.middle_mouse_button_pressed_position = None; None},
-
-                _ => {
-
-                    // Here we deal with panning.
-                    let Some(old_position) = state.middle_mouse_button_pressed_position  else {return None;};
-                    let Some(new_position) = cursor.position_in(bounds)  else {return None;};
-                    let Some(converter) = self.position_converter.as_ref() else {return None;};
-
-                    let delta = new_position - old_position;
-                    let new_coordinate = converter.get_new_coord_for_mouse_delta(delta);
-
-                    state.middle_mouse_button_pressed_position = Some(new_position);
-                    Some(Action::publish(MapInteractionCommand {
-                        client_id: self.client_id,
-                        command: SpecificInteractionCommand::SetFocalPoint(
-                            FocalPoint {
-                                position: new_coordinate,
-                                continuous_zoom_level: converter.original_scaling(),
-                            },
-                            bounds,
-                        ),
-                    }))
-                },
-            }
-        } else {
+        if !state.is_initialized {
             state.is_initialized = true;
-            Some(Action::publish(MapInteractionCommand {
-                client_id: self.client_id,
-                command: SpecificInteractionCommand::SetFocalPoint(
+            return self.publish(self.focal_point, bounds);
+        }
+
+        match event {
+            Event::Window(window::Event::Resized(_)) => self.publish(self.focal_point, bounds),
+
+            Event::Mouse(mouse::Event::WheelScrolled { delta: ScrollDelta::Lines { y, .. } }) => {
+                let zoom = (self.focal_point.continuous_zoom_level + y * SCROLLING_SPEED)
+                    .clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
+                self.publish(FocalPoint { continuous_zoom_level: zoom, ..self.focal_point }, bounds)
+            }
+
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle)) => {
+                state.drag_origin = cursor.position_in(bounds);
+                None
+            }
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) => {
+                state.drag_origin = None;
+                None
+            }
+
+            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let origin = state.drag_origin?;
+                let now = cursor.position_in(bounds)?;
+                let converter = self.position_converter.as_ref()?;
+
+                let delta = now - origin;
+                if delta.x == 0.0 && delta.y == 0.0 {
+                    return None;
+                }
+                state.drag_origin = Some(now);
+                self.publish(
                     FocalPoint {
-                        position: LatitudeLongitude::new(49.75, 6.63),
-                        continuous_zoom_level: 12.0,
+                        position: converter.get_new_coord_for_mouse_delta(delta),
+                        ..self.focal_point
                     },
                     bounds,
-                ),
-            }))
+                )
+            }
+
+            _ => None,
         }
     }
+
 
     fn draw(
         &self,

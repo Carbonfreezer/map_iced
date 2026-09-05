@@ -4,10 +4,8 @@
 use iced::Task;
 use tokio_stream::wrappers::ReceiverStream;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
-use crate::gui_system::map_widget::{MapInteractionCommand, MapWidget, SpecificInteractionCommand};
-use crate::gui_system::math_coordinates::{
-    BoundingRectangle, RectConversionError, RequestRectangle,
-};
+use crate::gui_system::map_widget::{FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand};
+use crate::gui_system::math_coordinates::{BoundingRectangle, LatitudeLongitude, RectConversionError, RequestRectangle};
 use crate::tile_cache::cache_core::CachingResultMessage;
 
 #[derive(Debug, Clone)]
@@ -56,7 +54,7 @@ impl MapWidgetSystem {
     fn process_widget_message(&mut self, client_id : u32, message: SpecificInteractionCommand) {
         match message {
             SpecificInteractionCommand::SetFocalPoint(point, rectangle) => {
-                let result = self.widget_collection[client_id as usize].set_zoom_level_and_get_bounding_rect(point, rectangle);
+                let result = self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
                 if let Some(bounding) = result {
                     self.tile_cache.register_new_interest_area(client_id, bounding);
                 } else {
@@ -97,7 +95,7 @@ impl MapWidgetSystem {
     /// Requests a new widget and returns the handle for it.
     pub fn request_new_widget(&mut self) -> u32 {
         let id = self.widget_collection.len() as u32;
-        self.widget_collection.push(MapWidget::new(id));
+        self.widget_collection.push(MapWidget::new(id, FocalPoint{position: LatitudeLongitude::new(49.75, 6.63), continuous_zoom_level: 12.0}));
         id
     }
 
