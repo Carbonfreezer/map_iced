@@ -9,7 +9,7 @@ use iced::advanced::image::{Handle, Image};
 use iced::mouse::{Cursor, Interaction};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
-use iced::{Event, Rectangle, Renderer, Theme, Vector};
+use iced::{Event, Rectangle, Renderer, Theme, Vector, window};
 
 /// These become the interaction commands with the rest of the system later on.
 #[derive(Debug, Clone)]
@@ -62,6 +62,7 @@ impl MapWidget {
 
     /// Sets the drawing tiles from the our
     pub fn set_drawing_tiles(&mut self, drawing_tiles: Vec<TilesToDraw>) {
+        println!("Set drawing tiles num {}", drawing_tiles.len());
         self.drawing_tiles = drawing_tiles;
         self.tile_drawing_cache.clear();
     }
@@ -90,12 +91,29 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
     fn update(
         &self,
         state: &mut Self::State,
-        _event: &Event,
+        event: &Event,
         bounds: Rectangle,
         _cursor: Cursor,
     ) -> Option<Action<MapInteractionCommand>> {
         if (state.is_initialized) {
-            None
+            let Some(converter) = self.position_converter.as_ref() else {
+                return None;
+            };
+            match event {
+                Event::Window(window::Event::Resized(_)) => {
+                    Some(Action::publish(MapInteractionCommand {
+                        client_id: self.client_id,
+                        command: SpecificInteractionCommand::SetFocalPoint(
+                            FocalPoint {
+                                position: converter.original_position(),
+                                continuous_zoom_level: converter.original_scaling(),
+                            },
+                            bounds,
+                        ),
+                    }))
+                }
+                _ => None,
+            }
         } else {
             state.is_initialized = true;
             Some(Action::publish(MapInteractionCommand {
@@ -138,7 +156,6 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                         frame.translate(
                             converter.get_drawing_position(tile_and_pos.position.into()),
                         );
-                        println!("{:?}", converter.get_drawing_position(tile_and_pos.position.into()));
                         // frame.scale(drawing_scale);
                         let image: Image<Handle> = Image::new(tile_and_pos.image.clone());
                         frame.draw_image(standard_rect, image);

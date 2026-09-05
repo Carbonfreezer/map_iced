@@ -129,8 +129,8 @@ impl TryFrom<&RequestRectangle> for BoundingRectangle {
         Ok(BoundingRectangle {
             x_min: x_min_new,
             y_min: y_min_new,
-            width: x_max_new - x_min_new,
-            height: y_max_new - y_min_new,
+            width: x_max_new - x_min_new + 1,
+            height: y_max_new - y_min_new + 1,
             zoom: rect.zoom,
         })
     }
@@ -300,6 +300,10 @@ pub struct DrawingPositionConverter {
     zoom: u8,
     /// The boundary rectangle needed for quering tiles.
     bounding_rectangle: Option<BoundingRectangle>,
+    /// The original position in latitude longitude.
+    original_position: LatitudeLongitude,
+    /// The original continues scaling factor.
+    original_scaling: f32,
 }
 
 impl DrawingPositionConverter {
@@ -342,9 +346,17 @@ impl DrawingPositionConverter {
             render_scaling,
             zoom,
             bounding_rectangle: inner_rectangle.ok(),
+            original_position: *central_position,
+            original_scaling: scaling_global,
+
         }
     }
 
+    /// Gets the original position.
+    pub fn original_position(&self) -> LatitudeLongitude {self.original_position}
+
+    /// Asks for the original scaling.
+    pub fn original_scaling(&self) -> f32 {self.original_scaling}
     /// Asks for the bounding retangle if existing.
     pub fn bounding_rectangle(&self) -> Option<BoundingRectangle> {
         self.bounding_rectangle
@@ -389,6 +401,7 @@ mod tests {
             prop_assert!((height * 0.5 - drawing.y).abs() < 0.01, "x coordinate off" );
         }
     }
+
 
     #[test]
     fn boundary_test() {
