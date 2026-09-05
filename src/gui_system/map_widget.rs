@@ -2,12 +2,14 @@
 
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::math_coordinates::{
-    BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, TileCoordinates,
+    BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, TILE_SIZE_PIXEL,
+    TileCoordinates,
 };
+use iced::advanced::image::{Handle, Image};
 use iced::mouse::{Cursor, Interaction};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
-use iced::{Event, Rectangle, Renderer, Theme};
+use iced::{Event, Rectangle, Renderer, Theme, Vector};
 
 /// These become the interaction commands with the rest of the system later on.
 #[derive(Debug, Clone)]
@@ -117,7 +119,36 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         bounds: Rectangle,
         cursor: Cursor,
     ) -> Vec<Geometry<Renderer>> {
-        vec![]
+        let Some(converter) = &self.position_converter else {
+            return vec![];
+        };
+        let drawing_scale = converter.get_drawing_scale();
+        let standard_rect = Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: TILE_SIZE_PIXEL as f32,
+            height: TILE_SIZE_PIXEL as f32,
+        };
+        let content = self
+            .tile_drawing_cache
+            .draw(renderer, bounds.size(), |frame| {
+                let mut count = 0;
+                for tile_and_pos in &self.drawing_tiles {
+                    frame.with_save(|frame| {
+                        frame.translate(
+                            converter.get_drawing_position(tile_and_pos.position.into()),
+                        );
+                        println!("{:?}", converter.get_drawing_position(tile_and_pos.position.into()));
+                        // frame.scale(drawing_scale);
+                        let image: Image<Handle> = Image::new(tile_and_pos.image.clone());
+                        frame.draw_image(standard_rect, image);
+                        count += 1;
+                    })
+                }
+                println!("Drawn tiles {}", count);
+            });
+
+        vec![content]
     }
 
     fn mouse_interaction(

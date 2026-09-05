@@ -4,7 +4,7 @@
 use iced::Task;
 use tokio_stream::wrappers::ReceiverStream;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
-use crate::gui_system::map_widget::{MapInteractionCommand, MapWidget};
+use crate::gui_system::map_widget::{MapInteractionCommand, MapWidget, SpecificInteractionCommand};
 use crate::gui_system::math_coordinates::{
     BoundingRectangle, RectConversionError, RequestRectangle,
 };
@@ -53,6 +53,21 @@ impl MapWidgetSystem {
         }
     }
 
+    fn process_widget_message(&mut self, client_id : u32, message: SpecificInteractionCommand) {
+        match message {
+            SpecificInteractionCommand::SetFocalPoint(point, rectangle) => {
+                let result = self.widget_collection[client_id as usize].set_zoom_level_and_get_bounding_rect(point, rectangle);
+                if let Some(bounding) = result {
+                    self.tile_cache.register_new_interest_area(client_id, bounding);
+                } else {
+                    // Nothing for our client.
+                    self.tile_cache.completely_unsubscribe(client_id);
+                }
+
+            }
+        }
+    }
+
     /// Processes the request for a new rectangle.
     fn process_request(&mut self, request_rectangle: RequestRectangle, client_id: u32) {
         match BoundingRectangle::try_from(&request_rectangle) {
@@ -75,7 +90,7 @@ impl MapWidgetSystem {
                 request_rectangle,
                 client_id,
             } => self.process_request(request_rectangle, client_id),
-            MapWidgetMessage::MapInteractionCommand(MapInteractionCommand{client_id, command}) => {todo!("Command processing missing.")} // TODO: Pass on the interaction command to the client.
+            MapWidgetMessage::MapInteractionCommand(MapInteractionCommand{client_id, command}) => {self.process_widget_message(client_id, command)}
         }
     }
 

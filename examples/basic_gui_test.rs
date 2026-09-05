@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use iced::{Element, Task, Theme, Fill};
+use iced::{Element, Task, Theme, Fill, Size};
 use iced::widget::{canvas, Column, container};
 use map_iced::gui_system::tile_cache_construction::{generate_debug_tile_cache, CachingDirectory};
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
@@ -52,5 +52,6 @@ pub fn main() -> iced::Result {
     iced::application(BasicApplication::boot, BasicApplication::update,BasicApplication::view)
         .theme(Theme::TokyoNight)
         .centered()
+        .window_size(Size{width:768.0, height:768.0})
         .run()
 }
