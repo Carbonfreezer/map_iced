@@ -11,6 +11,16 @@ use iced::Task;
 use iced::widget::{Canvas, canvas};
 use tokio_stream::wrappers::ReceiverStream;
 
+/// These are the status update informations that are emitted by the update of the
+/// Map widget system and are intended to use for further processing.
+#[derive(Debug, Clone)]
+pub enum StatusUpdateInformation {
+    /// We have generated an error string to display.
+    ErrorText(String),
+    /// Clears any eventual error messages du to retry.
+    ClearErrorMessages
+}
+
 #[derive(Debug, Clone)]
 pub enum MapWidgetMessage {
     CachingResultMessage(CachingResultMessage),
@@ -22,6 +32,13 @@ impl From<MapInteractionCommand> for MapWidgetMessage {
         MapWidgetMessage::MapInteractionCommand(command)
     }
 }
+
+impl From<CachingResultMessage> for MapWidgetMessage {
+    fn from(command: CachingResultMessage) -> Self {
+        MapWidgetMessage::CachingResultMessage(command)
+    }
+}
+
 
 pub struct MapWidgetSystem {
     tile_cache: TileCache,
@@ -48,19 +65,20 @@ impl MapWidgetSystem {
     }
 
     ///  The messages going into the caching system are processed here.
-    fn process_caching_message(&mut self, message: CachingResultMessage) {
-        self.tile_cache.process_caching_message(message);
+    fn process_caching_message(&mut self, message: CachingResultMessage) -> Vec<StatusUpdateInformation> {
+        let mut result = self.tile_cache.process_caching_message(message);
         for msg in self.tile_cache.drain_result_messages() {
             match msg {
                 CacheUpdateMessage::ErrorMessage { text: msg } => {
-                    eprintln!("{}", msg);
-                } // TODO: Error display has be be added later.
+                    result.push(StatusUpdateInformation::ErrorText(msg));
+                }
                 CacheUpdateMessage::RelevantTilesArrived { client } => {
                     let new_tiles = self.tile_cache.get_all_images_for_client(client);
                     self.widget_collection[client as usize].set_drawing_tiles(new_tiles);
                 }
             }
         }
+        result
     }
 
     fn process_widget_message(&mut self, client_id: u32, message: SpecificInteractionCommand) {
@@ -82,13 +100,13 @@ impl MapWidgetSystem {
     }
 
     /// Processes all the relevant messages.
-    pub fn process_message(&mut self, message: MapWidgetMessage) {
+    pub fn process_message(&mut self, message: MapWidgetMessage) -> Vec<StatusUpdateInformation> {
         match message {
             MapWidgetMessage::CachingResultMessage(msg) => self.process_caching_message(msg),
             MapWidgetMessage::MapInteractionCommand(MapInteractionCommand {
                 client_id,
                 command,
-            }) => self.process_widget_message(client_id, command),
+            }) => {self.process_widget_message(client_id, command); vec![]},
         }
     }
 

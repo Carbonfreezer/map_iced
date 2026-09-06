@@ -6,6 +6,7 @@ use fxhash::{FxHashMap, FxHashSet};
 use iced::advanced::image::Handle;
 use std::mem::take;
 use tokio::sync::mpsc::Receiver;
+use crate::gui_system::map_widget_system::StatusUpdateInformation;
 
 /// Contains the image entry.
 #[derive(Debug, Clone)]
@@ -130,7 +131,8 @@ impl TileCache {
     }
 
     /// Gets called to process the messages, effectively those that have been pulled out the receiver
-    pub fn process_caching_message(&mut self, message: CachingResultMessage) {
+    pub fn process_caching_message(&mut self, message: CachingResultMessage) -> Vec<StatusUpdateInformation> {
+        let mut result: Vec<StatusUpdateInformation> = Vec::new();
         match message {
             CachingResultMessage::Error { message: text } => {
                 self.error_msg += &*(text + "\n");
@@ -145,7 +147,7 @@ impl TileCache {
                 self.tiles_in_flight.remove(&pos);
                 // Eventually we have a late arriver nobody is interested in anymore.
                 let Some(cache_entry) = self.content_tiles.get_mut(&pos) else {
-                    return;
+                    return result;
                 };
                 debug_assert!(cache_entry.image.is_none(), "The image should be empty now");
                 cache_entry.image = Some(Handle::from_bytes(data));
@@ -167,7 +169,12 @@ impl TileCache {
                     self.tile_error_msg = message;
                 }
             }
+            CachingResultMessage::Retry => {
+                result.push(StatusUpdateInformation::ClearErrorMessages);
+                self.retry_failed_tiles();
+            }
         }
+        result
     }
 
     /// The client present wants to completely unsubscribe.
