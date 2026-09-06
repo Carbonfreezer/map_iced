@@ -52,8 +52,8 @@ impl MapWidgetSystem {
         self.tile_cache.process_caching_message(message);
         for msg in self.tile_cache.drain_result_messages() {
             match msg {
-                CacheUpdateMessage::ErrorMessage { text: _ } => {
-                    
+                CacheUpdateMessage::ErrorMessage { text: msg } => {
+                    eprintln!("{}", msg);
                 } // TODO: Error display has be be added later.
                 CacheUpdateMessage::RelevantTilesArrived { client } => {
                     let new_tiles = self.tile_cache.get_all_images_for_client(client);
