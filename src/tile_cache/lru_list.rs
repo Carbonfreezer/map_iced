@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn empty_test() {
         let cand = LastRecentlyUsedList::new(20);
-        assert_eq!(cand.generate_usage_list(), Vec::new());
+        assert_eq!(cand.generate_usage_list(), Vec::<u64>::new());
     }
 
     #[test]

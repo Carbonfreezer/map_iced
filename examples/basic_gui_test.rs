@@ -1,8 +1,7 @@
 use iced::widget::container;
 use iced::{Element, Fill, Size, Task, Theme};
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
-use map_iced::gui_system::tile_cache_construction::{CachingDirectory, generate_debug_tile_cache};
-use std::path::PathBuf;
+use map_iced::gui_system::tile_cache_construction::{generate_debug_tile_cache, generate_from_config_json};
 
 struct BasicApplication {
     widget_system: MapWidgetSystem,
@@ -16,11 +15,14 @@ enum Message {
 
 impl BasicApplication {
     pub fn boot() -> (BasicApplication, Task<Message>) {
+        /*
         let cache = generate_debug_tile_cache(
             CachingDirectory::FullyConstructed(PathBuf::from("transient")),
             100_000,
         )
         .unwrap();
+         */
+        let cache = generate_from_config_json("osm.json").unwrap();
 
         let (mut widget_system, task) = MapWidgetSystem::boot(cache);
         let widget_id = widget_system.request_new_widget();

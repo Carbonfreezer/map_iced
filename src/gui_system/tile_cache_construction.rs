@@ -1,11 +1,14 @@
 //! This module contains helper functions and structures to generate a high level tile cache.
 
+use std::fs;
 use crate::gui_system::high_level_tile_cache::TileCache;
 use crate::tile_cache::cache_core::{generate_cache, generate_dummy_cache};
 use dirs::cache_dir;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
 
 /// The different types of aching directories we offer.
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CachingDirectory {
     /// Completely manually constructed.
     FullyConstructed(PathBuf),
@@ -31,6 +34,7 @@ impl CachingDirectory {
 
 /// The tile source where we obtain our pngs from.
 /// They all follow the [slippy map convention](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames).
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TileSource {
     /// The most flexible form where the beginning, ending and the user agent are given.
     FullyConstructed {
@@ -48,6 +52,18 @@ pub enum TileSource {
     MapBoxSatellite { api_key: String },
     /// Thunderforst [maps](https://www.thunderforest.com/docs/map-tiles-api).
     Thunderforest { style: String, api_key: String },
+}
+
+/// The combined information for serialization.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct CombinedInfo {
+    /// The info where the caching directory resides.
+    cache: CachingDirectory,
+    /// The size of the cache we use.
+    cache_size: u64,
+    /// The source of the information where to get tiles from.
+    source: TileSource,
+
 }
 
 pub(crate) struct TripleInfo {
@@ -113,6 +129,16 @@ pub fn generate_web_tile_cache(
     cache_size: u64,
     tile_source: TileSource,
 ) -> Result<TileCache, String> {
+    // HACK HACK HACK
+    /*
+    {
+        let combined = CombinedInfo { cache: dir_info.clone(), cache_size,  source: tile_source.clone() };
+        let file = fs::File::create(dir_info.get_path()?.join("test.json")).map_err(|e| e.to_string())?;
+        serde_json::to_writer_pretty(file, &combined).map_err(|e| e.to_string())?;
+    }
+    */
+
+
     let description = tile_source.get_triple();
     TileCache::new(generate_cache(
         &description.start_url,
@@ -121,4 +147,12 @@ pub fn generate_web_tile_cache(
         dir_info.get_path()?,
         cache_size,
     )?)
+}
+
+
+/// Reads in `config.json` and generates the tile cache from.
+pub fn generate_from_config_json(name : impl AsRef<Path>) -> Result<TileCache, String> {
+    let file = fs::File::open(name).map_err(|e| e.to_string())?;
+    let combined : CombinedInfo = serde_json::from_reader(file).map_err(|e| e.to_string())?;
+    generate_web_tile_cache(combined.cache, combined.cache_size, combined.source)
 }
