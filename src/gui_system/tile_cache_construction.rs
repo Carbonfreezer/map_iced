@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 /// The different types of aching directories we offer.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize)]
 pub enum CachingDirectory {
     /// Completely manually constructed.
     FullyConstructed(PathBuf),
@@ -34,7 +34,7 @@ impl CachingDirectory {
 
 /// The tile source where we obtain our pngs from.
 /// They all follow the [slippy map convention](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames).
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize)]
 pub enum TileSource {
     /// The most flexible form where the beginning, ending and the user agent are given.
     FullyConstructed {
@@ -55,7 +55,7 @@ pub enum TileSource {
 }
 
 /// The combined information for serialization.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize)]
 struct CombinedInfo {
     /// The info where the caching directory resides.
     cache: CachingDirectory,
