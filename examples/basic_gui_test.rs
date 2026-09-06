@@ -1,6 +1,6 @@
 use iced::widget::space::vertical;
 use iced::widget::{button, column, container, row, text};
-use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
+use iced::{Alignment,  Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::generate_from_config_default;
 
@@ -19,7 +19,7 @@ enum Message {
 
 impl BasicApplication {
     pub fn boot() -> (BasicApplication, Task<Message>) {
-        let cache = generate_from_config_default("mapbox.json").unwrap();
+        let cache = generate_from_config_default("osm.json").unwrap();
 
         let (mut widget_system, task) = MapWidgetSystem::boot(cache);
         let widget_ids = [
@@ -75,9 +75,9 @@ impl BasicApplication {
             .padding(10)
             .width(FillPortion(2))
             .height(Fill)
-            .style(|_theme| container::Style {
+            .style(|theme| container::Style {
                 border: iced::Border {
-                    color: Color::from_rgb8(0x60, 0x60, 0x60),
+                    color: theme.extended_palette().background.strong.color,
                     width: 10.0,
                     radius: 4.0.into(),
                 },
