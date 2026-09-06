@@ -144,7 +144,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
 
             Event::Mouse(mouse::Event::WheelScrolled {
                 delta: ScrollDelta::Lines { y, .. },
-            }) => {
+            }) if cursor.is_over(bounds) => {
                 let zoom = (self.focal_point.continuous_zoom_level + y * SCROLLING_SPEED)
                     .clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
                 self.publish(
