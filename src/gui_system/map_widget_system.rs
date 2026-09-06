@@ -11,16 +11,6 @@ use iced::Task;
 use iced::widget::{Canvas, canvas};
 use tokio_stream::wrappers::ReceiverStream;
 
-/// These are the status update informations that are emitted by the update of the
-/// Map widget system and are intended to use for further processing.
-#[derive(Debug, Clone)]
-pub enum StatusUpdateInformation {
-    /// We have generated an error string to display.
-    ErrorText(String),
-    /// Clears any eventual error messages du to retry.
-    ClearErrorMessages
-}
-
 #[derive(Debug, Clone)]
 pub enum MapWidgetMessage {
     CachingResultMessage(CachingResultMessage),
@@ -38,7 +28,6 @@ impl From<CachingResultMessage> for MapWidgetMessage {
         MapWidgetMessage::CachingResultMessage(command)
     }
 }
-
 
 pub struct MapWidgetSystem {
     tile_cache: TileCache,
@@ -65,12 +54,13 @@ impl MapWidgetSystem {
     }
 
     ///  The messages going into the caching system are processed here.
-    fn process_caching_message(&mut self, message: CachingResultMessage) -> Vec<StatusUpdateInformation> {
-        let mut result = self.tile_cache.process_caching_message(message);
+    fn process_caching_message(&mut self, message: CachingResultMessage) -> Vec<String> {
+        let mut result = Vec::new();
+        self.tile_cache.process_caching_message(message);
         for msg in self.tile_cache.drain_result_messages() {
             match msg {
                 CacheUpdateMessage::ErrorMessage { text: msg } => {
-                    result.push(StatusUpdateInformation::ErrorText(msg));
+                    result.push(msg);
                 }
                 CacheUpdateMessage::RelevantTilesArrived { client } => {
                     let new_tiles = self.tile_cache.get_all_images_for_client(client);
@@ -88,7 +78,8 @@ impl MapWidgetSystem {
                     self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
                 match result {
                     Some(bounding) => {
-                        self.tile_cache.register_new_interest_area(client_id, bounding);
+                        self.tile_cache
+                            .register_new_interest_area(client_id, bounding);
                         // We have to reset the tiles here, because they may already exist from one of the other clients.
                         let tiles = self.tile_cache.get_all_images_for_client(client_id);
                         self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
@@ -100,13 +91,16 @@ impl MapWidgetSystem {
     }
 
     /// Processes all the relevant messages.
-    pub fn process_message(&mut self, message: MapWidgetMessage) -> Vec<StatusUpdateInformation> {
+    pub fn process_message(&mut self, message: MapWidgetMessage) -> Vec<String> {
         match message {
             MapWidgetMessage::CachingResultMessage(msg) => self.process_caching_message(msg),
             MapWidgetMessage::MapInteractionCommand(MapInteractionCommand {
                 client_id,
                 command,
-            }) => {self.process_widget_message(client_id, command); vec![]},
+            }) => {
+                self.process_widget_message(client_id, command);
+                vec![]
+            }
         }
     }
 
@@ -131,5 +125,15 @@ impl MapWidgetSystem {
                 .get(id as usize)
                 .expect("unknown widget id"),
         )
+    }
+
+    /// Retries to load the failed tiles.
+    pub fn retry_failed_tiles(&mut self) {
+        self.tile_cache.retry_failed_tiles();
+    }
+
+    /// Checks the number of failed tiles.
+    pub fn number_of_tiles_failed(&self) -> u32 {
+        self.tile_cache.number_of_tiles_failed()
     }
 }

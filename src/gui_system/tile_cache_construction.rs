@@ -1,11 +1,11 @@
 //! This module contains helper functions and structures to generate a high level tile cache.
 
-use std::fs;
 use crate::gui_system::high_level_tile_cache::TileCache;
 use crate::tile_cache::cache_core::{generate_cache, generate_dummy_cache};
 use dirs::cache_dir;
-use std::path::{Path, PathBuf};
 use serde::Deserialize;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// The different types of aching directories we offer.
 #[derive(Deserialize)]
@@ -63,7 +63,6 @@ struct CombinedInfo {
     cache_size: u64,
     /// The source of the information where to get tiles from.
     source: TileSource,
-
 }
 
 pub(crate) struct TripleInfo {
@@ -129,7 +128,6 @@ fn generate_web_tile_cache(
     cache_size: u64,
     tile_source: TileSource,
 ) -> Result<TileCache, String> {
-
     let description = tile_source.get_triple();
     TileCache::new(generate_cache(
         &description.start_url,
@@ -140,20 +138,19 @@ fn generate_web_tile_cache(
     )?)
 }
 
-
 /// Reads in `config.json` and generates the tile cache from.
-fn generate_from_config_json_internal(name : impl AsRef<Path>) -> Result<TileCache, String> {
+fn generate_from_config_json_internal(name: impl AsRef<Path>) -> Result<TileCache, String> {
     let file = fs::File::open(name).map_err(|e| e.to_string())?;
-    let combined : CombinedInfo = serde_json::from_reader(file).map_err(|e| e.to_string())?;
+    let combined: CombinedInfo = serde_json::from_reader(file).map_err(|e| e.to_string())?;
     generate_web_tile_cache(combined.cache, combined.cache_size, combined.source)
 }
 
 /// Generates a configuration from a json file if this is not possible it defaults to a test configuration.
-pub fn generate_from_config_default(name : impl AsRef<Path>) -> Result<TileCache, String> {
+pub fn generate_from_config_default(name: impl AsRef<Path>) -> Result<TileCache, String> {
     let result = generate_from_config_json_internal(name);
     if let Err(e) = &result {
         eprintln!("Error in configuration {}", e);
-        return generate_debug_tile_cache(CachingDirectory::CacheDirFixed, 30_000)
+        return generate_debug_tile_cache(CachingDirectory::CacheDirFixed, 30_000);
     }
 
     result

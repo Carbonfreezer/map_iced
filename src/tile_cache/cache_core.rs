@@ -67,8 +67,6 @@ pub enum CachingResultMessage {
         /// Why did the tile not arrive..
         message: String,
     },
-    /// A command to retry any left over messages.
-    Retry
 }
 
 impl Debug for CachingResultMessage {
@@ -98,7 +96,6 @@ impl Debug for CachingResultMessage {
                     level, x, y, message
                 )
             }
-            CachingResultMessage::Retry => write!(f, "Retry"),
         }
     }
 }
