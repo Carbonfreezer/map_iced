@@ -68,12 +68,14 @@ impl MapWidgetSystem {
             SpecificInteractionCommand::SetFocalPoint(point, rectangle) => {
                 let result =
                     self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
-                if let Some(bounding) = result {
-                    self.tile_cache
-                        .register_new_interest_area(client_id, bounding);
-                } else {
-                    // Nothing for our client.
-                    self.tile_cache.completely_unsubscribe(client_id);
+                match result {
+                    Some(bounding) => {
+                        self.tile_cache.register_new_interest_area(client_id, bounding);
+                        // We have to reset the tiles here, because they may already exist from one of the other clients.
+                        let tiles = self.tile_cache.get_all_images_for_client(client_id);
+                        self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
+                    }
+                    None => self.tile_cache.completely_unsubscribe(client_id),
                 }
             }
         }
