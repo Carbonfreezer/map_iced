@@ -11,6 +11,9 @@ use iced::Task;
 use iced::widget::{Canvas, canvas};
 use tokio_stream::wrappers::ReceiverStream;
 
+
+/// The messages dealing with the widgets these are messages from the
+/// caching system and messages dealing with map interaction.
 #[derive(Debug, Clone)]
 pub enum MapWidgetMessage {
     CachingResultMessage(CachingResultMessage),
@@ -29,6 +32,8 @@ impl From<CachingResultMessage> for MapWidgetMessage {
     }
 }
 
+/// The map widget system administrates all the widgets in combination with a
+/// tile map cache.
 pub struct MapWidgetSystem {
     tile_cache: TileCache,
     widget_collection: Vec<MapWidget>,
@@ -90,7 +95,8 @@ impl MapWidgetSystem {
         }
     }
 
-    /// Processes all the relevant messages.
+    /// Processes all the relevant messages. It returns a vector of potential error messages that
+    /// may have happened internally.
     pub fn process_message(&mut self, message: MapWidgetMessage) -> Vec<String> {
         match message {
             MapWidgetMessage::CachingResultMessage(msg) => self.process_caching_message(msg),

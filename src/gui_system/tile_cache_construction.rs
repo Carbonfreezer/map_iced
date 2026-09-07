@@ -12,9 +12,9 @@ use std::path::{Path, PathBuf};
 pub enum CachingDirectory {
     /// Completely manually constructed.
     FullyConstructed(PathBuf),
-    /// Relative to the OSes temp dir.
+    /// Relative to the OSes caching dir see here [`cache_dir()`](https://docs.rs/dirs/7.0.0/dirs/fn.cache_dir.html).
     CacheDirectory(PathBuf),
-    /// Fixed to the OSes temp dir (Tiles)
+    /// Fixed to the OSes cache dir (**Tiles**)
     CacheDirFixed,
 }
 
@@ -146,6 +146,10 @@ fn generate_from_config_json_internal(name: impl AsRef<Path>) -> Result<TileCach
 }
 
 /// Generates a configuration from a json file if this is not possible it defaults to a test configuration.
+/// On the highest level the json file consists of three entries. 
+/// * cache: Here we refer to the file cache construction which gets serialized from [`CachingDirectory`]
+/// * cache_size: The amount of bytes we 
+/// * source: The source of the tiles as explained in [`TileSource`]
 pub fn generate_from_config_default(name: impl AsRef<Path>) -> Result<TileCache, String> {
     let result = generate_from_config_json_internal(name);
     if let Err(e) = &result {

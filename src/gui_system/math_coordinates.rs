@@ -240,16 +240,6 @@ pub struct LatitudeLongitude {
 }
 
 impl LatitudeLongitude {
-    /// Getter latitude.
-    pub fn latitude(&self) -> f64 {
-        self.latitude
-    }
-
-    /// Getter longitude.
-    pub fn longitude(&self) -> f64 {
-        self.longitude
-    }
-
     /// Constructs the object and makes sure, that both coordinates are in the valid range
     /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
     pub fn new(latitude: f64, longitude: f64) -> Self {
@@ -363,10 +353,6 @@ impl DrawingPositionConverter {
         self.tile_center.zoom
     }
 
-    /// Asks for the scaling that has to be applied when rendering a tile.
-    pub fn get_drawing_scale(&self) -> f32 {
-        self.render_scaling
-    }
 
     /// Draw instruction for a tile of *any* zoom level. `None` when the tile
     /// cannot contribute a pixel to the current viewport.
@@ -421,7 +407,6 @@ mod tests {
 
             let transformer = DrawingPositionConverter::new(&focus_point, compound_zoom, &bounding_rect).0;
 
-            prop_assert!((1.0 - transformer.get_drawing_scale()).abs() < 1e-5, "There should be no scale.");
             let drawing = transformer.get_draw_instruction(focus_point.get_tile_coordinates(zoom)).expect("Zoom level should fit.");
             prop_assert!((width * 0.5 - drawing.offset.x).abs() < 0.01, "x coordinate off" );
             prop_assert!((height * 0.5 - drawing.offset.y).abs() < 0.01, "x coordinate off" );
@@ -435,7 +420,7 @@ mod tests {
             y: 0.0,
             zoom: 0,
         });
-        assert!(f64::abs(coord.latitude() - BOUNDARY_LATITUDE) < 1e-9);
+        assert!(f64::abs(coord.latitude - BOUNDARY_LATITUDE) < 1e-9);
     }
 
     #[test]

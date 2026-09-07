@@ -14,20 +14,25 @@ use iced::{Event, Point, Rectangle, Renderer, Theme, mouse, window};
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
 
-/// These become the interaction commands with the rest of the system later on.
+/// These become the interaction commands with the rest of the system later on. These
+/// commands contain the information of a specific client widget.
 #[derive(Debug, Clone)]
 pub struct MapInteractionCommand {
-    pub client_id: u32,
-    pub command: SpecificInteractionCommand,
+    pub(crate) client_id: u32,
+    pub(crate) command: SpecificInteractionCommand,
 }
 
-/// Focal point info.
+/// Focal point info consisting of latitude, longitude and a 
+/// continuous zoom level.
 #[derive(Debug, Clone, Copy)]
 pub struct FocalPoint {
-    pub position: LatitudeLongitude,
-    pub continuous_zoom_level: f32,
+    pub(crate) position: LatitudeLongitude,
+    pub(crate) continuous_zoom_level: f32,
 }
 
+
+/// These are the interaction commands for a specific client widget. The association with the
+/// client widget is given over [`MapInteractionCommand`].
 #[derive(Debug, Clone)]
 pub enum SpecificInteractionCommand {
     /// We want to set the focal point as latitude longitude and the zoom level.
