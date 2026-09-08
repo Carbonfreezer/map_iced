@@ -1,16 +1,16 @@
 //! This contains the core map widget.
 
+use crate::gui_system::coordinate_systems::LatitudeLongitude;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::math_coordinates::{
-    BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL,
-    RectConversionError, TILE_SIZE_PIXEL,
+use crate::gui_system::internal_math::{
+    BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL, RectConversionError,
+    TILE_SIZE_PIXEL,
 };
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
 use iced::{Event, Point, Rectangle, Renderer, Theme, mouse, window};
-use crate::gui_system::coordinate_systems::LatitudeLongitude;
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -23,14 +23,13 @@ pub struct MapInteractionCommand {
     pub(crate) command: SpecificInteractionCommand,
 }
 
-/// Focal point info consisting of latitude, longitude and a 
+/// Focal point info consisting of latitude, longitude and a
 /// continuous zoom level.
 #[derive(Debug, Clone, Copy)]
 pub struct FocalPoint {
     pub position: LatitudeLongitude,
     pub continuous_zoom_level: f32,
 }
-
 
 /// These are the interaction commands for a specific client widget. The association with the
 /// client widget is given over [`MapInteractionCommand`].

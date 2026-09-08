@@ -1,7 +1,7 @@
 use iced::widget::space::vertical;
-use iced::widget::{button, column, container, row, text};
-use iced::{Alignment,  Element, Fill, FillPortion, Size, Task, Theme};
 use iced::widget::text::Wrapping;
+use iced::widget::{button, column, container, row, text};
+use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::generate_from_config_default;
 
@@ -97,7 +97,9 @@ impl BasicApplication {
             text("Ok").style(text::base)
         } else {
             text(self.error_text.as_str()).style(text::danger)
-        }.width(Fill).wrapping(Wrapping::WordOrGlyph);
+        }
+        .width(Fill)
+        .wrapping(Wrapping::WordOrGlyph);
 
         let button = if self.widget_system.number_of_tiles_failed() == 0 {
             button("Retry")

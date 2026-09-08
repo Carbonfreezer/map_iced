@@ -1,18 +1,17 @@
 //! This module contains all related to latitude longitude
-//! and tile coordinate system. This is the pure internal representation 
+//! and tile coordinate system. This is the pure internal representation
 //! of the coordinates.
 
+use super::coordinate_systems::LatitudeLongitude;
 use iced::{Rectangle, Size, Vector};
 use itertools::iproduct;
 use std::f64::consts::PI;
-use super::coordinate_systems::LatitudeLongitude;
 
 /// The maximum zoom level we allow.
 pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;
 
 /// the size of a tile in pixel coordinates.
 pub const TILE_SIZE_PIXEL: u32 = 256;
-
 
 /// The tile coordinates in float space,
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -73,11 +72,9 @@ impl From<TilePosition> for TileCoordinates {
     }
 }
 
-
-
-/// An enclosing rectangle for tiles at a certain zoom level. 
+/// An enclosing rectangle for tiles at a certain zoom level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub  struct BoundingRectangle {
+pub struct BoundingRectangle {
     pub x_min: u32,
     pub y_min: u32,
     pub width: u32,
@@ -87,16 +84,15 @@ pub  struct BoundingRectangle {
 
 /// Describes what tiles have changed.
 #[derive(Debug, Clone, Default)]
-pub  struct TileChange {
+pub struct TileChange {
     pub deleted: Vec<TilePosition>,
     pub added: Vec<TilePosition>,
 }
 
-
 /// The central request for a rectangle to subscribe to. We have a center point in tile coordinates and a
 /// total width and height also in tile coordinates. This can be transferred into an optional bounding rectangle.
 #[derive(Debug, Clone)]
-pub  struct RequestRectangle {
+pub struct RequestRectangle {
     pub center_x: f32,
     pub center_y: f32,
     pub width: f32,
@@ -105,7 +101,7 @@ pub  struct RequestRectangle {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub  enum RectConversionError {
+pub enum RectConversionError {
     NegativeSize,
     OutOfWorld,
 }
@@ -146,9 +142,9 @@ impl TryFrom<&RequestRectangle> for BoundingRectangle {
 
 impl BoundingRectangle {
     /// Gets the bounding rectangle from a bunch of tile coordinates.
-    
+
     // TODO: Currently not used check for usage later on.
-    pub  fn new(positions: &[TilePosition]) -> Self {
+    pub fn new(positions: &[TilePosition]) -> Self {
         assert!(!positions.is_empty(), "We must contain some data");
         debug_assert!(
             positions.windows(2).all(|w| w[0].zoom == w[1].zoom),
@@ -176,7 +172,7 @@ impl BoundingRectangle {
     }
 
     /// Gets an iterator for the tile positions in that rectangle.
-    pub  fn get_iterator(&self) -> impl Iterator<Item = TilePosition> {
+    pub fn get_iterator(&self) -> impl Iterator<Item = TilePosition> {
         iproduct!(0..self.width, 0..self.height)
             .map(move |(w, h)| TilePosition {
                 x: self.x_min + w,
@@ -187,7 +183,7 @@ impl BoundingRectangle {
     }
 
     /// Generates the bounding rectangle that include both.
-    pub  fn union(&self, other: &Self) -> Self {
+    pub fn union(&self, other: &Self) -> Self {
         debug_assert!(self.zoom == other.zoom, "Zoom must be the same in union.");
         let x_min = self.x_min.min(other.x_min);
         let y_min = self.y_min.min(other.y_min);
@@ -203,14 +199,14 @@ impl BoundingRectangle {
     }
 
     /// Simply checks if we are in that position.
-    pub  fn contains_position(&self, coordinates: &TilePosition) -> bool {
+    pub fn contains_position(&self, coordinates: &TilePosition) -> bool {
         (self.zoom == coordinates.zoom)
             && (self.x_min..self.x_min + self.width).contains(&coordinates.x)
             && (self.y_min..self.y_min + self.height).contains(&coordinates.y)
     }
 
     /// Compares ourselves against a new rectangle and flags which positions have arrived and which have left.
-    pub  fn generate_deletion_creation_list(&self, new_rectangle: &BoundingRectangle) -> TileChange {
+    pub fn generate_deletion_creation_list(&self, new_rectangle: &BoundingRectangle) -> TileChange {
         // If they ara  on different zoom levels we must completely replace it.
         if self.zoom != new_rectangle.zoom {
             return TileChange {
@@ -238,10 +234,9 @@ impl BoundingRectangle {
 }
 
 /// Conversion between zoom level and scaling factor.
-pub  fn get_scaling_factor(zoom: u8) -> f64 {
+pub fn get_scaling_factor(zoom: u8) -> f64 {
     f64::exp2(zoom as f64)
 }
-
 
 impl LatitudeLongitude {
     /// Gets the tile coordinates in the indicated zoom level
@@ -348,7 +343,6 @@ impl DrawingPositionConverter {
         self.tile_center.zoom
     }
 
-
     /// Draw instruction for a tile of *any* zoom level. `None` when the tile
     /// cannot contribute a pixel to the current viewport.
     pub fn get_draw_instruction(&self, tile: TileCoordinates) -> Option<TileDrawInstruction> {
@@ -388,9 +382,9 @@ impl DrawingPositionConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui_system::coordinate_systems::BOUNDARY_LATITUDE;
     use iced::{Point, Size};
     use proptest::{prop_assert, proptest};
-    use crate::gui_system::coordinate_systems::BOUNDARY_LATITUDE;
 
     proptest! {
         #[test]

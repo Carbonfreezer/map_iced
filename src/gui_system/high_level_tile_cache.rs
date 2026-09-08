@@ -1,6 +1,6 @@
 //! This module administrates the iced image handles for potentially several different widgets.
 
-use crate::gui_system::math_coordinates::{BoundingRectangle, TileChange, TilePosition};
+use crate::gui_system::internal_math::{BoundingRectangle, TileChange, TilePosition};
 use crate::tile_cache::cache_core::{CachingResultMessage, CachingSystem};
 use fxhash::{FxHashMap, FxHashSet};
 use iced::advanced::image::Handle;

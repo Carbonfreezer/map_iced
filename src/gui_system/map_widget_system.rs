@@ -1,16 +1,15 @@
 //! This module contains a structure that administrates all the different map widgets and
 //! the internal cache.
 
+use crate::gui_system::coordinate_systems::LatitudeLongitude;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::map_widget::{
     FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand,
 };
-use crate::gui_system::coordinate_systems::LatitudeLongitude;
 use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::Task;
 use iced::widget::{Canvas, canvas};
 use tokio_stream::wrappers::ReceiverStream;
-
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
