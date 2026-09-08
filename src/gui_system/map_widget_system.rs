@@ -5,7 +5,7 @@ use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::map_widget::{
     FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand,
 };
-use crate::gui_system::math_coordinates::LatitudeLongitude;
+use crate::gui_system::coordinate_systems::LatitudeLongitude;
 use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::Task;
 use iced::widget::{Canvas, canvas};

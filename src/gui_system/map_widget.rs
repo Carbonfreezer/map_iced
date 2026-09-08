@@ -2,7 +2,7 @@
 
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::math_coordinates::{
-    BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL,
+    BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL,
     RectConversionError, TILE_SIZE_PIXEL,
 };
 use iced::advanced::image::Image;
@@ -10,6 +10,7 @@ use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry};
 use iced::widget::{Action, canvas};
 use iced::{Event, Point, Rectangle, Renderer, Theme, mouse, window};
+use crate::gui_system::coordinate_systems::LatitudeLongitude;
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -26,8 +27,8 @@ pub struct MapInteractionCommand {
 /// continuous zoom level.
 #[derive(Debug, Clone, Copy)]
 pub struct FocalPoint {
-    pub(crate) position: LatitudeLongitude,
-    pub(crate) continuous_zoom_level: f32,
+    pub position: LatitudeLongitude,
+    pub continuous_zoom_level: f32,
 }
 
 
@@ -112,7 +113,8 @@ impl MapWidget {
         rectangle.ok()
     }
 
-    pub fn set_drawing_tiles(&mut self, drawing_tiles: Vec<TilesToDraw>) {
+    /// Called from the outside if new tiles have arrived.
+    pub(crate) fn set_drawing_tiles(&mut self, drawing_tiles: Vec<TilesToDraw>) {
         self.drawing_tiles = drawing_tiles;
         self.tile_drawing_cache.clear();
     }

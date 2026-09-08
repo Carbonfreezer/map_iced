@@ -1,14 +1,18 @@
-//! This module contains all related to math and coordinates.
+//! This module contains all related to latitude longitude
+//! and tile coordinate system. This is the pure internal representation 
+//! of the coordinates.
 
 use iced::{Rectangle, Size, Vector};
 use itertools::iproduct;
 use std::f64::consts::PI;
+use super::coordinate_systems::LatitudeLongitude;
 
 /// The maximum zoom level we allow.
 pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;
 
 /// the size of a tile in pixel coordinates.
 pub const TILE_SIZE_PIXEL: u32 = 256;
+
 
 /// The tile coordinates in float space,
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -19,6 +23,8 @@ pub struct TileCoordinates {
 }
 
 /// A position of the tile in rounded coordinates.
+/// These are the coordinates that go into the slippy
+/// tile system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TilePosition {
     pub x: u32,
@@ -27,7 +33,9 @@ pub struct TilePosition {
 }
 
 impl TilePosition {
-    fn check_sanity(&self) {
+    /// Pure debug function. Checks if the tile position is legal with a series
+    /// of debug asserts
+    pub fn check_sanity(&self) {
         debug_assert!(
             (0..=MAXIMUM_ZOOM_LEVEL).contains(&self.zoom),
             "zoom out of range"
@@ -39,7 +47,7 @@ impl TilePosition {
 }
 
 impl From<TileCoordinates> for TilePosition {
-    /// Along the way we clamp to the legal range.
+    /// Conversion - along the way we clamp to the legal range.
     fn from(value: TileCoordinates) -> Self {
         debug_assert!(
             (0..=MAXIMUM_ZOOM_LEVEL).contains(&value.zoom),
@@ -65,9 +73,11 @@ impl From<TilePosition> for TileCoordinates {
     }
 }
 
-/// A frame around rectangles.
+
+
+/// An enclosing rectangle for tiles at a certain zoom level. 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BoundingRectangle {
+pub  struct BoundingRectangle {
     pub x_min: u32,
     pub y_min: u32,
     pub width: u32,
@@ -75,20 +85,18 @@ pub struct BoundingRectangle {
     pub zoom: u8,
 }
 
-/// Describe what tiles have changed.
+/// Describes what tiles have changed.
 #[derive(Debug, Clone, Default)]
-pub struct TileChange {
+pub  struct TileChange {
     pub deleted: Vec<TilePosition>,
     pub added: Vec<TilePosition>,
 }
 
-/// The boundary latitude we do not overshoot.
-const BOUNDARY_LATITUDE: f64 = 85.05112878;
 
 /// The central request for a rectangle to subscribe to. We have a center point in tile coordinates and a
-/// total width and height also in tile coordinates. This can be transfered into an optional bounding rectangle.
+/// total width and height also in tile coordinates. This can be transferred into an optional bounding rectangle.
 #[derive(Debug, Clone)]
-pub struct RequestRectangle {
+pub  struct RequestRectangle {
     pub center_x: f32,
     pub center_y: f32,
     pub width: f32,
@@ -97,7 +105,7 @@ pub struct RequestRectangle {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum RectConversionError {
+pub  enum RectConversionError {
     NegativeSize,
     OutOfWorld,
 }
@@ -138,7 +146,9 @@ impl TryFrom<&RequestRectangle> for BoundingRectangle {
 
 impl BoundingRectangle {
     /// Gets the bounding rectangle from a bunch of tile coordinates.
-    pub fn new(positions: &[TilePosition]) -> Self {
+    
+    // TODO: Currently not used check for usage later on.
+    pub  fn new(positions: &[TilePosition]) -> Self {
         assert!(!positions.is_empty(), "We must contain some data");
         debug_assert!(
             positions.windows(2).all(|w| w[0].zoom == w[1].zoom),
@@ -166,7 +176,7 @@ impl BoundingRectangle {
     }
 
     /// Gets an iterator for the tile positions in that rectangle.
-    pub fn get_iterator(&self) -> impl Iterator<Item = TilePosition> {
+    pub  fn get_iterator(&self) -> impl Iterator<Item = TilePosition> {
         iproduct!(0..self.width, 0..self.height)
             .map(move |(w, h)| TilePosition {
                 x: self.x_min + w,
@@ -177,7 +187,7 @@ impl BoundingRectangle {
     }
 
     /// Generates the bounding rectangle that include both.
-    pub fn union(&self, other: &Self) -> Self {
+    pub  fn union(&self, other: &Self) -> Self {
         debug_assert!(self.zoom == other.zoom, "Zoom must be the same in union.");
         let x_min = self.x_min.min(other.x_min);
         let y_min = self.y_min.min(other.y_min);
@@ -193,14 +203,14 @@ impl BoundingRectangle {
     }
 
     /// Simply checks if we are in that position.
-    pub fn contains_position(&self, coordinates: &TilePosition) -> bool {
+    pub  fn contains_position(&self, coordinates: &TilePosition) -> bool {
         (self.zoom == coordinates.zoom)
             && (self.x_min..self.x_min + self.width).contains(&coordinates.x)
             && (self.y_min..self.y_min + self.height).contains(&coordinates.y)
     }
 
     /// Compares ourselves against a new rectangle and flags which positions have arrived and which have left.
-    pub fn generate_deletion_creation_list(&self, new_rectangle: &BoundingRectangle) -> TileChange {
+    pub  fn generate_deletion_creation_list(&self, new_rectangle: &BoundingRectangle) -> TileChange {
         // If they ara  on different zoom levels we must completely replace it.
         if self.zoom != new_rectangle.zoom {
             return TileChange {
@@ -228,29 +238,14 @@ impl BoundingRectangle {
 }
 
 /// Conversion between zoom level and scaling factor.
-fn get_scaling_factor(zoom: u8) -> f64 {
+pub  fn get_scaling_factor(zoom: u8) -> f64 {
     f64::exp2(zoom as f64)
 }
 
-/// The latitude longitude pair. Both are given in degrees.
-#[derive(Debug, Clone, Copy)]
-pub struct LatitudeLongitude {
-    latitude: f64,
-    longitude: f64,
-}
 
 impl LatitudeLongitude {
-    /// Constructs the object and makes sure, that both coordinates are in the valid range
-    /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
-    pub fn new(latitude: f64, longitude: f64) -> Self {
-        Self {
-            latitude: latitude.clamp(-BOUNDARY_LATITUDE, BOUNDARY_LATITUDE),
-            longitude: longitude.clamp(-180.0, 180.0),
-        }
-    }
-
     /// Gets the tile coordinates in the indicated zoom level
-    pub fn get_tile_coordinates(&self, zoom: u8) -> TileCoordinates {
+    pub(crate) fn get_tile_coordinates(&self, zoom: u8) -> TileCoordinates {
         let scaling = get_scaling_factor(zoom);
 
         let x = (self.longitude + 180.0) / 360.0 * scaling;
@@ -267,7 +262,7 @@ impl From<TileCoordinates> for LatitudeLongitude {
         let longitude = (value.x) / scaling * 360.0 - 180.0;
         let latitude = f64::atan(f64::sinh(PI - value.y / scaling * 2.0 * PI)) * 180.0 / PI;
 
-        Self::new(latitude, longitude)
+        LatitudeLongitude::new(latitude, longitude)
     }
 }
 
@@ -395,6 +390,7 @@ mod tests {
     use super::*;
     use iced::{Point, Size};
     use proptest::{prop_assert, proptest};
+    use crate::gui_system::coordinate_systems::BOUNDARY_LATITUDE;
 
     proptest! {
         #[test]

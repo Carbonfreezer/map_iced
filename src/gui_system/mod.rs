@@ -7,3 +7,4 @@ pub mod map_widget;
 pub mod map_widget_system;
 pub(crate) mod math_coordinates;
 pub mod tile_cache_construction;
+pub mod coordinate_systems;

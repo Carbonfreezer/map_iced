@@ -148,8 +148,29 @@ fn generate_from_config_json_internal(name: impl AsRef<Path>) -> Result<TileCach
 /// Generates a configuration from a json file if this is not possible it defaults to a test configuration.
 /// On the highest level the json file consists of three entries. 
 /// * cache: Here we refer to the file cache construction which gets serialized from [`CachingDirectory`]
-/// * cache_size: The amount of bytes we 
+/// * cache_size: The amount of bytes we allow for the cache size on disc
 /// * source: The source of the tiles as explained in [`TileSource`]
+///
+/// # Example 
+/// ```text
+///  {
+///   "cache": {
+///     "FullyConstructed": "cache/osm"
+///   },
+///   "cache_size" : 100000000,
+///   "source": {
+///     "OpenStreetMap": {
+///       "user_agent": "My Test Test mymail@gmail.com"
+///     }
+///   }
+/// }
+/// ```
+/// This generates a subfolder besides the program directory called cached/osm, allows
+/// for 1 million bytes of disc space and uses OSM for tile queries.
+
+
+// TODO: Copyright information has to be implemented as an overlay here.
+
 pub fn generate_from_config_default(name: impl AsRef<Path>) -> Result<TileCache, String> {
     let result = generate_from_config_json_internal(name);
     if let Err(e) = &result {
