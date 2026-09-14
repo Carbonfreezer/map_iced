@@ -41,6 +41,7 @@ pub enum TileSource {
         start_url: String,
         end_url: String,
         user_agent: String,
+        copyright_text: String,
     },
     /// The open street map  [access](https://operations.osmfoundation.org/policies/tiles/)
     OpenStreetMap { user_agent: String },
@@ -65,51 +66,59 @@ struct CombinedInfo {
     source: TileSource,
 }
 
-pub(crate) struct TripleInfo {
+pub(crate) struct QuadrupleInfo {
     start_url: String,
     end_url: String,
     user_agent: String,
+    copyright_text: String,
 }
 
 impl TileSource {
-    pub(crate) fn get_triple(&self) -> TripleInfo {
+    pub(crate) fn get_triple(&self) -> QuadrupleInfo {
         match self {
             TileSource::FullyConstructed {
                 start_url,
                 end_url,
                 user_agent,
-            } => TripleInfo {
+                copyright_text,
+            } => QuadrupleInfo {
                 start_url: start_url.clone(),
                 end_url: end_url.clone(),
                 user_agent: user_agent.clone(),
+                copyright_text: copyright_text.clone(),
             },
-            TileSource::OpenStreetMap { user_agent } => TripleInfo {
+            TileSource::OpenStreetMap { user_agent } => QuadrupleInfo {
                 start_url: "https://tile.openstreetmap.org/".to_string(),
                 end_url: "".to_string(),
                 user_agent: user_agent.clone(),
+                copyright_text: "© OpenStreetMap Contributors".to_string(),
             },
-            TileSource::MapTilesApi { api_key } => TripleInfo {
+            TileSource::MapTilesApi { api_key } => QuadrupleInfo {
                 start_url: "https://maptiles.p.rapidapi.com/en/map/v1/".to_string(),
                 end_url: "?rapidapi-key=".to_string() + api_key,
                 user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
+                copyright_text: "Map © Map Tiles API | Map data © OpenStreetMap contributors".to_string(),
             },
             TileSource::MapBoxTiles {
                 tileset_id,
                 api_key,
-            } => TripleInfo {
+            } => QuadrupleInfo {
                 start_url: "https://api.mapbox.com/v4/".to_string() + tileset_id + "/",
                 end_url: "?access_token=".to_string() + api_key,
                 user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
+                copyright_text: "© Mapbox © OpenStreetMap".to_string(),
             },
-            TileSource::MapBoxSatellite { api_key } => TripleInfo {
+            TileSource::MapBoxSatellite { api_key } => QuadrupleInfo {
                 start_url: "https://api.mapbox.com/v4/mapbox.satellite/".to_string(),
                 end_url: "?access_token=".to_string() + api_key,
                 user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
+                copyright_text: "© Mapbox © OpenStreetMap".to_string(),
             },
-            TileSource::Thunderforest { style, api_key } => TripleInfo {
+            TileSource::Thunderforest { style, api_key } => QuadrupleInfo {
                 start_url: "https://api.thunderforest.com/".to_string() + style + "/",
                 end_url: "?apikey=".to_string() + api_key,
                 user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
+                copyright_text: "Maps © www.thunderforest.com, Data © www.osm.org/copyright".to_string(),
             },
         }
     }
@@ -133,6 +142,7 @@ fn generate_web_tile_cache(
         &description.start_url,
         &description.end_url,
         &description.user_agent,
+        description.copyright_text,
         dir_info.get_path()?,
         cache_size,
     )?)
@@ -168,7 +178,6 @@ fn generate_from_config_json_internal(name: impl AsRef<Path>) -> Result<TileCach
 /// This generates a subfolder besides the program directory called cached/osm, allows
 /// for 1 million bytes of disc space and uses OSM for tile queries.
 
-// TODO: Copyright information has to be implemented as an overlay here.
 
 pub fn generate_from_config_default(name: impl AsRef<Path>) -> Result<TileCache, String> {
     let result = generate_from_config_json_internal(name);

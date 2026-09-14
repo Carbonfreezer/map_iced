@@ -8,9 +8,10 @@ use crate::gui_system::internal_math::{
 };
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
-use iced::widget::canvas::{Cache, Geometry};
+use iced::widget::canvas::{Cache, Geometry, Text};
 use iced::widget::{Action, canvas};
-use iced::{Event, Point, Rectangle, Renderer, Theme, mouse, window};
+use iced::{mouse, window, Color, Event, Point, Rectangle, Renderer, Theme};
+use iced::advanced::graphics::geometry::Frame;
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -50,7 +51,10 @@ pub struct InteractionState {
 
 /// The widget used for rendering a tile.
 pub struct MapWidget {
+    /// The drawing cache for the tiles.
     tile_drawing_cache: Cache,
+    /// The copyright text overlay.
+    overlay_cache: Cache,
     /// Tiles for the current view, possibly still filling up.
     drawing_tiles: Vec<TilesToDraw>,
     /// Last complete set, kept as backdrop while the current one fills up.
@@ -60,6 +64,8 @@ pub struct MapWidget {
     focal_point: FocalPoint,
     /// Derived from `focal_point` plus the canvas bounds, for rendering only.
     position_converter: Option<DrawingPositionConverter>,
+    /// The copyright text we need for drawing.
+    copyright_text: String,
 }
 
 /// The rectangle that covers one tile.
@@ -72,14 +78,16 @@ const STANDARD_RECTANGLE: Rectangle = Rectangle {
 
 impl MapWidget {
     /// Creates a new widget from the client id.
-    pub fn new(client_id: u32, focal_point: FocalPoint) -> Self {
+    pub fn new(client_id: u32, copyright_text: String, focal_point: FocalPoint) -> Self {
         Self {
             tile_drawing_cache: Default::default(),
+            overlay_cache: Default::default(),
             drawing_tiles: vec![],
             fallback_tiles: vec![],
             client_id,
             position_converter: None,
             focal_point,
+            copyright_text,
         }
     }
 
@@ -127,6 +135,32 @@ impl MapWidget {
             client_id: self.client_id,
             command: SpecificInteractionCommand::SetFocalPoint(focal_point, bounds),
         }))
+    }
+
+    /// Prints the copyright information into the lower right corner
+    fn print_copyright_text(&self, bounds: Rectangle, frame: &mut Frame<Renderer>) {
+        // 1. Calculate the bounding box of your text (needed to offset the position)
+        let text_size = 15.0;
+        let text_content = self.copyright_text.clone();
+
+        // 2. Measure or estimate the dimensions
+        // Iced uses an approximate width based on character count if not measured directly
+        let estimated_width = text_content.len() as f32 * (text_size * 0.5); // Rough estimate
+        let estimated_height = text_size;
+
+        // 3. Subtract the text size from the canvas bounds
+        let padding = 5.0; // Distance from the absolute edges
+        let x = bounds.width - estimated_width - padding;
+        let y = bounds.height - estimated_height - padding;
+
+        // 4. Draw the text
+        frame.fill_text(Text {
+            content: text_content,
+            position: Point::new(x, y),
+            color: Color::from_rgb(0.6, 0.4, 0.4),
+            size: text_size.into(),
+            ..Default::default()
+        });
     }
 }
 
@@ -221,8 +255,14 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                     })
                 }
             });
+        let copyright_content = self
+            .overlay_cache
+            .draw(renderer, bounds.size(), |frame| {
+                self.print_copyright_text(bounds, frame);
+            });
 
-        vec![content]
+
+        vec![content, copyright_content]
     }
 
     fn mouse_interaction(

@@ -74,6 +74,11 @@ impl TileCache {
     pub fn get_receiver(&mut self) -> Option<Receiver<CachingResultMessage>> {
         self.core.get_receiver()
     }
+    
+    /// Gets the copyright text.
+    pub fn get_copyright_text(&self) -> String {
+        self.core.get_copyright_text()
+    }
 
     /// Gets the internal update messages that have been accumulated,
     pub fn drain_result_messages(&mut self) -> Vec<CacheUpdateMessage> {

@@ -112,6 +112,8 @@ pub struct CachingSystem {
     savings_counter: Arc<AtomicU8>,
     /// The join handle for the timer to kill in drop trait.
     timer_handle: JoinHandle<()>,
+    /// The copyright text that belongs to the tile system.
+    copyright_text: String,
 }
 
 impl CachingSystem {
@@ -119,6 +121,7 @@ impl CachingSystem {
         requester: Requester,
         cache_base_dir: impl AsRef<Path>,
         maximum_amount_of_data: u64,
+        copyright_text: String,
     ) -> CachingSystem {
         let (tx, rx) = mpsc::channel::<CachingResultMessage>(MAXIMUM_MESSAGE_CHANNEL);
         let sharable_entry = ShareableEntries {
@@ -142,7 +145,14 @@ impl CachingSystem {
             stream_sender: tx,
             savings_counter,
             timer_handle,
+            copyright_text,
         }
+    }
+    
+    
+    /// Gets a copy of the copyright text.
+    pub fn get_copyright_text(&self) -> String {
+        self.copyright_text.clone()
     }
 
     /// Timer function that does an autosave after a couple of idle seconds.
@@ -395,15 +405,17 @@ pub fn generate_dummy_cache(
     cache_base_dir: impl AsRef<Path>,
     maximum_amount_of_data: u64,
 ) -> CachingSystem {
-    CachingSystem::new(Requester::dummy(), cache_base_dir, maximum_amount_of_data)
+    CachingSystem::new(Requester::dummy(), cache_base_dir, maximum_amount_of_data, "".to_string())
 }
 
 /// Generates the real cache. The first 3 entries refer to the url and the username to access the web service.
 /// Cache base directory is the place where we store data and the maximum amount is the maximum amount of data we want to take.
+/// The last line is the copyright text that should be displayed for the tiles.
 pub fn generate_cache(
     intro_url: &str,
     post_url: &str,
     user_agent: &str,
+    copyright_text: String,
     cache_base_dir: impl AsRef<Path>,
     maximum_amount_of_data: u64,
 ) -> Result<CachingSystem, String> {
@@ -411,6 +423,7 @@ pub fn generate_cache(
         Requester::new(intro_url, post_url, user_agent)?,
         cache_base_dir,
         maximum_amount_of_data,
+        copyright_text
     ))
 }
 

@@ -114,6 +114,7 @@ impl MapWidgetSystem {
         let id = self.widget_collection.len() as u32;
         self.widget_collection.push(MapWidget::new(
             id,
+            self.tile_cache.get_copyright_text(),
             FocalPoint {
                 position: LatitudeLongitude::new(49.75, 6.63),
                 continuous_zoom_level: 12.0,
