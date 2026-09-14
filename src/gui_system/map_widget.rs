@@ -16,6 +16,12 @@ use iced::advanced::graphics::geometry::Frame;
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
 
+/// The font size we want to use.
+const FONT_SIZE: f32 = 15.0;
+
+/// The color we use for drawing overlay text.
+const TEXT_COLOR: Color =  Color::from_rgb(0.6, 0.4, 0.4);
+
 /// These become the interaction commands with the rest of the system later on. These
 /// commands contain the information of a specific client widget.
 #[derive(Debug, Clone)]
@@ -140,25 +146,23 @@ impl MapWidget {
     /// Prints the copyright information into the lower right corner
     fn print_copyright_text(&self, bounds: Rectangle, frame: &mut Frame<Renderer>) {
         // 1. Calculate the bounding box of your text (needed to offset the position)
-        let text_size = 15.0;
         let text_content = self.copyright_text.clone();
 
         // 2. Measure or estimate the dimensions
         // Iced uses an approximate width based on character count if not measured directly
-        let estimated_width = text_content.len() as f32 * (text_size * 0.5); // Rough estimate
-        let estimated_height = text_size;
+        let estimated_width = text_content.len() as f32 * (FONT_SIZE * 0.5); // Rough estimate
 
         // 3. Subtract the text size from the canvas bounds
         let padding = 5.0; // Distance from the absolute edges
         let x = bounds.width - estimated_width - padding;
-        let y = bounds.height - estimated_height - padding;
+        let y = bounds.height - FONT_SIZE - padding;
 
         // 4. Draw the text
         frame.fill_text(Text {
             content: text_content,
             position: Point::new(x, y),
-            color: Color::from_rgb(0.6, 0.4, 0.4),
-            size: text_size.into(),
+            color: TEXT_COLOR,
+            size: FONT_SIZE.into(),
             ..Default::default()
         });
     }
