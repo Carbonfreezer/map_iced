@@ -1,0 +1,12 @@
+{
+  "cache": {
+    "FullyConstructed": "cache/osm"
+  },
+  "cache_size" : 100000000,
+  "source": {
+    "OpenStreetMap": {
+      "user_agent": "Testprogram xxx@yyy-com",
+    
+    }
+  }
+}
