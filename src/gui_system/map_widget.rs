@@ -65,6 +65,7 @@ pub struct MapWidget {
     drawing_tiles: Vec<TilesToDraw>,
     /// Last complete set, kept as backdrop while the current one fills up.
     fallback_tiles: Vec<TilesToDraw>,
+    /// The internal id of the widget.
     client_id: u32,
     /// The view this widget currently shows. Source of truth for interaction.
     focal_point: FocalPoint,
