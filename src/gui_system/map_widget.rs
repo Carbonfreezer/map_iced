@@ -6,12 +6,12 @@ use crate::gui_system::internal_math::{
     BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL, RectConversionError,
     TILE_SIZE_PIXEL,
 };
+use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry, Text};
 use iced::widget::{Action, canvas};
-use iced::{mouse, window, Color, Event, Point, Rectangle, Renderer, Theme};
-use iced::advanced::graphics::geometry::Frame;
+use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -20,7 +20,7 @@ const SCROLLING_SPEED: f32 = 0.05;
 const FONT_SIZE: f32 = 15.0;
 
 /// The color we use for drawing overlay text.
-const TEXT_COLOR: Color =  Color::from_rgb(0.6, 0.4, 0.4);
+const TEXT_COLOR: Color = Color::from_rgb(0.6, 0.4, 0.4);
 
 /// These become the interaction commands with the rest of the system later on. These
 /// commands contain the information of a specific client widget.
@@ -259,12 +259,9 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                     })
                 }
             });
-        let copyright_content = self
-            .overlay_cache
-            .draw(renderer, bounds.size(), |frame| {
-                self.print_copyright_text(bounds, frame);
-            });
-
+        let copyright_content = self.overlay_cache.draw(renderer, bounds.size(), |frame| {
+            self.print_copyright_text(bounds, frame);
+        });
 
         vec![content, copyright_content]
     }

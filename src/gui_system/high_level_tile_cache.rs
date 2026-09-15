@@ -31,6 +31,8 @@ pub struct TilesToDraw {
     pub image: Handle,
 }
 
+/// The high level tile cache, that encapsulates the real cache with image and file level, as well
+/// as the access system for the tiles.
 pub struct TileCache {
     /// The core we have access too.
     core: CachingSystem,
@@ -74,7 +76,7 @@ impl TileCache {
     pub fn get_receiver(&mut self) -> Option<Receiver<CachingResultMessage>> {
         self.core.get_receiver()
     }
-    
+
     /// Gets the copyright text.
     pub fn get_copyright_text(&self) -> String {
         self.core.get_copyright_text()

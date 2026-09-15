@@ -3,7 +3,7 @@ use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
-use map_iced::gui_system::tile_cache_construction::generate_from_config_default;
+use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 
 struct BasicApplication {
     widget_system: MapWidgetSystem,
@@ -18,9 +18,18 @@ enum Message {
     RetryFailedTiles,
 }
 
+/// The configuration data to load.
+const CONFIG_DATA: &str = include_str!("../osm.json");
+
 impl BasicApplication {
     pub fn boot() -> (BasicApplication, Task<Message>) {
-        let cache = generate_from_config_default("osm.json").unwrap();
+        let cache = TileCacheConfig::from_json_str(CONFIG_DATA)
+            .and_then(TileCacheConfig::build)
+            .or_else(|e| {
+                eprintln!("Konfigurationsfehler: {e}");
+                tile_cache_debug_default()
+            })
+            .expect("Should not be possible to reach");
 
         let (mut widget_system, task) = MapWidgetSystem::boot(cache);
         let widget_ids = [

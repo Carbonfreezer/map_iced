@@ -3,12 +3,11 @@
 use crate::gui_system::high_level_tile_cache::TileCache;
 use crate::tile_cache::cache_core::{generate_cache, generate_dummy_cache};
 use dirs::cache_dir;
-use serde::Deserialize;
-use std::fs;
-use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// The different types of aching directories we offer.
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum CachingDirectory {
     /// Completely manually constructed.
     FullyConstructed(PathBuf),
@@ -34,7 +33,7 @@ impl CachingDirectory {
 
 /// The tile source where we obtain our pngs from.
 /// They all follow the [slippy map convention](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames).
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum TileSource {
     /// The most flexible form where the beginning, ending and the user agent are given.
     FullyConstructed {
@@ -55,9 +54,10 @@ pub enum TileSource {
     Thunderforest { style: String, api_key: String },
 }
 
-/// The combined information for serialization.
-#[derive(Deserialize)]
-struct CombinedInfo {
+/// The combined information for serialization. It contains the real
+/// caching inforation and the access to the tile provider.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TileCacheConfig {
     /// The info where the caching directory resides.
     cache: CachingDirectory,
     /// The size of the cache we use.
@@ -74,7 +74,7 @@ pub(crate) struct QuadrupleInfo {
 }
 
 impl TileSource {
-    pub(crate) fn get_triple(&self) -> QuadrupleInfo {
+    pub(crate) fn get_quadruple(&self) -> QuadrupleInfo {
         match self {
             TileSource::FullyConstructed {
                 start_url,
@@ -97,7 +97,8 @@ impl TileSource {
                 start_url: "https://maptiles.p.rapidapi.com/en/map/v1/".to_string(),
                 end_url: "?rapidapi-key=".to_string() + api_key,
                 user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
-                copyright_text: "Map © Map Tiles API | Map data © OpenStreetMap contributors".to_string(),
+                copyright_text: "Map © Map Tiles API | Map data © OpenStreetMap contributors"
+                    .to_string(),
             },
             TileSource::MapBoxTiles {
                 tileset_id,
@@ -118,73 +119,61 @@ impl TileSource {
                 start_url: "https://api.thunderforest.com/".to_string() + style + "/",
                 end_url: "?apikey=".to_string() + api_key,
                 user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
-                copyright_text: "Maps © www.thunderforest.com, Data © www.osm.org/copyright".to_string(),
+                copyright_text: "Maps © www.thunderforest.com, Data © www.osm.org/copyright"
+                    .to_string(),
             },
         }
     }
 }
 
-/// Generates the debug tile cache system with an indicated cache size, A simple internal image is used here.
-fn generate_debug_tile_cache(
-    dir_info: CachingDirectory,
-    cache_size: u64,
-) -> Result<TileCache, String> {
-    TileCache::new(generate_dummy_cache(dir_info.get_path()?, cache_size))
-}
-
-fn generate_web_tile_cache(
-    dir_info: CachingDirectory,
-    cache_size: u64,
-    tile_source: TileSource,
-) -> Result<TileCache, String> {
-    let description = tile_source.get_triple();
-    TileCache::new(generate_cache(
-        &description.start_url,
-        &description.end_url,
-        &description.user_agent,
-        description.copyright_text,
-        dir_info.get_path()?,
-        cache_size,
-    )?)
-}
-
-/// Reads in `config.json` and generates the tile cache from.
-fn generate_from_config_json_internal(name: impl AsRef<Path>) -> Result<TileCache, String> {
-    let file = fs::File::open(name).map_err(|e| e.to_string())?;
-    let combined: CombinedInfo = serde_json::from_reader(file).map_err(|e| e.to_string())?;
-    generate_web_tile_cache(combined.cache, combined.cache_size, combined.source)
-}
-
-/// Generates a configuration from a json file if this is not possible it defaults to a test configuration.
-/// On the highest level the json file consists of three entries.
-/// * cache: Here we refer to the file cache construction which gets serialized from [`CachingDirectory`]
-/// * cache_size: The amount of bytes we allow for the cache size on disc
-/// * source: The source of the tiles as explained in [`TileSource`]
-///
-/// # Example
-/// ```text
-///  {
-///   "cache": {
-///     "FullyConstructed": "cache/osm"
-///   },
-///   "cache_size" : 100000000,
-///   "source": {
-///     "OpenStreetMap": {
-///       "user_agent": "My Test Test mymail@gmail.com"
-///     }
-///   }
-/// }
-/// ```
-/// This generates a subfolder besides the program directory called cached/osm, allows
-/// for 1 million bytes of disc space and uses OSM for tile queries.
-
-
-pub fn generate_from_config_default(name: impl AsRef<Path>) -> Result<TileCache, String> {
-    let result = generate_from_config_json_internal(name);
-    if let Err(e) = &result {
-        eprintln!("Error in configuration {}", e);
-        return generate_debug_tile_cache(CachingDirectory::CacheDirFixed, 30_000);
+impl TileCacheConfig {
+    /// Generates the tile cache config from a string, that can either be loaded from from
+    /// a file or generated with include_str!
+    ///
+    /// On the highest level the json file consists of three entries.
+    /// * cache: Here we refer to the file cache construction which gets serialized from [`CachingDirectory`]
+    /// * cache_size: The amount of bytes we allow for the cache size on disc
+    /// * source: The source of the tiles as explained in [`TileSource`]
+    ///
+    /// # Example
+    /// ```text
+    ///  {
+    ///   "cache": {
+    ///     "FullyConstructed": "cache/osm"
+    ///   },
+    ///   "cache_size" : 100000000,
+    ///   "source": {
+    ///     "OpenStreetMap": {
+    ///       "user_agent": "My Test Test mymail@gmail.com"
+    ///     }
+    ///   }
+    /// }
+    /// ```
+    /// This generates a subfolder besides the working directory called cache/osm, allows
+    /// for 1oo MB of disc space and uses OSM for tile queries.
+    pub fn from_json_str(s: &str) -> Result<Self, String> {
+        serde_json::from_str(s).map_err(|e| e.to_string())
     }
 
-    result
+    /// Creates the tile cache from the internal representation.
+    pub fn build(self) -> Result<TileCache, String> {
+        let dir_info = self.cache;
+        let cache_size = self.cache_size;
+        let tile_source = self.source;
+        let description = tile_source.get_quadruple();
+        TileCache::new(generate_cache(
+            &description.start_url,
+            &description.end_url,
+            &description.user_agent,
+            description.copyright_text,
+            dir_info.get_path()?,
+            cache_size,
+        )?)
+    }
+}
+
+/// Offline-Cache with internal dummy cache for debug purposes.
+pub fn tile_cache_debug_default() -> Result<TileCache, String> {
+    let dir_info = CachingDirectory::CacheDirFixed;
+    TileCache::new(generate_dummy_cache(dir_info.get_path()?, 30_000))
 }

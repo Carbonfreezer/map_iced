@@ -148,8 +148,7 @@ impl CachingSystem {
             copyright_text,
         }
     }
-    
-    
+
     /// Gets a copy of the copyright text.
     pub fn get_copyright_text(&self) -> String {
         self.copyright_text.clone()
@@ -405,7 +404,12 @@ pub fn generate_dummy_cache(
     cache_base_dir: impl AsRef<Path>,
     maximum_amount_of_data: u64,
 ) -> CachingSystem {
-    CachingSystem::new(Requester::dummy(), cache_base_dir, maximum_amount_of_data, "".to_string())
+    CachingSystem::new(
+        Requester::dummy(),
+        cache_base_dir,
+        maximum_amount_of_data,
+        "".to_string(),
+    )
 }
 
 /// Generates the real cache. The first 3 entries refer to the url and the username to access the web service.
@@ -423,7 +427,7 @@ pub fn generate_cache(
         Requester::new(intro_url, post_url, user_agent)?,
         cache_base_dir,
         maximum_amount_of_data,
-        copyright_text
+        copyright_text,
     ))
 }
 
