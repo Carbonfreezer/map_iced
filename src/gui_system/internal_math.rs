@@ -2,7 +2,6 @@
 //! and tile coordinate system. This is the pure internal representation
 //! of the coordinates.
 
-use super::coordinate_systems::LatitudeLongitude;
 use iced::{Rectangle, Size, Vector};
 use itertools::iproduct;
 use std::f64::consts::PI;
@@ -72,7 +71,7 @@ impl From<TilePosition> for TileCoordinates {
     }
 }
 
-/// An enclosing rectangle for tiles at a certain zoom level.
+/// An enclosing rectangle for tiles at a certain zoom level using tile indices.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundingRectangle {
     pub x_min: u32,
@@ -237,7 +236,32 @@ pub fn get_scaling_factor(zoom: u8) -> f64 {
     f64::exp2(zoom as f64)
 }
 
+/// The boundary latitude we do not overshoot. Needed
+/// because of distortion artifacts in the mercator projection.
+pub const BOUNDARY_LATITUDE: f64 = 85.05112878;
+
+/// The latitude longitude pair. Both are given in degrees.
+/// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
+#[derive(Debug, Clone, Copy)]
+pub struct LatitudeLongitude {
+    /// Latitude in degrees
+    pub latitude: f64,
+    /// Longitude in degrees
+    pub longitude: f64,
+}
+
+
 impl LatitudeLongitude {
+
+    /// Constructs the object and makes sure, that both coordinates are in the valid range
+    /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
+    pub fn new(latitude: f64, longitude: f64) -> Self {
+        Self {
+            latitude: latitude.clamp(-BOUNDARY_LATITUDE, BOUNDARY_LATITUDE),
+            longitude: longitude.clamp(-180.0, 180.0),
+        }
+    }
+    
     /// Gets the tile coordinates in the indicated zoom level
     pub(crate) fn get_tile_coordinates(&self, zoom: u8) -> TileCoordinates {
         let scaling = get_scaling_factor(zoom);
@@ -381,7 +405,6 @@ impl DrawingPositionConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui_system::coordinate_systems::BOUNDARY_LATITUDE;
     use iced::{Point, Size};
     use proptest::{prop_assert, proptest};
 

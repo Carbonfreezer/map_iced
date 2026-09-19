@@ -1,7 +1,6 @@
 //! This module contains a structure that administrates all the different map widgets and
 //! the internal cache.
 
-use crate::gui_system::coordinate_systems::LatitudeLongitude;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::map_widget::{
     FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand,
@@ -10,6 +9,7 @@ use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::Task;
 use iced::widget::{Canvas, canvas};
 use tokio_stream::wrappers::ReceiverStream;
+use crate::gui_system::internal_math::LatitudeLongitude;
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
@@ -36,6 +36,7 @@ impl From<CachingResultMessage> for MapWidgetMessage {
 pub struct MapWidgetSystem {
     tile_cache: TileCache,
     widget_collection: Vec<MapWidget>,
+    // TODO: Here we will also insert the landmark and track system
 }
 
 impl MapWidgetSystem {

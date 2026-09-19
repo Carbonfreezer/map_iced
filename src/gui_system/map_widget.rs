@@ -1,11 +1,7 @@
 //! This contains the core map widget.
 
-use crate::gui_system::coordinate_systems::LatitudeLongitude;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::internal_math::{
-    BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL, RectConversionError,
-    TILE_SIZE_PIXEL,
-};
+use crate::gui_system::internal_math::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, RectConversionError, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
@@ -119,6 +115,7 @@ impl MapWidget {
         }
         self.focal_point = focal_point;
         self.position_converter = Some(converter);
+        // TODO: Here we have to ask the map widget system for way point information. and also invalidate the overlay cache.
         self.tile_drawing_cache.clear();
         debug_assert!(
             !matches!(rectangle, Err(RectConversionError::NegativeSize)),
