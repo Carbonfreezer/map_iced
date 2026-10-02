@@ -1,16 +1,18 @@
 //! This contains the core map widget.
 
+use crate::annotation_system::waypoint_system::{WaypointInfo, WaypointKey, InternalWaypointImage};
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::internal_math::{BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, RectConversionError, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL};
+use crate::gui_system::internal_math::{
+    BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL,
+    RectConversionError, TILE_SIZE_PIXEL,
+};
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::time::{Duration, Instant};
-use iced::widget::canvas::{stroke, Cache, Geometry, Stroke, Text, Path};
+use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
-use crate::annotation_system::waypoint_system::InternalWaypointImage;
-use crate::annotation_system::waypoint_system::{WaypointInfo, WaypointKey};
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -91,7 +93,6 @@ pub struct MapWidget {
     /// Flags that we want to have a focal reset usually because of waypoint or annotation changes from the outside.
     request_focal_reset: bool,
 }
-
 
 /// The rectangle that covers one tile.
 const STANDARD_RECTANGLE: Rectangle = Rectangle {
@@ -515,12 +516,14 @@ impl AnnotationInteractionState {
 /// meshes and the map tiles are images, so a shared canvas would always bury the
 /// symbols underneath the map. Stacking a second canvas on top gives the
 /// annotations a layer, and hence a draw order, of their own.
-pub struct AnnotationOverlay<'a>(&'a MapWidget);
+pub struct AnnotationOverlay<'a> {
+    widget: &'a MapWidget,
+}
 
 impl<'a> AnnotationOverlay<'a> {
     /// Wraps the widget whose annotations we draw.
     pub(crate) fn new(widget: &'a MapWidget) -> Self {
-        Self(widget)
+        Self { widget }
     }
 }
 
@@ -538,7 +541,7 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
             Event::Mouse(mouse::Event::CursorMoved { .. }) => state.aim(
                 cursor
                     .position_in(bounds)
-                    .and_then(|position| self.0.waypoint_at(position)),
+                    .and_then(|position| self.widget.waypoint_at(position)),
             ),
 
             Event::Mouse(mouse::Event::CursorLeft) => state.aim(None),
@@ -548,16 +551,16 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 let position = cursor.position_in(bounds)?;
                 let hit = self
-                    .0
+                    .widget
                     .waypoint_at(position)
-                    .and_then(|index| self.0.waypoint(index))?
+                    .and_then(|index| self.widget.waypoint(index))?
                     .key;
 
                 // A click that hits nothing is not our business, it stays available to
                 // the map below. Capturing here keeps a hit click from also reaching it.
                 Some(
                     Action::publish(MapInteractionCommand {
-                        client_id: self.0.client_id,
+                        client_id: self.widget.client_id,
                         command: SpecificInteractionCommand::WaypointClicked(hit),
                     })
                     .and_capture(),
@@ -577,9 +580,10 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
         _cursor: Cursor,
     ) -> Vec<Geometry<Renderer>> {
         vec![
-            self.0.draw_waypoint_symbols(renderer, bounds),
-            self.0.draw_annotation_interaction(renderer, bounds, state),
-            self.0.draw_copyright(renderer, bounds),
+            self.widget.draw_waypoint_symbols(renderer, bounds),
+            self.widget
+                .draw_annotation_interaction(renderer, bounds, state),
+            self.widget.draw_copyright(renderer, bounds),
         ]
     }
 
