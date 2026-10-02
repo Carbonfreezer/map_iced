@@ -8,7 +8,7 @@
 
 use iced::widget::text::Wrapping;
 use iced::widget::{button, checkbox, column, container, row, text};
-use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
+use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::Bytes;
 use map_iced::annotation_system::waypoint_system::{WaypointKey, WaypointSymbol};
 use map_iced::gui_system::internal_math::LatitudeLongitude;
@@ -21,6 +21,9 @@ const CONFIG_DATA: &str = include_str!("../osm.json");
 
 /// The icon we mark every way point with.
 const ICON_DATA: &[u8] = include_bytes!("../assets/Icon.png");
+
+/// The colour of the direction arrow for a flagged way point.
+const FLAG_COLOR: Color = Color::from_rgb(0.9, 0.2, 0.2);
 
 /// The way points this application offers, around the focal point the widgets start at.
 /// The last three lie further away, to try the focus with.
@@ -41,6 +44,8 @@ struct WaypointEntry {
     name: &'static str,
     position: LatitudeLongitude,
     key: Option<WaypointKey>,
+    /// Whether the way point is flagged, i.e. gets a direction arrow while off screen.
+    flagged: bool,
 }
 
 struct WaypointApplication {
@@ -59,6 +64,8 @@ enum Message {
     Toggled(usize, bool),
     /// Move the maps to the way point of the given list row.
     Focus(usize),
+    /// Flag or unflag the way point of the given list row.
+    Flagged(usize, bool),
 }
 
 impl WaypointApplication {
@@ -82,6 +89,7 @@ impl WaypointApplication {
                 name,
                 position: LatitudeLongitude::new(*latitude, *longitude),
                 key: None,
+                flagged: false,
             })
             .collect();
 
@@ -134,6 +142,8 @@ impl WaypointApplication {
                     (false, Some(key)) => {
                         self.widget_system.get_waypoint_as_mut().delete_waypoint(key);
                         self.entries[index].key = None;
+                        // The flag lived on the way point and is gone with it.
+                        self.entries[index].flagged = false;
                         // The way point is gone, so a pick that pointed at it is stale.
                         if self.selected == Some(key) {
                             self.selected = None;
@@ -157,6 +167,16 @@ impl WaypointApplication {
                     },
                 );
                 self.widget_system.animate_to(soft, entry.position);
+            }
+
+            Message::Flagged(index, flagged) => {
+                let Some(key) = self.entries.get(index).and_then(|entry| entry.key) else {
+                    return;
+                };
+                self.widget_system
+                    .get_waypoint_as_mut()
+                    .set_flag(key, flagged.then_some(FLAG_COLOR));
+                self.entries[index].flagged = flagged;
             }
         }
     }
@@ -195,12 +215,17 @@ impl WaypointApplication {
             .width(Fill)
             .wrapping(Wrapping::WordOrGlyph);
 
+        // Only a registered way point can carry a flag.
+        let flag = checkbox(entry.flagged)
+            .label("Flag")
+            .on_toggle_maybe(entry.key.map(|_| move |flagged| Message::Flagged(index, flagged)));
+
         let toggle = checkbox(entry.key.is_some())
             .on_toggle(move |checked| Message::Toggled(index, checked));
 
         let focus = button(text("Fokus")).on_press(Message::Focus(index));
 
-        row![label, focus, toggle]
+        row![label, focus, flag, toggle]
             .align_y(Alignment::Center)
             .spacing(10)
             .into()

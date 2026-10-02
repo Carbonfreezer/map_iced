@@ -1,6 +1,9 @@
 //! This contains the core map widget.
 
 use crate::annotation_system::waypoint_system::{WaypointInfo, WaypointKey, InternalWaypointImage};
+use crate::gui_system::direction_arrow::{
+    PlacedArrow, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
+};
 use crate::gui_system::focus_animation::FocusAnimation;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
@@ -99,6 +102,8 @@ pub struct MapWidget {
     copyright_text: String,
     /// Way point info ix existing.
     waypoint_info: Vec<WaypointInfo>,
+    /// The direction arrows of the current view, see [`Self::place_arrows`].
+    arrows: Vec<PlacedArrow>,
     /// Flags that we want to have a focal reset usually because of waypoint or annotation changes from the outside.
     request_focal_reset: bool,
     /// The soft focus currently running, if any.
@@ -130,6 +135,7 @@ impl MapWidget {
             focal_point,
             copyright_text,
             waypoint_info: vec![],
+            arrows: vec![],
             request_focal_reset: true,
             animation: None,
             animation_generation: 0,
@@ -217,10 +223,55 @@ impl MapWidget {
         self.request_focal_reset = true;
     }
 
-    /// Called from outside the map widget system to set the waypoint information.
-    pub(crate) fn set_waypoint_info(&mut self, way_points: Vec<WaypointInfo>) {
+    /// Called from outside the map widget system to set the waypoint information:
+    /// the way points around the view, and all flagged ones for the arrows.
+    pub(crate) fn set_waypoint_info(
+        &mut self,
+        way_points: Vec<WaypointInfo>,
+        flagged: Vec<WaypointInfo>,
+    ) {
         self.waypoint_info = way_points;
+        self.place_arrows(&flagged);
         self.waypoint_cache.clear();
+    }
+
+    /// Places the direction arrows for the current view.
+    ///
+    /// An off screen way point gets a radar arrow on the edge. One that comes into
+    /// view during a soft focus keeps the arrow it had in the frame before, now
+    /// attached to its symbol and with the direction frozen, until the animation is
+    /// over. Otherwise the arrow would vanish halfway through the move, and taking
+    /// the direction from the centre would spin it once the centre reaches the target.
+    fn place_arrows(&mut self, flagged: &[WaypointInfo]) {
+        let Some(converter) = &self.position_converter else {
+            self.arrows.clear();
+            return;
+        };
+        let size = converter.drawing_size();
+        let animating = self.animation.is_some();
+        let previous = &self.arrows;
+
+        let arrows = flagged
+            .iter()
+            .filter_map(|point| {
+                let color = point.flag?;
+                let target = converter.get_unclipped_drawing_position(point.position);
+                let placement = if !symbol_visible(size, target, WAYPOINT_HALF_SIZE as f64) {
+                    radar_arrow(size, target)?
+                } else if animating {
+                    let carried = previous.iter().find(|arrow| arrow.key == point.key)?;
+                    attached_arrow(target, carried.placement.direction, WAYPOINT_HALF_SIZE)
+                } else {
+                    return None;
+                };
+                Some(PlacedArrow {
+                    key: point.key,
+                    placement,
+                    color,
+                })
+            })
+            .collect();
+        self.arrows = arrows;
     }
 
     /// Called from the outside if new tiles have arrived.
@@ -343,6 +394,10 @@ impl MapWidget {
                         );
                     }
                 }
+            }
+
+            for arrow in &self.arrows {
+                draw_arrow(frame, arrow.placement, arrow.color);
             }
         })
     }

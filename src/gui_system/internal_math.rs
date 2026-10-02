@@ -398,10 +398,7 @@ impl DrawingPositionConverter {
 
     /// Gets the drawing position from within the widget for a certain Latitude, Longitude Vector.
     pub fn get_drawing_position(&self, pos : LatitudeLongitude, half_size: f64) -> Option<Vector> {
-        let tile = pos.get_tile_coordinates(self.zoom());
-        
-        let x = tile.x * self.transform_scaling + self.central_offset.x;
-        let y = tile.y * self.transform_scaling + self.central_offset.y;
+        let Vector { x, y } = self.get_unclipped_drawing_position(pos);
 
         if x < - half_size
             || y  <= - half_size
@@ -412,6 +409,17 @@ impl DrawingPositionConverter {
         }
 
         Some(Vector::new(x as f32, y as f32))
+    }
+
+    /// The position within the widget for a certain Latitude, Longitude, also when
+    /// it lies far outside. Kept in `f64`, at high zoom a distant point is millions
+    /// of pixels away.
+    pub fn get_unclipped_drawing_position(&self, pos: LatitudeLongitude) -> Vector<f64> {
+        let tile = pos.get_tile_coordinates(self.zoom());
+        Vector::new(
+            tile.x * self.transform_scaling + self.central_offset.x,
+            tile.y * self.transform_scaling + self.central_offset.y,
+        )
     }
 
     /// Focus that results from dragging the map by `delta` pixels.

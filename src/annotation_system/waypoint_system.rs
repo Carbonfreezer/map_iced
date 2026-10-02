@@ -53,7 +53,31 @@ impl WaypointSystem {
             image,
             position,
             description,
+            flag: None,
         })
+    }
+
+    /// Flags the way point with the colour of its direction arrow, or takes the flag
+    /// away with `None`. A flagged way point gets an arrow on the edge of every
+    /// widget it is off screen in. Returns `false` for an unknown key.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
+    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// let mut system = WaypointSystem::default();
+    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// assert!(system.set_flag(key, Some(Color::from_rgb(1.0, 0.0, 0.0))));
+    /// ```
+    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<Color>) -> bool {
+        match self.waypoint_collection.get_mut(key) {
+            Some(point) => {
+                point.flag = flag;
+                true
+            }
+            None => false,
+        }
     }
 
     /// Deletes the way point with the indicated key and returns it.
@@ -97,6 +121,16 @@ impl WaypointSystem {
             area.contains_position(&TilePosition::from(tile_pos)).then_some(point.clone())
         }).collect()
     }
+
+    /// All flagged way points, wherever they are. Deliberately not filtered by area:
+    /// the arrows are needed for exactly those points that are off screen.
+    pub(crate) fn get_all_flagged_waypoints(&self) -> Vec<WaypointInfo> {
+        self.waypoint_collection
+            .values()
+            .filter(|point| point.flag.is_some())
+            .cloned()
+            .collect()
+    }
 }
 
 /// The internal way point image we have as a way point.
@@ -121,6 +155,9 @@ pub struct WaypointInfo {
     pub position: LatitudeLongitude,
     /// An optional string that may be drawn in hover over.
     pub description: Option<String>,
+    /// The colour of the direction arrow, if the way point is flagged. Set with
+    /// [`WaypointSystem::set_flag`].
+    pub flag: Option<Color>,
 }
 
 #[cfg(test)]

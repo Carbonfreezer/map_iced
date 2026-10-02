@@ -126,7 +126,8 @@ impl MapWidgetSystem {
                 self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
                 // TODO: Here we will add also the other information for the paths and regions.
                 let way_points = self.waypoint_system.get_all_relevant_waypoints(&bounding);
-                self.widget_collection[client_id as usize].set_waypoint_info(way_points);
+                let flagged = self.waypoint_system.get_all_flagged_waypoints();
+                self.widget_collection[client_id as usize].set_waypoint_info(way_points, flagged);
             }
             None => self.tile_cache.completely_unsubscribe(client_id),
         }

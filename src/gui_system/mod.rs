@@ -2,6 +2,7 @@
 //! The central entry point of usage is here [`tile_cache_construction::generate_from_config_default`]
 //! to generate the tile caching system.
 
+mod direction_arrow;
 mod focus_animation;
 pub(crate) mod high_level_tile_cache;
 pub mod internal_math;
