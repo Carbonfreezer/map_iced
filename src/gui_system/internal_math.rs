@@ -392,20 +392,17 @@ impl DrawingPositionConverter {
     }
 
     /// Gets the drawing position from within the widget for a certain Latitude, Longitude Vector.
-    pub fn get_drawing_position(&self, pos : LatitudeLongitude) -> Option<Vector> {
+    pub fn get_drawing_position(&self, pos : LatitudeLongitude, half_size: f64) -> Option<Vector> {
         let tile = pos.get_tile_coordinates(self.zoom());
-
-        let extent =  self.transform_scaling; // on-screen edge length
-
+        
         let x = tile.x * self.transform_scaling + self.central_offset.x;
         let y = tile.y * self.transform_scaling + self.central_offset.y;
 
-        if x <= 0.0
-            || y  <= 0.0
-            || x >= self.drawing_size.width
-            || y >= self.drawing_size.height
+        if x < - half_size
+            || y  <= - half_size
+            || x >= self.drawing_size.width + half_size
+            || y >= self.drawing_size.height + half_size
         {
-            println!("Asked void position");
             return None;
         }
 

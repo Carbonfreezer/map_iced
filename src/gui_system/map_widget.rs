@@ -5,9 +5,10 @@ use crate::gui_system::internal_math::{BoundingRectangle, DrawingPositionConvert
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
-use iced::widget::canvas::{Cache, Geometry, Text};
+use iced::widget::canvas::{stroke, Cache, Geometry, Stroke, Text, Path};
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
+use crate::annotation_system::waypoint_system::InternalWaypointImage;
 use crate::annotation_system::waypoint_system::WaypointInfo;
 
 /// The velocity we use for mouse scrolling.
@@ -18,6 +19,9 @@ const FONT_SIZE: f32 = 15.0;
 
 /// The color we use for drawing overlay text.
 const TEXT_COLOR: Color = Color::from_rgb(0.6, 0.4, 0.4);
+
+/// Half the size of the way point we apply.
+const WAYPOINT_HALF_SIZE: f32 = 100.0;
 
 /// These become the interaction commands with the rest of the system later on. These
 /// commands contain the information of a specific client widget.
@@ -283,15 +287,40 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         });
 
         let way_point_content = self.waypoint_cache.draw(renderer, bounds.size(), |frame| {
+
             for annotation in &self.waypoint_info {
                 // First get the drawing position.
-                if let Some(draw_pos) = converter.get_drawing_position(annotation.position) {
-                    println!("Drawing Waypoint {:?}", draw_pos);
+                if let Some(draw_pos) = converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64) {
+                    match annotation.image {
+
+                        InternalWaypointImage::Image(_) => {todo!("Implement image")}
+                        InternalWaypointImage::Cross(color) => {
+
+                            println!("Drawing cross {:?} {:?}", color, draw_pos);
+                            let line_stroke = Stroke {
+                                width: 2.0,
+                                style: stroke::Style::Solid(color),
+                                ..Stroke::default()
+                            };
+
+                            frame.stroke(
+                                &Path::line(Point::new(-WAYPOINT_HALF_SIZE, -WAYPOINT_HALF_SIZE) + draw_pos, Point::new(WAYPOINT_HALF_SIZE, WAYPOINT_HALF_SIZE) + draw_pos),
+                                line_stroke,
+                            );
+
+                            frame.stroke(
+                                &Path::line(Point::new(-WAYPOINT_HALF_SIZE, WAYPOINT_HALF_SIZE) + draw_pos, Point::new(WAYPOINT_HALF_SIZE, -WAYPOINT_HALF_SIZE) + draw_pos),
+                                line_stroke,
+                            );
+
+                        }
+                    }
                 }
             }
         });
 
-        vec![content, way_point_content, copyright_content]
+        vec![way_point_content, copyright_content]
+        // vec![content, way_point_content, copyright_content]
     }
 
     fn mouse_interaction(

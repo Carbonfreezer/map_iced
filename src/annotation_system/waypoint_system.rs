@@ -94,7 +94,7 @@ impl WaypointSystem {
 
 /// The internal way point image we have as a way point.
 #[derive(Debug, Clone)]
-enum InternalWaypointImage{
+pub(crate) enum InternalWaypointImage{
     /// A registered image as a handle.
     Image(Handle),
     /// A cross with an indicated color.
