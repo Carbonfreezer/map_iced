@@ -21,7 +21,10 @@ const FONT_SIZE: f32 = 15.0;
 const TEXT_COLOR: Color = Color::from_rgb(0.6, 0.4, 0.4);
 
 /// Half the size of the way point we apply.
-const WAYPOINT_HALF_SIZE: f32 = 100.0;
+const WAYPOINT_HALF_SIZE: f32 = 10.0;
+
+/// Horizontal gap between a way point symbol and its hover description.
+const DESCRIPTION_GAP: f32 = 4.0;
 
 /// These become the interaction commands with the rest of the system later on. These
 /// commands contain the information of a specific client widget.
@@ -190,6 +193,119 @@ impl MapWidget {
             ..Default::default()
         });
     }
+
+    /// Hit test in widget coordinates. Returns the index of the topmost way point
+    /// of the current snapshot that covers `position`.
+    ///
+    /// The index refers to the snapshot installed by [`Self::set_waypoint_info`],
+    /// which is replaced on every focal point change. Resolve it within the event
+    /// that produced `position` rather than storing it across frames.
+    pub(crate) fn waypoint_at(&self, position: Point) -> Option<usize> {
+        let converter = self.position_converter.as_ref()?;
+        self.waypoint_info
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, annotation)| {
+                converter
+                    .get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64)
+                    .is_some_and(|symbol| {
+                        ((position.x - symbol.x).abs() <= WAYPOINT_HALF_SIZE)
+                            && ((position.y - symbol.y).abs() <= WAYPOINT_HALF_SIZE)
+                    })
+            })
+            .map(|(index, _)| index)
+    }
+
+    /// A way point of the current snapshot. See [`Self::waypoint_at`] for how long
+    /// an index stays valid.
+    pub(crate) fn waypoint(&self, index: usize) -> Option<&WaypointInfo> {
+        self.waypoint_info.get(index)
+    }
+
+    /// The way point symbols. Cached, because they only change with the way point
+    /// snapshot or the focal point, never with the cursor.
+    fn draw_waypoint_symbols(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
+        self.waypoint_cache.draw(renderer, bounds.size(), |frame| {
+            let Some(converter) = &self.position_converter else {
+                return;
+            };
+            for annotation in &self.waypoint_info {
+                let Some(draw_pos) =
+                    converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64)
+                else {
+                    continue;
+                };
+                match annotation.image {
+                    InternalWaypointImage::Image(_) => {
+                        todo!("Implement image")
+                    }
+                    InternalWaypointImage::Cross(color) => {
+                        let line_stroke = Stroke {
+                            width: 2.0,
+                            style: stroke::Style::Solid(color),
+                            ..Stroke::default()
+                        };
+
+                        frame.stroke(
+                            &Path::line(
+                                Point::new(-WAYPOINT_HALF_SIZE, -WAYPOINT_HALF_SIZE) + draw_pos,
+                                Point::new(WAYPOINT_HALF_SIZE, WAYPOINT_HALF_SIZE) + draw_pos,
+                            ),
+                            line_stroke,
+                        );
+
+                        frame.stroke(
+                            &Path::line(
+                                Point::new(-WAYPOINT_HALF_SIZE, WAYPOINT_HALF_SIZE) + draw_pos,
+                                Point::new(WAYPOINT_HALF_SIZE, -WAYPOINT_HALF_SIZE) + draw_pos,
+                            ),
+                            line_stroke,
+                        );
+                    }
+                }
+            }
+        })
+    }
+
+    /// Everything that depends on the overlay interaction state. Deliberately *not*
+    /// cached, so a changed state shows up on the next redraw without anyone having
+    /// to invalidate a cache.
+    fn draw_annotation_interaction(
+        &self,
+        renderer: &Renderer,
+        bounds: Rectangle,
+        state: &AnnotationInteractionState,
+    ) -> Geometry<Renderer> {
+        let mut frame = Frame::new(renderer, bounds.size());
+
+        if let (Some(annotation), Some(converter)) = (
+            state.hovered.and_then(|index| self.waypoint(index)),
+            self.position_converter.as_ref(),
+        ) {
+            if let (Some(description), Some(anchor)) = (
+                annotation.description.as_ref(),
+                converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64),
+            ) {
+                frame.fill_text(Text {
+                    content: description.clone(),
+                    position: Point::new(anchor.x + WAYPOINT_HALF_SIZE + DESCRIPTION_GAP, anchor.y),
+                    color: TEXT_COLOR,
+                    size: FONT_SIZE.into(),
+                    ..Default::default()
+                });
+            }
+        }
+
+        frame.into_geometry()
+    }
+
+    /// The copyright overlay. Cached, it only depends on the widget size.
+    fn draw_copyright(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
+        self.overlay_cache.draw(renderer, bounds.size(), |frame| {
+            self.print_copyright_text(bounds, frame);
+        })
+    }
 }
 
 impl canvas::Program<MapInteractionCommand> for MapWidget {
@@ -282,45 +398,8 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                     })
                 }
             });
-        let copyright_content = self.overlay_cache.draw(renderer, bounds.size(), |frame| {
-            self.print_copyright_text(bounds, frame);
-        });
 
-        let way_point_content = self.waypoint_cache.draw(renderer, bounds.size(), |frame| {
-
-            for annotation in &self.waypoint_info {
-                // First get the drawing position.
-                if let Some(draw_pos) = converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64) {
-                    match annotation.image {
-
-                        InternalWaypointImage::Image(_) => {todo!("Implement image")}
-                        InternalWaypointImage::Cross(color) => {
-
-                            println!("Drawing cross {:?} {:?}", color, draw_pos);
-                            let line_stroke = Stroke {
-                                width: 2.0,
-                                style: stroke::Style::Solid(color),
-                                ..Stroke::default()
-                            };
-
-                            frame.stroke(
-                                &Path::line(Point::new(-WAYPOINT_HALF_SIZE, -WAYPOINT_HALF_SIZE) + draw_pos, Point::new(WAYPOINT_HALF_SIZE, WAYPOINT_HALF_SIZE) + draw_pos),
-                                line_stroke,
-                            );
-
-                            frame.stroke(
-                                &Path::line(Point::new(-WAYPOINT_HALF_SIZE, WAYPOINT_HALF_SIZE) + draw_pos, Point::new(WAYPOINT_HALF_SIZE, -WAYPOINT_HALF_SIZE) + draw_pos),
-                                line_stroke,
-                            );
-
-                        }
-                    }
-                }
-            }
-        });
-
-        vec![way_point_content, copyright_content]
-        // vec![content, way_point_content, copyright_content]
+        vec![content]
     }
 
     fn mouse_interaction(
@@ -329,6 +408,98 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         _bounds: Rectangle,
         _cursor: Cursor,
     ) -> Interaction {
+        Interaction::None
+    }
+}
+
+/// The interaction state of the [`AnnotationOverlay`]. Separate from
+/// [`InteractionState`], because the overlay is a canvas of its own and therefore
+/// carries its own widget state.
+#[derive(Debug, Default)]
+pub struct AnnotationInteractionState {
+    /// Index of the way point the cursor currently rests on. See
+    /// [`MapWidget::waypoint_at`] for how long such an index is valid.
+    hovered: Option<usize>,
+}
+
+/// Draws the annotations of a [`MapWidget`] into a canvas of its own.
+///
+/// All geometry returned by a single canvas ends up in one render layer, and inside
+/// a layer iced renders strictly by primitive type - meshes, then images, then
+/// text - and not in the order the geometry was returned. The way point symbols are
+/// meshes and the map tiles are images, so a shared canvas would always bury the
+/// symbols underneath the map. Stacking a second canvas on top gives the
+/// annotations a layer, and hence a draw order, of their own.
+pub struct AnnotationOverlay<'a>(&'a MapWidget);
+
+impl<'a> AnnotationOverlay<'a> {
+    /// Wraps the widget whose annotations we draw.
+    pub(crate) fn new(widget: &'a MapWidget) -> Self {
+        Self(widget)
+    }
+}
+
+impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
+    type State = AnnotationInteractionState;
+
+    fn update(
+        &self,
+        state: &mut Self::State,
+        event: &Event,
+        bounds: Rectangle,
+        cursor: Cursor,
+    ) -> Option<Action<MapInteractionCommand>> {
+        match event {
+            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let hovered = cursor
+                    .position_in(bounds)
+                    .and_then(|position| self.0.waypoint_at(position));
+                if hovered == state.hovered {
+                    return None;
+                }
+                state.hovered = hovered;
+                // The hover decoration is drawn uncached, a plain redraw picks it up.
+                Some(Action::request_redraw())
+            }
+
+            Event::Mouse(mouse::Event::CursorLeft) => {
+                state.hovered.take().map(|_| Action::request_redraw())
+            }
+
+            // TODO: Way point selection goes here. Resolve the way point under the
+            // cursor with `self.0.waypoint_at(..)`, keep it in `state`, and return
+            // `Action::publish(..).and_capture()` so that the map below does not
+            // start a drag on the same click.
+            _ => None,
+        }
+    }
+
+    fn draw(
+        &self,
+        state: &Self::State,
+        renderer: &Renderer,
+        _theme: &Theme,
+        bounds: Rectangle,
+        _cursor: Cursor,
+    ) -> Vec<Geometry<Renderer>> {
+        vec![
+            self.0.draw_waypoint_symbols(renderer, bounds),
+            self.0.draw_annotation_interaction(renderer, bounds, state),
+            self.0.draw_copyright(renderer, bounds),
+        ]
+    }
+
+    fn mouse_interaction(
+        &self,
+        _state: &Self::State,
+        _bounds: Rectangle,
+        _cursor: Cursor,
+    ) -> Interaction {
+        // Keep this `None`. `stack` levitates the cursor for every child below as
+        // soon as an upper child claims an interaction, which would cut the map off
+        // from dragging and scrolling while the cursor sits on a way point. Return
+        // something like `Interaction::Pointer` for a hovered way point only once
+        // that trade is actually wanted.
         Interaction::None
     }
 }

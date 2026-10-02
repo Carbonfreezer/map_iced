@@ -3,11 +3,11 @@
 
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::map_widget::{
-    FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand,
+    AnnotationOverlay, FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand,
 };
 use crate::tile_cache::cache_core::CachingResultMessage;
-use iced::Task;
-use iced::widget::{Canvas, canvas};
+use iced::{Element, Fill, Task};
+use iced::widget::{canvas, stack};
 use tokio_stream::wrappers::ReceiverStream;
 use crate::annotation_system::waypoint_system::WaypointSystem;
 use crate::gui_system::internal_math::LatitudeLongitude;
@@ -141,14 +141,24 @@ impl MapWidgetSystem {
         id
     }
 
-    /// The canvas for one widget. Returns `Canvas`, not `Element`, so the
-    /// caller keeps full control over layout.
-    pub fn canvas(&self, id: u32) -> Canvas<&MapWidget, MapInteractionCommand> {
-        canvas(
-            self.widget_collection
-                .get(id as usize)
-                .expect("unknown widget id"),
-        )
+    /// The canvas stack for one widget. Returns an `Element`, because the map tiles
+    /// and the annotations have to sit in two stacked canvases to end up in separate
+    /// render layers, see [`AnnotationOverlay`].
+    pub fn canvas(&self, id: u32) -> Element<'_, MapInteractionCommand> {
+        let widget = self
+            .widget_collection
+            .get(id as usize)
+            .expect("unknown widget id");
+
+        stack![
+            canvas(widget).width(Fill).height(Fill),
+            canvas(AnnotationOverlay::new(widget))
+                .width(Fill)
+                .height(Fill),
+        ]
+        .width(Fill)
+        .height(Fill)
+        .into()
     }
 
     /// Retries to load the failed tiles.

@@ -76,14 +76,10 @@ impl BasicApplication {
     }
 
     fn get_map_element(&self, widget_id: u32) -> Element<'_, Message> {
-        let map_canvas = self
+        let map: Element<'_, Message> = self
             .widget_system
             .canvas(widget_id)
-            .width(Fill)
-            .height(Fill);
-
-        let map: Element<'_, Message> =
-            Element::from(map_canvas).map(|cmd| Message::WidgetMessage(cmd.into()));
+            .map(|cmd| Message::WidgetMessage(cmd.into()));
 
         container(map)
             .padding(10)
