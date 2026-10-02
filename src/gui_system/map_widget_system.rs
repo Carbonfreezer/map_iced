@@ -9,7 +9,7 @@ use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::{Element, Fill, Task};
 use iced::widget::{canvas, stack};
 use tokio_stream::wrappers::ReceiverStream;
-use crate::annotation_system::waypoint_system::WaypointSystem;
+use crate::annotation_system::waypoint_system::{WaypointKey, WaypointSystem};
 use crate::gui_system::internal_math::LatitudeLongitude;
 
 /// The messages dealing with the widgets these are messages from the
@@ -30,6 +30,21 @@ impl From<CachingResultMessage> for MapWidgetMessage {
     fn from(command: CachingResultMessage) -> Self {
         MapWidgetMessage::CachingResultMessage(command)
     }
+}
+
+/// What the map system produced while processing a message. This is the public
+/// output of [`MapWidgetSystem::process_message`].
+///
+/// These are one shot notifications, the system keeps no state of its own about
+/// them. An application that wants a selection to persist, and to be resettable,
+/// holds that state itself.
+#[derive(Debug, Clone)]
+pub enum MapEvent {
+    /// Something went wrong, with a text meant for the user.
+    Error(String),
+    /// The user picked this way point. `client_id` says in which widget that
+    /// happened, it does not make that widget an owner of anything.
+    WaypointSelected { client_id: u32, key: WaypointKey },
 }
 
 /// The map widget system administrates all the widgets in combination with a
@@ -64,6 +79,11 @@ impl MapWidgetSystem {
 
    
     
+    /// Read access to the way point system.
+    pub fn get_waypoints(&self) -> &WaypointSystem {
+        &self.waypoint_system
+    }
+
     /// Gets a mutable access for the way point system to modify things.
     pub fn get_waypoint_as_mut(&mut self) -> &mut WaypointSystem {
         for widget in &mut self.widget_collection {
@@ -73,13 +93,13 @@ impl MapWidgetSystem {
     }
 
     ///  The messages going into the caching system are processed here.
-    fn process_caching_message(&mut self, message: CachingResultMessage) -> Vec<String> {
+    fn process_caching_message(&mut self, message: CachingResultMessage) -> Vec<MapEvent> {
         let mut result = Vec::new();
         self.tile_cache.process_caching_message(message);
         for msg in self.tile_cache.drain_result_messages() {
             match msg {
                 CacheUpdateMessage::ErrorMessage { text: msg } => {
-                    result.push(msg);
+                    result.push(MapEvent::Error(msg));
                 }
                 CacheUpdateMessage::RelevantTilesArrived { client } => {
                     let new_tiles = self.tile_cache.get_all_images_for_client(client);
@@ -90,7 +110,11 @@ impl MapWidgetSystem {
         result
     }
 
-    fn process_widget_message(&mut self, client_id: u32, message: SpecificInteractionCommand) {
+    fn process_widget_message(
+        &mut self,
+        client_id: u32,
+        message: SpecificInteractionCommand,
+    ) -> Vec<MapEvent> {
         match message {
             SpecificInteractionCommand::SetFocalPoint(point, rectangle) => {
                 let result =
@@ -108,22 +132,29 @@ impl MapWidgetSystem {
                     }
                     None => self.tile_cache.completely_unsubscribe(client_id),
                 }
+                vec![]
+            }
+
+            SpecificInteractionCommand::WaypointClicked(key) => {
+                // The widget reports what the click hit, the meaning is decided here.
+                // A way point that is gone by now must not reach the application, the
+                // snapshot in the widget can be older than the collection.
+                match self.waypoint_system.get_waypoint_info(key) {
+                    Some(_) => vec![MapEvent::WaypointSelected { client_id, key }],
+                    None => vec![],
+                }
             }
         }
     }
 
-    /// Processes all the relevant messages. It returns a vector of potential error messages that
-    /// may have happened internally.
-    pub fn process_message(&mut self, message: MapWidgetMessage) -> Vec<String> {
+    /// Processes all the relevant messages and reports what came out of it.
+    pub fn process_message(&mut self, message: MapWidgetMessage) -> Vec<MapEvent> {
         match message {
             MapWidgetMessage::CachingResultMessage(msg) => self.process_caching_message(msg),
             MapWidgetMessage::MapInteractionCommand(MapInteractionCommand {
                 client_id,
                 command,
-            }) => {
-                self.process_widget_message(client_id, command);
-                vec![]
-            }
+            }) => self.process_widget_message(client_id, command),
         }
     }
 

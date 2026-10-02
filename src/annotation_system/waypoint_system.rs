@@ -5,7 +5,13 @@ use bytes::Bytes;
 use iced::advanced::image::Handle;
 use iced::Color;
 use crate::gui_system::internal_math::{BoundingRectangle, LatitudeLongitude, TilePosition};
-use slotmap::{DefaultKey, SlotMap};
+use slotmap::{new_key_type, SlotMap};
+
+new_key_type! {
+    /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so
+    /// that it cannot be confused with the handles of the other annotation kinds.
+    pub struct WaypointKey;
+}
 
 
 /// The way point parameter symbol we paint over.
@@ -21,7 +27,7 @@ pub enum WaypointSymbol {
 #[derive(Debug, Clone, Default)]
 pub struct WaypointSystem {
     /// The collection as a slot map.
-    waypoint_collection : SlotMap<DefaultKey, WaypointInfo>
+    waypoint_collection : SlotMap<WaypointKey, WaypointInfo>,
 }
 
 impl WaypointSystem {
@@ -36,7 +42,7 @@ impl WaypointSystem {
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// ```
-    pub fn add_way_point(&mut self, symbol: WaypointSymbol, position: LatitudeLongitude, description: Option<String>) -> DefaultKey{
+    pub fn add_way_point(&mut self, symbol: WaypointSymbol, position: LatitudeLongitude, description: Option<String>) -> WaypointKey{
         let image = match symbol {
             WaypointSymbol::Image(image) => InternalWaypointImage::Image(Handle::from_bytes(image)),
             WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color)
@@ -61,9 +67,10 @@ impl WaypointSystem {
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// system.delete_waypoint(key);
     /// ```
-    pub fn delete_waypoint(&mut self, key: DefaultKey) -> Option<WaypointInfo> {
+    pub fn delete_waypoint(&mut self, key: WaypointKey) -> Option<WaypointInfo> {
         self.waypoint_collection.remove(key)
     }
+
 
     /// Gets a reference to the waypoint info if existing.
     ///
@@ -77,7 +84,7 @@ impl WaypointSystem {
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let point = system.get_waypoint_info(key);
     /// ```
-    pub fn get_waypoint_info(&self, key: DefaultKey) -> Option<&WaypointInfo> {
+    pub fn get_waypoint_info(&self, key: WaypointKey) -> Option<&WaypointInfo> {
         self.waypoint_collection.get(key)
     }
 
@@ -106,7 +113,7 @@ pub(crate) enum InternalWaypointImage{
 pub struct WaypointInfo {
     /// The key this way point is stored under. Stable across focal point changes,
     /// unlike the index into a way point snapshot.
-    pub key: DefaultKey,
+    pub key: WaypointKey,
     /// This contains the graphical representation.
     pub image: InternalWaypointImage,
     /// The position on the map.
@@ -125,7 +132,7 @@ mod tests {
         let mut system = WaypointSystem::default();
 
         let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
-        assert_ne!(key, DefaultKey::default());
+        assert_ne!(key, WaypointKey::default());
         let first = system.delete_waypoint(key);
         assert!(first.is_some(), "We should have some data here.");
         let second = system.delete_waypoint(key);

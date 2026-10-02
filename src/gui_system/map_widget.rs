@@ -10,7 +10,7 @@ use iced::widget::canvas::{stroke, Cache, Geometry, Stroke, Text, Path};
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
 use crate::annotation_system::waypoint_system::InternalWaypointImage;
-use crate::annotation_system::waypoint_system::WaypointInfo;
+use crate::annotation_system::waypoint_system::{WaypointInfo, WaypointKey};
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -47,11 +47,16 @@ pub struct FocalPoint {
 }
 
 /// These are the interaction commands for a specific client widget. The association with the
-/// client widget is given over [`MapInteractionCommand`].
+/// client widget is given over [`MapInteractionCommand`]. They report what happened in
+/// the widget; what it means is decided by [`MapWidgetSystem`].
+///
+/// [`MapWidgetSystem`]: crate::gui_system::map_widget_system::MapWidgetSystem
 #[derive(Debug, Clone)]
 pub enum SpecificInteractionCommand {
     /// We want to set the focal point as latitude longitude and the zoom level.
     SetFocalPoint(FocalPoint, Rectangle),
+    /// A left click landed on the given way point.
+    WaypointClicked(WaypointKey),
 }
 
 /// The internal state for mouse processing.
@@ -531,10 +536,25 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
 
             Event::Window(window::Event::RedrawRequested(now)) => state.settle(*now),
 
-            // TODO: Way point selection goes here. Resolve the way point under the
-            // cursor with `self.0.waypoint_at(..)`, take its stable `key` from
-            // `self.0.waypoint(..)`, and return `Action::publish(..).and_capture()`
-            // so that the map below does not start a drag on the same click.
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                let position = cursor.position_in(bounds)?;
+                let hit = self
+                    .0
+                    .waypoint_at(position)
+                    .and_then(|index| self.0.waypoint(index))?
+                    .key;
+
+                // A click that hits nothing is not our business, it stays available to
+                // the map below. Capturing here keeps a hit click from also reaching it.
+                Some(
+                    Action::publish(MapInteractionCommand {
+                        client_id: self.0.client_id,
+                        command: SpecificInteractionCommand::WaypointClicked(hit),
+                    })
+                    .and_capture(),
+                )
+            }
+
             _ => None,
         }
     }
