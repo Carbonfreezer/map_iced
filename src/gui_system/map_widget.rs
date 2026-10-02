@@ -2,7 +2,7 @@
 
 use crate::annotation_system::waypoint_system::{WaypointInfo, WaypointKey, InternalWaypointImage};
 use crate::gui_system::direction_arrow::{
-    PlacedArrow, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
+    PlacedArrow, arrow_hit, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
 };
 use crate::gui_system::focus_animation::FocusAnimation;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
@@ -63,6 +63,8 @@ pub enum SpecificInteractionCommand {
     SetFocalPoint(FocalPoint, Rectangle),
     /// A left click landed on the given way point.
     WaypointClicked(WaypointKey),
+    /// A left click landed on the direction arrow of the given way point.
+    ArrowClicked(WaypointKey),
     /// One frame of the soft focus started under `generation`. `finished` marks the
     /// last frame, which sits exactly on the target.
     AnimationFrame {
@@ -313,6 +315,16 @@ impl MapWidget {
             size: FONT_SIZE.into(),
             ..Default::default()
         });
+    }
+
+    /// Hit test in widget coordinates against the direction arrows. Returns the key
+    /// of the way point whose arrow covers `position`, the topmost one first.
+    pub(crate) fn arrow_at(&self, position: Point) -> Option<WaypointKey> {
+        self.arrows
+            .iter()
+            .rev()
+            .find(|arrow| arrow_hit(arrow.placement, position))
+            .map(|arrow| arrow.key)
     }
 
     /// Hit test in widget coordinates. Returns the index of the topmost way point
@@ -590,12 +602,12 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
             return Interaction::Grabbing;
         }
 
-        match cursor
-            .position_in(bounds)
-            .and_then(|position| self.waypoint_at(position))
-        {
-            Some(_) => Interaction::Pointer,
-            None => Interaction::None,
+        let hovers_something = cursor.position_in(bounds).is_some_and(|position| {
+            self.arrow_at(position).is_some() || self.waypoint_at(position).is_some()
+        });
+        match hovers_something {
+            true => Interaction::Pointer,
+            false => Interaction::None,
         }
     }
 }
@@ -702,18 +714,23 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
 
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 let position = cursor.position_in(bounds)?;
-                let hit = self
-                    .widget
-                    .waypoint_at(position)
-                    .and_then(|index| self.widget.waypoint(index))?
-                    .key;
+                // The arrows are drawn on top of the symbols, so they win the hit.
+                let command = match self.widget.arrow_at(position) {
+                    Some(key) => SpecificInteractionCommand::ArrowClicked(key),
+                    None => SpecificInteractionCommand::WaypointClicked(
+                        self.widget
+                            .waypoint_at(position)
+                            .and_then(|index| self.widget.waypoint(index))?
+                            .key,
+                    ),
+                };
 
                 // A click that hits nothing is not our business, it stays available to
                 // the map below. Capturing here keeps a hit click from also reaching it.
                 Some(
                     Action::publish(MapInteractionCommand {
                         client_id: self.widget.client_id,
-                        command: SpecificInteractionCommand::WaypointClicked(hit),
+                        command,
                     })
                     .and_capture(),
                 )

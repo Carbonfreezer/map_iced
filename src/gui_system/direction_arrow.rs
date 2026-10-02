@@ -21,6 +21,9 @@ const ARROW_LENGTH: f32 = 18.0;
 /// Half the width of the arrow base.
 const ARROW_HALF_WIDTH: f32 = 8.0;
 
+/// How far around the arrow a click still counts as a hit.
+const HIT_TOLERANCE: f32 = 3.0;
+
 /// The outline that keeps the arrow visible on a map of the same colour.
 const OUTLINE_COLOR: Color = Color::from_rgb(0.1, 0.1, 0.1);
 
@@ -77,6 +80,18 @@ pub(crate) fn attached_arrow(target: Vector<f64>, direction: Vector, half_size: 
         tip: centre - direction * (half_size + SYMBOL_GAP),
         direction,
     }
+}
+
+/// Whether `position` hits the arrow. The triangle is grown by [`HIT_TOLERANCE`] on
+/// every side, it is small enough that an exact test would make it fiddly to click.
+pub(crate) fn arrow_hit(placement: ArrowPlacement, position: Point) -> bool {
+    let ArrowPlacement { tip, direction } = placement;
+    let offset = position - tip;
+    // Distance from the tip back towards the base, and sideways from the axis.
+    let along = -(offset.x * direction.x + offset.y * direction.y);
+    let across = (offset.x * -direction.y + offset.y * direction.x).abs();
+    (-HIT_TOLERANCE..=ARROW_LENGTH + HIT_TOLERANCE).contains(&along)
+        && across <= ARROW_HALF_WIDTH * along.clamp(0.0, ARROW_LENGTH) / ARROW_LENGTH + HIT_TOLERANCE
 }
 
 /// Draws the arrow as a filled triangle with an outline.
@@ -140,6 +155,22 @@ mod tests {
         let arrow = radar_arrow(SIZE, Vector::new(-3.0e7, 2.0e6)).unwrap();
         assert!((arrow.tip.x - EDGE_INSET).abs() < 1e-3);
         assert!(arrow.tip.y > 200.0 && arrow.tip.y < 400.0);
+    }
+
+    #[test]
+    fn hit_test_follows_the_triangle() {
+        // Pointing right, tip at (100, 50), base at x = 82.
+        let arrow = ArrowPlacement {
+            tip: Point::new(100.0, 50.0),
+            direction: Vector::new(1.0, 0.0),
+        };
+        assert!(arrow_hit(arrow, Point::new(90.0, 50.0)));
+        // Near the base the triangle is wide, near the tip it is not.
+        assert!(arrow_hit(arrow, Point::new(83.0, 57.0)));
+        assert!(!arrow_hit(arrow, Point::new(98.0, 57.0)));
+        // Within the tolerance in front of the tip, beyond it behind the base.
+        assert!(arrow_hit(arrow, Point::new(102.0, 50.0)));
+        assert!(!arrow_hit(arrow, Point::new(70.0, 50.0)));
     }
 
     #[test]

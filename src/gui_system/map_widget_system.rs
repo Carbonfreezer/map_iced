@@ -48,6 +48,10 @@ pub enum MapEvent {
     /// A soft focus started with [`MapWidgetSystem::animate_to`] has arrived. Not
     /// sent for an animation that was cancelled or replaced on the way.
     FocusReached { client_id: u32 },
+    /// The user clicked the direction arrow of this flagged way point in the widget
+    /// `client_id`. What follows is up to the application, typically a focus of that
+    /// widget on the way point.
+    ArrowClicked { client_id: u32, key: WaypointKey },
 }
 
 /// The map widget system administrates all the widgets in combination with a
@@ -173,6 +177,17 @@ impl MapWidgetSystem {
                 match self.waypoint_system.get_waypoint_info(key) {
                     Some(_) => vec![MapEvent::WaypointSelected { client_id, key }],
                     None => vec![],
+                }
+            }
+
+            SpecificInteractionCommand::ArrowClicked(key) => {
+                // Same reasoning as for the way point, and a way point that lost its
+                // flag in the meantime has no arrow any more either.
+                match self.waypoint_system.get_waypoint_info(key) {
+                    Some(point) if point.flag.is_some() => {
+                        vec![MapEvent::ArrowClicked { client_id, key }]
+                    }
+                    _ => vec![],
                 }
             }
         }

@@ -5,6 +5,8 @@
 //! The focus button moves both maps to the way point, the left one with a hard jump
 //! and the right one with the soft, animated focus. Mertert lies outside the start
 //! view but close enough to be reached by a pan, Köln and Montréal need a zoom out.
+//! A flagged way point gets a direction arrow while off screen; clicking it focuses
+//! all maps, just like the focus button.
 
 use iced::widget::text::Wrapping;
 use iced::widget::{button, checkbox, column, container, row, text};
@@ -111,6 +113,17 @@ impl WaypointApplication {
                     match event {
                         MapEvent::WaypointSelected { key, .. } => self.selected = Some(key),
                         MapEvent::FocusReached { .. } => {}
+                        // An arrow click acts like the focus button: all maps follow.
+                        MapEvent::ArrowClicked { key, .. } => {
+                            if let Some(entry) =
+                                self.entries.iter().find(|entry| entry.key == Some(key))
+                            {
+                                let position = entry.position;
+                                for widget_id in self.widget_ids {
+                                    self.focus(widget_id, position);
+                                }
+                            }
+                        }
                         // Error display is the subject of the other example, but
                         // swallowing them without a word would hide a broken setup.
                         MapEvent::Error(text) => {
@@ -157,16 +170,10 @@ impl WaypointApplication {
                 let Some(entry) = self.entries.get(index) else {
                     return;
                 };
-                let [hard, soft] = self.widget_ids;
-                // The hard focus keeps the zoom level, just like the soft one ends on it.
-                self.widget_system.set_focal_point(
-                    hard,
-                    FocalPoint {
-                        position: entry.position,
-                        ..self.widget_system.focal_point(hard)
-                    },
-                );
-                self.widget_system.animate_to(soft, entry.position);
+                let position = entry.position;
+                for widget_id in self.widget_ids {
+                    self.focus(widget_id, position);
+                }
             }
 
             Message::Flagged(index, flagged) => {
@@ -178,6 +185,22 @@ impl WaypointApplication {
                     .set_flag(key, flagged.then_some(FLAG_COLOR));
                 self.entries[index].flagged = flagged;
             }
+        }
+    }
+
+    /// Moves one map to `position`: the left map jumps, the right one animates. The
+    /// hard focus keeps the zoom level, just like the soft one ends on it.
+    fn focus(&mut self, widget_id: u32, position: LatitudeLongitude) {
+        if widget_id == self.widget_ids[0] {
+            self.widget_system.set_focal_point(
+                widget_id,
+                FocalPoint {
+                    position,
+                    ..self.widget_system.focal_point(widget_id)
+                },
+            );
+        } else {
+            self.widget_system.animate_to(widget_id, position);
         }
     }
 

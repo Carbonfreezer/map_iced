@@ -56,7 +56,9 @@ impl BasicApplication {
                     match event {
                         MapEvent::Error(text) => errors.push_str(&text),
                         // This example does not deal with way points or focusing.
-                        MapEvent::WaypointSelected { .. } | MapEvent::FocusReached { .. } => {}
+                        MapEvent::WaypointSelected { .. }
+                        | MapEvent::FocusReached { .. }
+                        | MapEvent::ArrowClicked { .. } => {}
                     }
                 }
                 // The question mark starts the beginning of API tokens and is very long.
