@@ -5,6 +5,7 @@ use crate::gui_system::direction_arrow::{
     PlacedArrow, arrow_hit, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
 };
 use crate::gui_system::focus_animation::FocusAnimation;
+use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
     BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL,
@@ -22,10 +23,10 @@ use iced::{Color, Event, Point, Rectangle, Renderer, Theme, Vector, mouse, windo
 const SCROLLING_SPEED: f32 = 0.05;
 
 /// The font size we want to use.
-const FONT_SIZE: f32 = 15.0;
+pub(crate) const FONT_SIZE: f32 = 15.0;
 
 /// The color we use for drawing overlay text.
-const TEXT_COLOR: Color = Color::from_rgb(0.6, 0.4, 0.4);
+pub(crate) const TEXT_COLOR: Color = Color::from_rgb(0.6, 0.4, 0.4);
 
 /// Half the size of the way point we apply.
 const WAYPOINT_HALF_SIZE: f32 = 10.0;
@@ -90,6 +91,8 @@ pub struct MapWidget {
     overlay_cache: Cache,
     /// The drawing cache for the waypoint info.
     waypoint_cache: Cache,
+    /// The drawing cache for the scale bar, it changes with the focal point.
+    scale_cache: Cache,
     /// Tiles for the current view, possibly still filling up.
     drawing_tiles: Vec<TilesToDraw>,
     /// Last complete set, kept as backdrop while the current one fills up.
@@ -130,6 +133,7 @@ impl MapWidget {
             tile_drawing_cache: Default::default(),
             overlay_cache: Default::default(),
             waypoint_cache: Default::default(),
+            scale_cache: Default::default(),
             drawing_tiles: vec![],
             fallback_tiles: vec![],
             client_id,
@@ -212,6 +216,7 @@ impl MapWidget {
         self.position_converter = Some(converter);
         // TODO: Here we have to ask the map widget system for way point information. and also invalidate the overlay cache.
         self.tile_drawing_cache.clear();
+        self.scale_cache.clear();
         debug_assert!(
             !matches!(rectangle, Err(RectConversionError::NegativeSize)),
             "Negative size in rectangle detected."
@@ -459,6 +464,18 @@ impl MapWidget {
     fn draw_copyright(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
         self.overlay_cache.draw(renderer, bounds.size(), |frame| {
             self.print_copyright_text(bounds, frame);
+        })
+    }
+
+    /// The scale bar, measured at the latitude of the centre of the view.
+    fn draw_scale(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
+        self.scale_cache.draw(renderer, bounds.size(), |frame| {
+            if let Some(bar) = scale_bar(
+                self.focal_point.position.latitude,
+                self.focal_point.continuous_zoom_level,
+            ) {
+                draw_scale_bar(frame, bounds.size(), &bar);
+            }
         })
     }
 }
@@ -761,6 +778,7 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
             self.widget
                 .draw_annotation_interaction(renderer, bounds, state),
             self.widget.draw_copyright(renderer, bounds),
+            self.widget.draw_scale(renderer, bounds),
         ]
     }
 
