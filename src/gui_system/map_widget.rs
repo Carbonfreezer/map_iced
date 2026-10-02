@@ -245,14 +245,23 @@ impl MapWidget {
                 else {
                     continue;
                 };
-                match annotation.image {
-                    InternalWaypointImage::Image(_) => {
-                        todo!("Implement image")
+                match &annotation.image {
+                    InternalWaypointImage::Image(handle) => {
+                        // Centred on the position, with the same extent as the cross.
+                        frame.draw_image(
+                            Rectangle {
+                                x: draw_pos.x - WAYPOINT_HALF_SIZE,
+                                y: draw_pos.y - WAYPOINT_HALF_SIZE,
+                                width: WAYPOINT_HALF_SIZE * 2.0,
+                                height: WAYPOINT_HALF_SIZE * 2.0,
+                            },
+                            Image::new(handle.clone()),
+                        );
                     }
                     InternalWaypointImage::Cross(color) => {
                         let line_stroke = Stroke {
                             width: 2.0,
-                            style: stroke::Style::Solid(color),
+                            style: stroke::Style::Solid(*color),
                             ..Stroke::default()
                         };
 

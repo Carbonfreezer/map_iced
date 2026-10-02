@@ -3,6 +3,19 @@
 
 #![warn(clippy::await_holding_lock)]
 
+/// Re-exported so that callers of [`WaypointSymbol::Image`] do not have to depend on
+/// `bytes` themselves and keep its version in step with ours.
+///
+/// [`WaypointSymbol::Image`]: annotation_system::waypoint_system::WaypointSymbol::Image
+pub use bytes::Bytes;
+
+/// Re-exported for the same reason, and because way point keys only work with the
+/// `slotmap` version they were generated against. Side tables keyed by a
+/// [`WaypointKey`] therefore belong to this `slotmap`, not to one a caller picked.
+///
+/// [`WaypointKey`]: annotation_system::waypoint_system::WaypointKey
+pub use slotmap;
+
 pub mod gui_system;
 pub(crate) mod tile_cache;
 pub mod annotation_system;

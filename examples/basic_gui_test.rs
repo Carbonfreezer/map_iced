@@ -2,6 +2,7 @@ use iced::widget::space::vertical;
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
+use map_iced::Bytes;
 use map_iced::annotation_system::waypoint_system::WaypointSymbol;
 use map_iced::gui_system::internal_math::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
@@ -27,6 +28,9 @@ enum Message {
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
 
+/// The icon we use for one of the way points.
+const ICON_DATA: &[u8] = include_bytes!("../assets/Icon.png");
+
 impl BasicApplication {
     pub fn boot() -> (BasicApplication, Task<Message>) {
         let cache = TileCacheConfig::from_json_str(CONFIG_DATA)
@@ -40,7 +44,11 @@ impl BasicApplication {
         let (mut widget_system, task) = MapWidgetSystem::boot(cache);
         // TODO: Local hack.
         widget_system.get_waypoint_as_mut().add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),Some("Test Text".to_string()));
-        widget_system.get_waypoint_as_mut().add_way_point(WaypointSymbol::Cross(Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0}), LatitudeLongitude::new(50.0, 7.01),Some("Second Text".to_string()));
+        widget_system.get_waypoint_as_mut().add_way_point(
+            WaypointSymbol::Image(Bytes::from_static(ICON_DATA)),
+            LatitudeLongitude::new(50.0, 7.01),
+            Some("Second Text".to_string()),
+        );
         let widget_ids = [
             widget_system.request_new_widget(),
             widget_system.request_new_widget(),

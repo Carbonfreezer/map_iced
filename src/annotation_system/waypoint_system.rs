@@ -114,8 +114,9 @@ pub struct WaypointInfo {
     /// The key this way point is stored under. Stable across focal point changes,
     /// unlike the index into a way point snapshot.
     pub key: WaypointKey,
-    /// This contains the graphical representation.
-    pub image: InternalWaypointImage,
+    /// This contains the graphical representation. Internal, the outside has no
+    /// business with the way we hold on to an image or a colour.
+    pub(crate) image: InternalWaypointImage,
     /// The position on the map.
     pub position: LatitudeLongitude,
     /// An optional string that may be drawn in hover over.
