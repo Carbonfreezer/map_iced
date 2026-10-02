@@ -1,6 +1,7 @@
 //! This contains the core map widget.
 
 use crate::annotation_system::waypoint_system::{WaypointInfo, WaypointKey, InternalWaypointImage};
+use crate::gui_system::focus_animation::FocusAnimation;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
     BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL,
@@ -59,6 +60,14 @@ pub enum SpecificInteractionCommand {
     SetFocalPoint(FocalPoint, Rectangle),
     /// A left click landed on the given way point.
     WaypointClicked(WaypointKey),
+    /// One frame of the soft focus started under `generation`. `finished` marks the
+    /// last frame, which sits exactly on the target.
+    AnimationFrame {
+        focal_point: FocalPoint,
+        bounds: Rectangle,
+        generation: u64,
+        finished: bool,
+    },
 }
 
 /// The internal state for mouse processing.
@@ -92,6 +101,11 @@ pub struct MapWidget {
     waypoint_info: Vec<WaypointInfo>,
     /// Flags that we want to have a focal reset usually because of waypoint or annotation changes from the outside.
     request_focal_reset: bool,
+    /// The soft focus currently running, if any.
+    animation: Option<FocusAnimation>,
+    /// Counts the animations started, so that a frame published for an animation
+    /// that has been replaced or cancelled in the meantime can be recognised.
+    animation_generation: u64,
 }
 
 /// The rectangle that covers one tile.
@@ -117,7 +131,53 @@ impl MapWidget {
             copyright_text,
             waypoint_info: vec![],
             request_focal_reset: true,
+            animation: None,
+            animation_generation: 0,
         }
+    }
+
+    /// The view this widget currently shows. During a soft focus this is the frame
+    /// shown last.
+    pub(crate) fn focal_point(&self) -> FocalPoint {
+        self.focal_point
+    }
+
+    /// The hard focus: jumps to `focal_point` and cancels a running soft focus. The
+    /// new view is applied with the next event, the widget needs its bounds for it.
+    pub(crate) fn set_focal_point(&mut self, focal_point: FocalPoint) {
+        self.cancel_animation();
+        self.focal_point = focal_point;
+        self.request_focal_reset = true;
+    }
+
+    /// The soft focus, see [`FocusAnimation`] for the path it takes. A widget that
+    /// has never been laid out has no size to plan with, it jumps instead.
+    pub(crate) fn animate_to(&mut self, target: LatitudeLongitude) {
+        let Some(view_size) = self.position_converter.as_ref().map(|c| c.drawing_size()) else {
+            self.set_focal_point(FocalPoint {
+                position: target,
+                ..self.focal_point
+            });
+            return;
+        };
+        self.animation_generation += 1;
+        self.animation = Some(FocusAnimation::new(
+            self.focal_point,
+            target,
+            view_size,
+            Instant::now(),
+        ));
+    }
+
+    /// Whether a frame published under `generation` still belongs to the running
+    /// animation.
+    pub(crate) fn is_current_animation(&self, generation: u64) -> bool {
+        self.animation.is_some() && self.animation_generation == generation
+    }
+
+    /// Drops the running animation. Frames already published for it are ignored.
+    pub(crate) fn cancel_animation(&mut self) {
+        self.animation = None;
     }
 
     /// Rebuilds the converter for a new view and reports the tiles it needs.
@@ -340,6 +400,39 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
     ) -> Option<Action<MapInteractionCommand>> {
         if self.request_focal_reset {
             return self.publish(self.focal_point, bounds);
+        }
+
+        if let Some(animation) = &self.animation {
+            return match event {
+                // Every frame we publish is processed and followed by a redraw, so
+                // the animation keeps itself running until its last frame.
+                Event::Window(window::Event::RedrawRequested(now)) => {
+                    let (focal_point, finished) = animation.sample(*now);
+                    Some(Action::publish(MapInteractionCommand {
+                        client_id: self.client_id,
+                        command: SpecificInteractionCommand::AnimationFrame {
+                            focal_point,
+                            bounds,
+                            generation: self.animation_generation,
+                            finished,
+                        },
+                    }))
+                }
+                // Panning and zooming are suspended while the animation runs. A
+                // drag in progress still follows the cursor, so that it does not
+                // jump once the animation is over.
+                Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                    if state.drag_origin.is_some() {
+                        state.drag_origin = cursor.position_in(bounds);
+                    }
+                    None
+                }
+                Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) => {
+                    state.drag_origin = None;
+                    None
+                }
+                _ => None,
+            };
         }
 
         match event {

@@ -1,13 +1,18 @@
 //! Way point example. The middle column lists the way points this application knows
 //! about; the checkbox registers one with the map system or takes it out again, and
 //! the row of a way point that was picked on a map is written in the accent colour.
+//!
+//! The focus button moves both maps to the way point, the left one with a hard jump
+//! and the right one with the soft, animated focus. Mertert lies outside the start
+//! view but close enough to be reached by a pan, Köln and Montréal need a zoom out.
 
 use iced::widget::text::Wrapping;
-use iced::widget::{checkbox, column, container, row, text};
+use iced::widget::{button, checkbox, column, container, row, text};
 use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::Bytes;
 use map_iced::annotation_system::waypoint_system::{WaypointKey, WaypointSymbol};
 use map_iced::gui_system::internal_math::LatitudeLongitude;
+use map_iced::gui_system::map_widget::FocalPoint;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 
@@ -18,12 +23,16 @@ const CONFIG_DATA: &str = include_str!("../osm.json");
 const ICON_DATA: &[u8] = include_bytes!("../assets/Icon.png");
 
 /// The way points this application offers, around the focal point the widgets start at.
-const CATALOGUE: [(&str, f64, f64); 5] = [
+/// The last three lie further away, to try the focus with.
+const CATALOGUE: [(&str, f64, f64); 8] = [
     ("Trier Dom", 49.7554, 6.6436),
     ("Trier West", 49.7540, 6.6100),
     ("Pallien", 49.7650, 6.6250),
     ("Olewig", 49.7430, 6.6700),
     ("Konz", 49.7020, 6.5800),
+    ("Mertert", 49.7031, 6.4797),
+    ("Köln", 50.9375, 6.9603),
+    ("Montréal", 45.5017, -73.5673),
 ];
 
 /// One row of the list. It carries the key for as long as the way point is
@@ -48,6 +57,8 @@ enum Message {
     WidgetMessage(MapWidgetMessage),
     /// Register or unregister the way point of the given list row.
     Toggled(usize, bool),
+    /// Move the maps to the way point of the given list row.
+    Focus(usize),
 }
 
 impl WaypointApplication {
@@ -91,6 +102,7 @@ impl WaypointApplication {
                 for event in self.widget_system.process_message(m) {
                     match event {
                         MapEvent::WaypointSelected { key, .. } => self.selected = Some(key),
+                        MapEvent::FocusReached { .. } => {}
                         // Error display is the subject of the other example, but
                         // swallowing them without a word would hide a broken setup.
                         MapEvent::Error(text) => {
@@ -130,6 +142,22 @@ impl WaypointApplication {
                     _ => {}
                 }
             }
+
+            Message::Focus(index) => {
+                let Some(entry) = self.entries.get(index) else {
+                    return;
+                };
+                let [hard, soft] = self.widget_ids;
+                // The hard focus keeps the zoom level, just like the soft one ends on it.
+                self.widget_system.set_focal_point(
+                    hard,
+                    FocalPoint {
+                        position: entry.position,
+                        ..self.widget_system.focal_point(hard)
+                    },
+                );
+                self.widget_system.animate_to(soft, entry.position);
+            }
         }
     }
 
@@ -154,7 +182,8 @@ impl WaypointApplication {
             .into()
     }
 
-    /// One row of the list: the name, and the checkbox that registers the way point.
+    /// One row of the list: the name, the focus button, and the checkbox that
+    /// registers the way point.
     fn waypoint_row(&self, index: usize, entry: &WaypointEntry) -> Element<'_, Message> {
         let is_selected = entry.key.is_some() && entry.key == self.selected;
         let label = text(entry.name)
@@ -169,7 +198,9 @@ impl WaypointApplication {
         let toggle = checkbox(entry.key.is_some())
             .on_toggle(move |checked| Message::Toggled(index, checked));
 
-        row![label, toggle]
+        let focus = button(text("Fokus")).on_press(Message::Focus(index));
+
+        row![label, focus, toggle]
             .align_y(Alignment::Center)
             .spacing(10)
             .into()

@@ -55,8 +55,8 @@ impl BasicApplication {
                 for event in self.widget_system.process_message(m) {
                     match event {
                         MapEvent::Error(text) => errors.push_str(&text),
-                        // This example does not deal with way points.
-                        MapEvent::WaypointSelected { .. } => {}
+                        // This example does not deal with way points or focusing.
+                        MapEvent::WaypointSelected { .. } | MapEvent::FocusReached { .. } => {}
                     }
                 }
                 // The question mark starts the beginning of API tokens and is very long.

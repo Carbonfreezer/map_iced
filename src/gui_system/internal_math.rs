@@ -361,6 +361,11 @@ impl DrawingPositionConverter {
         )
     }
 
+    /// Size of the drawing area in pixels.
+    pub(crate) fn drawing_size(&self) -> Size {
+        Size::new(self.drawing_size.width as f32, self.drawing_size.height as f32)
+    }
+
     /// Gets the discreet zoom level.
     pub fn zoom(&self) -> u8 {
         self.tile_center.zoom

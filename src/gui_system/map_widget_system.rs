@@ -6,7 +6,7 @@ use crate::gui_system::map_widget::{
     AnnotationOverlay, FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand,
 };
 use crate::tile_cache::cache_core::CachingResultMessage;
-use iced::{Element, Fill, Task};
+use iced::{Element, Fill, Rectangle, Task};
 use iced::widget::{canvas, stack};
 use tokio_stream::wrappers::ReceiverStream;
 use crate::annotation_system::waypoint_system::{WaypointKey, WaypointSystem};
@@ -45,6 +45,9 @@ pub enum MapEvent {
     /// The user picked this way point. `client_id` says in which widget that
     /// happened, it does not make that widget an owner of anything.
     WaypointSelected { client_id: u32, key: WaypointKey },
+    /// A soft focus started with [`MapWidgetSystem::animate_to`] has arrived. Not
+    /// sent for an animation that was cancelled or replaced on the way.
+    FocusReached { client_id: u32 },
 }
 
 /// The map widget system administrates all the widgets in combination with a
@@ -110,6 +113,25 @@ impl MapWidgetSystem {
         result
     }
 
+    /// Moves a widget to a new view and hands it what it needs to draw there.
+    fn apply_focal_point(&mut self, client_id: u32, point: FocalPoint, rectangle: Rectangle) {
+        let result =
+            self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
+        match result {
+            Some(bounding) => {
+                self.tile_cache
+                    .register_new_interest_area(client_id, bounding);
+                // We have to reset the tiles here, because they may already exist from one of the other clients.
+                let tiles = self.tile_cache.get_all_images_for_client(client_id);
+                self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
+                // TODO: Here we will add also the other information for the paths and regions.
+                let way_points = self.waypoint_system.get_all_relevant_waypoints(&bounding);
+                self.widget_collection[client_id as usize].set_waypoint_info(way_points);
+            }
+            None => self.tile_cache.completely_unsubscribe(client_id),
+        }
+    }
+
     fn process_widget_message(
         &mut self,
         client_id: u32,
@@ -117,22 +139,30 @@ impl MapWidgetSystem {
     ) -> Vec<MapEvent> {
         match message {
             SpecificInteractionCommand::SetFocalPoint(point, rectangle) => {
-                let result =
-                    self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
-                match result {
-                    Some(bounding) => {
-                        self.tile_cache
-                            .register_new_interest_area(client_id, bounding);
-                        // We have to reset the tiles here, because they may already exist from one of the other clients.
-                        let tiles = self.tile_cache.get_all_images_for_client(client_id);
-                        self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
-                        // TODO: Here we will add also the other information for the paths and regions.
-                        let way_points = self.waypoint_system.get_all_relevant_waypoints(&bounding);
-                        self.widget_collection[client_id as usize].set_waypoint_info(way_points);
-                    }
-                    None => self.tile_cache.completely_unsubscribe(client_id),
-                }
+                self.apply_focal_point(client_id, point, rectangle);
                 vec![]
+            }
+
+            SpecificInteractionCommand::AnimationFrame {
+                focal_point,
+                bounds,
+                generation,
+                finished,
+            } => {
+                let widget = &mut self.widget_collection[client_id as usize];
+                // A frame of an animation that was replaced or cancelled after it
+                // had been published would drag the view back onto the old path.
+                if !widget.is_current_animation(generation) {
+                    return vec![];
+                }
+                if finished {
+                    widget.cancel_animation();
+                }
+                self.apply_focal_point(client_id, focal_point, bounds);
+                match finished {
+                    true => vec![MapEvent::FocusReached { client_id }],
+                    false => vec![],
+                }
             }
 
             SpecificInteractionCommand::WaypointClicked(key) => {
@@ -170,6 +200,25 @@ impl MapWidgetSystem {
             },
         ));
         id
+    }
+
+    /// The view the widget currently shows.
+    pub fn focal_point(&self, id: u32) -> FocalPoint {
+        self.widget_collection[id as usize].focal_point()
+    }
+
+    /// The hard focus: the widget jumps to `focal_point` without any animation. A
+    /// soft focus still running on that widget is cancelled.
+    pub fn set_focal_point(&mut self, id: u32, focal_point: FocalPoint) {
+        self.widget_collection[id as usize].set_focal_point(focal_point);
+    }
+
+    /// The soft focus: the widget animates to `target` and ends at the zoom level it
+    /// started with. Close targets are reached by a pan, far ones by zooming out,
+    /// panning and zooming back in. User panning and zooming is suspended meanwhile,
+    /// and [`MapEvent::FocusReached`] reports the arrival.
+    pub fn animate_to(&mut self, id: u32, target: LatitudeLongitude) {
+        self.widget_collection[id as usize].animate_to(target);
     }
 
     /// The canvas stack for one widget. Returns an `Element`, because the map tiles
