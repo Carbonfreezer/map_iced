@@ -50,7 +50,7 @@ pub(crate) fn metres_per_pixel(latitude: f64, zoom: f32) -> f64 {
 /// [`MAXIMUM_LENGTH`] pixels.
 pub(crate) fn scale_bar(latitude: f64, zoom: f32) -> Option<ScaleBar> {
     let per_pixel = metres_per_pixel(latitude, zoom);
-    if !(per_pixel > 0.0) {
+    if per_pixel <= 0.0 {
         return None;
     }
     let maximum = per_pixel * MAXIMUM_LENGTH as f64;
