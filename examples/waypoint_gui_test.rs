@@ -12,7 +12,7 @@ use iced::widget::text::Wrapping;
 use iced::widget::{button, checkbox, column, container, row, text};
 use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::Bytes;
-use map_iced::annotation_system::waypoint_system::{WaypointKey, WaypointSymbol};
+use map_iced::annotation_system::waypoint_system::{WaypointFlag, WaypointKey, WaypointSymbol};
 use map_iced::gui_system::internal_math::LatitudeLongitude;
 use map_iced::gui_system::map_widget::FocalPoint;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
@@ -24,20 +24,31 @@ const CONFIG_DATA: &str = include_str!("../osm.json");
 /// The icon we mark every way point with.
 const ICON_DATA: &[u8] = include_bytes!("../assets/Icon.png");
 
-/// The colour of the direction arrow for a flagged way point.
-const FLAG_COLOR: Color = Color::from_rgb(0.9, 0.2, 0.2);
+/// The direction arrow of a flagged way point.
+const FLAG: WaypointFlag = WaypointFlag {
+    color: Color::from_rgb(0.95, 0.6, 0.1),
+    priority: 0,
+};
 
-/// The way points this application offers, around the focal point the widgets start at.
-/// The last three lie further away, to try the focus with.
-const CATALOGUE: [(&str, f64, f64); 8] = [
-    ("Trier Dom", 49.7554, 6.6436),
-    ("Trier West", 49.7540, 6.6100),
-    ("Pallien", 49.7650, 6.6250),
-    ("Olewig", 49.7430, 6.6700),
-    ("Konz", 49.7020, 6.5800),
-    ("Mertert", 49.7031, 6.4797),
-    ("Köln", 50.9375, 6.9603),
-    ("Montréal", 45.5017, -73.5673),
+/// The direction arrow of the one urgent way point. Seen from Montréal, Köln lies in
+/// the same direction as the points in Trier, and its arrow stays on top although
+/// it is not the nearest.
+const URGENT_FLAG: WaypointFlag = WaypointFlag {
+    color: Color::from_rgb(0.9, 0.15, 0.15),
+    priority: 1,
+};
+
+/// The way points this application offers, around the focal point the widgets start at,
+/// with the flag each one gets. The last three lie further away, to try the focus with.
+const CATALOGUE: [(&str, f64, f64, WaypointFlag); 8] = [
+    ("Trier Dom", 49.7554, 6.6436, FLAG),
+    ("Trier West", 49.7540, 6.6100, FLAG),
+    ("Pallien", 49.7650, 6.6250, FLAG),
+    ("Olewig", 49.7430, 6.6700, FLAG),
+    ("Konz", 49.7020, 6.5800, FLAG),
+    ("Mertert", 49.7031, 6.4797, FLAG),
+    ("Köln", 50.9375, 6.9603, URGENT_FLAG),
+    ("Montréal", 45.5017, -73.5673, FLAG),
 ];
 
 /// One row of the list. It carries the key for as long as the way point is
@@ -46,6 +57,8 @@ struct WaypointEntry {
     name: &'static str,
     position: LatitudeLongitude,
     key: Option<WaypointKey>,
+    /// The flag this way point gets when flagged.
+    flag: WaypointFlag,
     /// Whether the way point is flagged, i.e. gets a direction arrow while off screen.
     flagged: bool,
 }
@@ -87,10 +100,11 @@ impl WaypointApplication {
         ];
         let entries = CATALOGUE
             .iter()
-            .map(|(name, latitude, longitude)| WaypointEntry {
+            .map(|(name, latitude, longitude, flag)| WaypointEntry {
                 name,
                 position: LatitudeLongitude::new(*latitude, *longitude),
                 key: None,
+                flag: *flag,
                 flagged: false,
             })
             .collect();
@@ -177,12 +191,16 @@ impl WaypointApplication {
             }
 
             Message::Flagged(index, flagged) => {
-                let Some(key) = self.entries.get(index).and_then(|entry| entry.key) else {
+                let Some((key, flag)) = self
+                    .entries
+                    .get(index)
+                    .and_then(|entry| Some((entry.key?, entry.flag)))
+                else {
                     return;
                 };
                 self.widget_system
                     .get_waypoint_as_mut()
-                    .set_flag(key, flagged.then_some(FLAG_COLOR));
+                    .set_flag(key, flagged.then_some(flag));
                 self.entries[index].flagged = flagged;
             }
         }

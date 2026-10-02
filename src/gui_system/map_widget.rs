@@ -16,7 +16,7 @@ use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::time::{Duration, Instant};
 use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
 use iced::widget::{Action, canvas};
-use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
+use iced::{Color, Event, Point, Rectangle, Renderer, Theme, Vector, mouse, window};
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -253,11 +253,13 @@ impl MapWidget {
         let animating = self.animation.is_some();
         let previous = &self.arrows;
 
-        let arrows = flagged
+        let centre = Vector::new(size.width as f64 * 0.5, size.height as f64 * 0.5);
+        let mut ranked: Vec<_> = flagged
             .iter()
             .filter_map(|point| {
-                let color = point.flag?;
+                let flag = point.flag?;
                 let target = converter.get_unclipped_drawing_position(point.position);
+                let distance = (target.x - centre.x).hypot(target.y - centre.y);
                 let placement = if !symbol_visible(size, target, WAYPOINT_HALF_SIZE as f64) {
                     radar_arrow(size, target)?
                 } else if animating {
@@ -266,14 +268,20 @@ impl MapWidget {
                 } else {
                     return None;
                 };
-                Some(PlacedArrow {
+                let arrow = PlacedArrow {
                     key: point.key,
                     placement,
-                    color,
-                })
+                    color: flag.color,
+                };
+                Some((flag.priority, distance, arrow))
             })
             .collect();
-        self.arrows = arrows;
+
+        // Drawn in this order, so the last one lies on top and wins the click: the
+        // highest priority, and within one priority the nearest way point, which is
+        // the one to head for first.
+        ranked.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.total_cmp(&a.1)));
+        self.arrows = ranked.into_iter().map(|(_, _, arrow)| arrow).collect();
     }
 
     /// Called from the outside if new tiles have arrived.

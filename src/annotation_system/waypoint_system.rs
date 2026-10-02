@@ -57,20 +57,21 @@ impl WaypointSystem {
         })
     }
 
-    /// Flags the way point with the colour of its direction arrow, or takes the flag
-    /// away with `None`. A flagged way point gets an arrow on the edge of every
-    /// widget it is off screen in. Returns `false` for an unknown key.
+    /// Flags the way point, or takes the flag away with `None`. A flagged way point
+    /// gets an arrow on the edge of every widget it is off screen in. Returns
+    /// `false` for an unknown key.
     ///
     /// # Example
     /// ```
     /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
+    /// use map_iced::annotation_system::waypoint_system::{WaypointFlag, WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::internal_math::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
-    /// assert!(system.set_flag(key, Some(Color::from_rgb(1.0, 0.0, 0.0))));
+    /// let flag = WaypointFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
+    /// assert!(system.set_flag(key, Some(flag)));
     /// ```
-    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<Color>) -> bool {
+    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<WaypointFlag>) -> bool {
         match self.waypoint_collection.get_mut(key) {
             Some(point) => {
                 point.flag = flag;
@@ -155,9 +156,19 @@ pub struct WaypointInfo {
     pub position: LatitudeLongitude,
     /// An optional string that may be drawn in hover over.
     pub description: Option<String>,
-    /// The colour of the direction arrow, if the way point is flagged. Set with
+    /// The direction arrow, if the way point is flagged. Set with
     /// [`WaypointSystem::set_flag`].
-    pub flag: Option<Color>,
+    pub flag: Option<WaypointFlag>,
+}
+
+/// How the direction arrow of a flagged way point looks.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WaypointFlag {
+    /// The fill colour of the arrow.
+    pub color: Color,
+    /// Where several arrows overlap, the higher priority is drawn on top and wins
+    /// the click. They are not spread apart, that would bend their direction.
+    pub priority: u8,
 }
 
 #[cfg(test)]
