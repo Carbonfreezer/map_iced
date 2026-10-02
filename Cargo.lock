@@ -2364,6 +2364,7 @@ dependencies = [
  "dirs",
  "fxhash",
  "iced",
+ "image",
  "itertools 0.15.0",
  "proptest",
  "reqwest",

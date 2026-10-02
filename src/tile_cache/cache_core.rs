@@ -55,6 +55,8 @@ pub enum CachingResultMessage {
         y: u32,
         /// The data of the tile, put behind an arc to prevent expensive cloning.
         data: Bytes,
+        /// The same tile decoded to RGBA, `None` if `data` is no decodable image.
+        decoded: Option<DecodedTile>,
     },
     /// Contains the information that a tile id has failed, needed  for book keeping.
     TileFailed {
@@ -69,12 +71,36 @@ pub enum CachingResultMessage {
     },
 }
 
+/// A tile decoded to 8 bit RGBA. iced uploads such an image synchronously, while
+/// an encoded one goes through a single background worker and is not drawn until
+/// that worker gets round to it.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DecodedTile {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Bytes,
+}
+
+impl DecodedTile {
+    /// Decodes `data`, run in the tokio task so the UI thread does not pay for it.
+    fn decode(data: &[u8]) -> Option<Self> {
+        let image = image::load_from_memory(data).ok()?.into_rgba8();
+        Some(Self {
+            width: image.width(),
+            height: image.height(),
+            pixels: Bytes::from(image.into_raw()),
+        })
+    }
+}
+
 impl Debug for CachingResultMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CachingResultMessage::Error { message } => write!(f, "Caching error: {}", message),
             CachingResultMessage::InitializationCompleted => write!(f, "Initialization completed"),
-            CachingResultMessage::TileData { level, x, y, data } => {
+            CachingResultMessage::TileData {
+                level, x, y, data, ..
+            } => {
                 write!(
                     f,
                     "Tile data level {}, x {}, y {}, size {}",
@@ -284,6 +310,7 @@ impl CachingSystem {
                     level,
                     x,
                     y,
+                    decoded: DecodedTile::decode(&image_data),
                     data: Bytes::from(image_data),
                 })
                 .await;
@@ -340,6 +367,7 @@ impl CachingSystem {
                 level: destination.level(),
                 x: destination.x(),
                 y: destination.y(),
+                decoded: DecodedTile::decode(&raw_data),
                 data: raw_data.clone(),
             })
             .await;

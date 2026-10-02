@@ -506,8 +506,13 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                     frame.with_save(|frame| {
                         frame.translate(draw.offset);
                         frame.scale(draw.scale);
-                        frame
-                            .draw_image(STANDARD_RECTANGLE, Image::new(tile_and_pos.image.clone()));
+                        // Snapped to the pixel grid, so that neighbouring tiles meet on
+                        // whole pixels. Otherwise iced antialiases both edges and the
+                        // background shows through the seam, flickering while animating.
+                        frame.draw_image(
+                            STANDARD_RECTANGLE,
+                            Image::new(tile_and_pos.image.clone()).snap(true),
+                        );
                     })
                 }
             });

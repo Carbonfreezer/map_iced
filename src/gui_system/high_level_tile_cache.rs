@@ -146,7 +146,13 @@ impl TileCache {
                 self.is_initialized = true;
                 self.flush_pending_requests()
             }
-            CachingResultMessage::TileData { x, y, level, data } => {
+            CachingResultMessage::TileData {
+                x,
+                y,
+                level,
+                data,
+                decoded,
+            } => {
                 let pos = TilePosition { x, y, zoom: level };
                 // The request is settled, no matter if anybody is still interested.
                 self.tiles_in_flight.remove(&pos);
@@ -155,7 +161,12 @@ impl TileCache {
                     return;
                 };
                 debug_assert!(cache_entry.image.is_none(), "The image should be empty now");
-                cache_entry.image = Some(Handle::from_bytes(data));
+                // RGBA is uploaded by iced in the frame it is first drawn, encoded data
+                // waits for iced's decode worker. The encoded path stays as fallback.
+                cache_entry.image = Some(match decoded {
+                    Some(tile) => Handle::from_rgba(tile.width, tile.height, tile.pixels),
+                    None => Handle::from_bytes(data),
+                });
                 for (client, region) in &self.subscription_region {
                     if region.contains_position(&pos) {
                         self.client_notifications.insert(*client);
