@@ -5,6 +5,7 @@ use crate::gui_system::internal_math::{BoundingRectangle, DrawingPositionConvert
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
+use iced::time::{Duration, Instant};
 use iced::widget::canvas::{stroke, Cache, Geometry, Stroke, Text, Path};
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
@@ -25,6 +26,9 @@ const WAYPOINT_HALF_SIZE: f32 = 10.0;
 
 /// Horizontal gap between a way point symbol and its hover description.
 const DESCRIPTION_GAP: f32 = 4.0;
+
+/// How long the cursor has to rest on a way point before its description shows up.
+const HOVER_DELAY: Duration = Duration::from_secs(1);
 
 /// These become the interaction commands with the rest of the system later on. These
 /// commands contain the information of a specific client widget.
@@ -280,7 +284,9 @@ impl MapWidget {
         let mut frame = Frame::new(renderer, bounds.size());
 
         if let (Some(annotation), Some(converter)) = (
-            state.hovered.and_then(|index| self.waypoint(index)),
+            state
+                .description_index()
+                .and_then(|index| self.waypoint(index)),
             self.position_converter.as_ref(),
         ) {
             if let (Some(description), Some(anchor)) = (
@@ -412,14 +418,64 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
     }
 }
 
+/// A way point the cursor currently rests on, together with the moment its
+/// description is due.
+#[derive(Debug, Clone, Copy)]
+struct Hover {
+    /// Index into the current way point snapshot, see [`MapWidget::waypoint_at`].
+    index: usize,
+    /// The instant from which on the description is shown.
+    visible_at: Instant,
+}
+
 /// The interaction state of the [`AnnotationOverlay`]. Separate from
 /// [`InteractionState`], because the overlay is a canvas of its own and therefore
 /// carries its own widget state.
 #[derive(Debug, Default)]
 pub struct AnnotationInteractionState {
-    /// Index of the way point the cursor currently rests on. See
-    /// [`MapWidget::waypoint_at`] for how long such an index is valid.
-    hovered: Option<usize>,
+    /// The way point under the cursor, if any.
+    hovered: Option<Hover>,
+}
+
+impl AnnotationInteractionState {
+    /// Points the hover at `index`.
+    ///
+    /// The dwell timer only restarts when the target actually changes, so the jitter
+    /// of a cursor resting inside one symbol does not keep pushing the description
+    /// away.
+    fn aim(&mut self, index: Option<usize>) -> Option<Action<MapInteractionCommand>> {
+        if self.hovered.map(|hover| hover.index) == index {
+            return None;
+        }
+
+        let was_visible = self.description_index().is_some();
+        self.hovered = index.map(|index| Hover {
+            index,
+            visible_at: Instant::now() + HOVER_DELAY,
+        });
+
+        match self.hovered {
+            // Ask to be woken up when the dwell time is over.
+            Some(hover) => Some(Action::request_redraw_at(hover.visible_at)),
+            // Nothing to wait for, but a description that is on screen has to go.
+            None if was_visible => Some(Action::request_redraw()),
+            None => None,
+        }
+    }
+
+    /// Handles the frame that was requested by [`Self::aim`]. Re-arms the request if
+    /// the frame arrived before the dwell time was actually over.
+    fn settle(&self, now: Instant) -> Option<Action<MapInteractionCommand>> {
+        let hover = self.hovered?;
+        (now < hover.visible_at).then(|| Action::request_redraw_at(hover.visible_at))
+    }
+
+    /// The way point whose description is due by now, if any.
+    fn description_index(&self) -> Option<usize> {
+        self.hovered
+            .filter(|hover| Instant::now() >= hover.visible_at)
+            .map(|hover| hover.index)
+    }
 }
 
 /// Draws the annotations of a [`MapWidget`] into a canvas of its own.
@@ -450,26 +506,20 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
         cursor: Cursor,
     ) -> Option<Action<MapInteractionCommand>> {
         match event {
-            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                let hovered = cursor
+            Event::Mouse(mouse::Event::CursorMoved { .. }) => state.aim(
+                cursor
                     .position_in(bounds)
-                    .and_then(|position| self.0.waypoint_at(position));
-                if hovered == state.hovered {
-                    return None;
-                }
-                state.hovered = hovered;
-                // The hover decoration is drawn uncached, a plain redraw picks it up.
-                Some(Action::request_redraw())
-            }
+                    .and_then(|position| self.0.waypoint_at(position)),
+            ),
 
-            Event::Mouse(mouse::Event::CursorLeft) => {
-                state.hovered.take().map(|_| Action::request_redraw())
-            }
+            Event::Mouse(mouse::Event::CursorLeft) => state.aim(None),
+
+            Event::Window(window::Event::RedrawRequested(now)) => state.settle(*now),
 
             // TODO: Way point selection goes here. Resolve the way point under the
-            // cursor with `self.0.waypoint_at(..)`, keep it in `state`, and return
-            // `Action::publish(..).and_capture()` so that the map below does not
-            // start a drag on the same click.
+            // cursor with `self.0.waypoint_at(..)`, take its stable `key` from
+            // `self.0.waypoint(..)`, and return `Action::publish(..).and_capture()`
+            // so that the map below does not start a drag on the same click.
             _ => None,
         }
     }
@@ -491,15 +541,17 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
 
     fn mouse_interaction(
         &self,
-        _state: &Self::State,
+        state: &Self::State,
         _bounds: Rectangle,
         _cursor: Cursor,
     ) -> Interaction {
-        // Keep this `None`. `stack` levitates the cursor for every child below as
-        // soon as an upper child claims an interaction, which would cut the map off
-        // from dragging and scrolling while the cursor sits on a way point. Return
-        // something like `Interaction::Pointer` for a hovered way point only once
-        // that trade is actually wanted.
-        Interaction::None
+        // Reported as soon as the cursor is on a symbol, not only once the dwell
+        // time for the description is over. Note that anything but `None` makes
+        // `stack` levitate the cursor for the children below, so the map does not
+        // drag or scroll while the cursor sits on a way point.
+        match state.hovered {
+            Some(_) => Interaction::Pointer,
+            None => Interaction::None,
+        }
     }
 }

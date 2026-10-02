@@ -35,7 +35,8 @@ impl BasicApplication {
 
         let (mut widget_system, task) = MapWidgetSystem::boot(cache);
         // TODO: Local hack.
-        widget_system.get_waypoint_as_mut().add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+        widget_system.get_waypoint_as_mut().add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),Some("Test Text".to_string()));
+        widget_system.get_waypoint_as_mut().add_way_point(WaypointSymbol::Cross(Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0}), LatitudeLongitude::new(50.0, 7.01),Some("Second Text".to_string()));
         let widget_ids = [
             widget_system.request_new_widget(),
             widget_system.request_new_widget(),

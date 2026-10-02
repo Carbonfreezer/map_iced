@@ -42,12 +42,12 @@ impl WaypointSystem {
             WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color)
         };
 
-        let waypoint = WaypointInfo {
+        self.waypoint_collection.insert_with_key(|key| WaypointInfo {
+            key,
             image,
             position,
-            description
-        };
-        self.waypoint_collection.insert(waypoint)
+            description,
+        })
     }
 
     /// Deletes the way point with the indicated key and returns it.
@@ -104,6 +104,9 @@ pub(crate) enum InternalWaypointImage{
 /// The way point information stored.
 #[derive(Debug, Clone)]
 pub struct WaypointInfo {
+    /// The key this way point is stored under. Stable across focal point changes,
+    /// unlike the index into a way point snapshot.
+    pub key: DefaultKey,
     /// This contains the graphical representation.
     pub image: InternalWaypointImage,
     /// The position on the map.
