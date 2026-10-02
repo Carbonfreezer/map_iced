@@ -303,8 +303,8 @@ impl MapWidget {
                 .description_index()
                 .and_then(|index| self.waypoint(index)),
             self.position_converter.as_ref(),
-        ) {
-            if let (Some(description), Some(anchor)) = (
+        )
+            && let (Some(description), Some(anchor)) = (
                 annotation.description.as_ref(),
                 converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64),
             ) {
@@ -316,7 +316,6 @@ impl MapWidget {
                     ..Default::default()
                 });
             }
-        }
 
         frame.into_geometry()
     }
