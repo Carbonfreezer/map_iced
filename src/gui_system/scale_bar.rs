@@ -4,7 +4,7 @@
 //! where the view spans many degrees of latitude, not even that.
 
 use crate::gui_system::internal_math::TILE_SIZE_PIXEL;
-use crate::gui_system::map_widget::{FONT_SIZE, TEXT_COLOR};
+use crate::gui_system::map_widget::{FONT_SIZE, HALO_COLOR, TEXT_COLOR, fill_text_with_halo};
 use iced::advanced::graphics::geometry::Frame;
 use iced::alignment::Vertical;
 use iced::widget::canvas::{Path, Stroke, Text, stroke};
@@ -25,10 +25,9 @@ const TICK_HEIGHT: f32 = 6.0;
 /// Gap between the bar and its label.
 const LABEL_GAP: f32 = 6.0;
 
-/// The bar in the colour of the other map texts, on a light halo. Black turned out
+/// The bar in the colour of the other map texts, on the same halo. Black turned out
 /// to vanish on satellite imagery.
 const BAR_COLOR: Color = TEXT_COLOR;
-const HALO_COLOR: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.8);
 
 /// A scale bar ready to draw.
 #[derive(Debug, Clone, PartialEq)]
@@ -96,14 +95,17 @@ pub(crate) fn draw_scale_bar(frame: &mut Frame<Renderer>, size: Size, bar: &Scal
         );
     }
 
-    frame.fill_text(Text {
-        content: bar.label.clone(),
-        position: Point::new(right + LABEL_GAP, bottom - TICK_HEIGHT * 0.5),
-        color: BAR_COLOR,
-        size: FONT_SIZE.into(),
-        align_y: Vertical::Center,
-        ..Default::default()
-    });
+    fill_text_with_halo(
+        frame,
+        Text {
+            content: bar.label.clone(),
+            position: Point::new(right + LABEL_GAP, bottom - TICK_HEIGHT * 0.5),
+            color: BAR_COLOR,
+            size: FONT_SIZE.into(),
+            align_y: Vertical::Center,
+            ..Default::default()
+        },
+    );
 }
 
 #[cfg(test)]

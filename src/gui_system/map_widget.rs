@@ -28,6 +28,37 @@ pub(crate) const FONT_SIZE: f32 = 15.0;
 /// The color we use for drawing overlay text.
 pub(crate) const TEXT_COLOR: Color = Color::from_rgb(0.6, 0.4, 0.4);
 
+/// The light outline behind the map texts and the scale bar. No single colour reads
+/// on every map style, the outline keeps them readable on dark ones such as
+/// satellite imagery.
+pub(crate) const HALO_COLOR: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.8);
+
+/// How far the text halo reaches around each glyph, in pixels.
+const HALO_WIDTH: f32 = 1.0;
+
+/// Draws `text` with a halo in [`HALO_COLOR`]: first in the halo colour, shifted to
+/// the eight neighbouring positions, then once in its own colour on top. Every
+/// overlay text goes through here.
+pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
+    for (dx, dy) in [
+        (-1.0, -1.0),
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (-1.0, 0.0),
+        (1.0, 0.0),
+        (-1.0, 1.0),
+        (0.0, 1.0),
+        (1.0, 1.0),
+    ] {
+        frame.fill_text(Text {
+            position: text.position + Vector::new(dx, dy) * HALO_WIDTH,
+            color: HALO_COLOR,
+            ..text.clone()
+        });
+    }
+    frame.fill_text(text);
+}
+
 /// Half the size of the way point we apply.
 const WAYPOINT_HALF_SIZE: f32 = 10.0;
 
@@ -321,13 +352,16 @@ impl MapWidget {
         let y = bounds.height - FONT_SIZE - padding;
 
         // 4. Draw the text
-        frame.fill_text(Text {
-            content: text_content,
-            position: Point::new(x, y),
-            color: TEXT_COLOR,
-            size: FONT_SIZE.into(),
-            ..Default::default()
-        });
+        fill_text_with_halo(
+            frame,
+            Text {
+                content: text_content,
+                position: Point::new(x, y),
+                color: TEXT_COLOR,
+                size: FONT_SIZE.into(),
+                ..Default::default()
+            },
+        );
     }
 
     /// Hit test in widget coordinates against the direction arrows. Returns the key
@@ -448,13 +482,19 @@ impl MapWidget {
                 annotation.description.as_ref(),
                 converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64),
             ) {
-                frame.fill_text(Text {
-                    content: description.clone(),
-                    position: Point::new(anchor.x + WAYPOINT_HALF_SIZE + DESCRIPTION_GAP, anchor.y),
-                    color: TEXT_COLOR,
-                    size: FONT_SIZE.into(),
-                    ..Default::default()
-                });
+                fill_text_with_halo(
+                    &mut frame,
+                    Text {
+                        content: description.clone(),
+                        position: Point::new(
+                            anchor.x + WAYPOINT_HALF_SIZE + DESCRIPTION_GAP,
+                            anchor.y,
+                        ),
+                        color: TEXT_COLOR,
+                        size: FONT_SIZE.into(),
+                        ..Default::default()
+                    },
+                );
             }
 
         frame.into_geometry()
