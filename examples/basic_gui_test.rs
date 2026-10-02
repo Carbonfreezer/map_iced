@@ -1,10 +1,7 @@
 use iced::widget::space::vertical;
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, text};
-use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
-use map_iced::Bytes;
-use map_iced::annotation_system::waypoint_system::WaypointSymbol;
-use map_iced::gui_system::internal_math::LatitudeLongitude;
+use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 
@@ -12,8 +9,6 @@ struct BasicApplication {
     widget_system: MapWidgetSystem,
     widget_ids: [u32; 2],
     error_text: String,
-    /// Description of the way point the user selected, empty when nothing is selected.
-    selection_text: String,
 }
 
 #[derive(Debug, Clone)]
@@ -21,15 +16,10 @@ enum Message {
     WidgetMessage(MapWidgetMessage),
     /// User message, when we want to retry failed tiles.
     RetryFailedTiles,
-    /// User message, when the selection display should be reset.
-    ClearSelection,
 }
 
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
-
-/// The icon we use for one of the way points.
-const ICON_DATA: &[u8] = include_bytes!("../assets/Icon.png");
 
 impl BasicApplication {
     pub fn boot() -> (BasicApplication, Task<Message>) {
@@ -42,13 +32,6 @@ impl BasicApplication {
             .expect("Should not be possible to reach");
 
         let (mut widget_system, task) = MapWidgetSystem::boot(cache);
-        // TODO: Local hack.
-        widget_system.get_waypoint_as_mut().add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),Some("Test Text".to_string()));
-        widget_system.get_waypoint_as_mut().add_way_point(
-            WaypointSymbol::Image(Bytes::from_static(ICON_DATA)),
-            LatitudeLongitude::new(50.0, 7.01),
-            Some("Second Text".to_string()),
-        );
         let widget_ids = [
             widget_system.request_new_widget(),
             widget_system.request_new_widget(),
@@ -58,7 +41,6 @@ impl BasicApplication {
                 widget_system,
                 widget_ids,
                 error_text: "".to_string(),
-                selection_text: "".to_string(),
             },
             task.map(Message::WidgetMessage),
         )
@@ -73,14 +55,8 @@ impl BasicApplication {
                 for event in self.widget_system.process_message(m) {
                     match event {
                         MapEvent::Error(text) => errors.push_str(&text),
-                        MapEvent::WaypointSelected { key, .. } => {
-                            self.selection_text = self
-                                .widget_system
-                                .get_waypoints()
-                                .get_waypoint_info(key)
-                                .and_then(|point| point.description.clone())
-                                .unwrap_or_else(|| "<no description>".to_string());
-                        }
+                        // This example does not deal with way points.
+                        MapEvent::WaypointSelected { .. } => {}
                     }
                 }
                 // The question mark starts the beginning of API tokens and is very long.
@@ -93,9 +69,6 @@ impl BasicApplication {
                 self.error_text = "".to_string();
                 self.widget_system.retry_failed_tiles();
             }
-            // The map system reports a selection and then forgets about it, so keeping
-            // it and resetting it is up to us.
-            Message::ClearSelection => self.selection_text.clear(),
         }
     }
 
@@ -134,18 +107,6 @@ impl BasicApplication {
         .width(Fill)
         .wrapping(Wrapping::WordOrGlyph);
 
-        let selection = text(format!("Selected: {}", self.selection_text))
-            .style(text::base)
-            .width(Fill)
-            .wrapping(Wrapping::WordOrGlyph);
-
-        let clear = if self.selection_text.is_empty() {
-            button("Clear selection")
-        } else {
-            button("Clear selection").on_press(Message::ClearSelection)
-        };
-        let clear_container = container(clear).align_x(Alignment::Center).width(Fill);
-
         let retry = if self.widget_system.number_of_tiles_failed() == 0 {
             button("Retry")
         } else {
@@ -153,14 +114,7 @@ impl BasicApplication {
         };
         let button_container = container(retry).align_x(Alignment::Center).width(Fill);
 
-        column![
-            head_container,
-            message,
-            selection,
-            clear_container,
-            vertical(),
-            button_container
-        ]
+        column![head_container, message, vertical(), button_container]
         .padding(10)
         .width(FillPortion(1))
         .height(Fill)
