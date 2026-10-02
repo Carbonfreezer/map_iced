@@ -8,6 +8,7 @@ use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::{Cache, Geometry, Text};
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
+use crate::annotation_system::waypoint_system::WaypointInfo;
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -45,8 +46,6 @@ pub enum SpecificInteractionCommand {
 /// The internal state for mouse processing.
 #[derive(Default)]
 pub struct InteractionState {
-    /// Flags initialization.
-    is_initialized: bool,
     /// Contains the last position, when the middle mouse button is pressed.
     drag_origin: Option<Point>,
 }
@@ -57,6 +56,8 @@ pub struct MapWidget {
     tile_drawing_cache: Cache,
     /// The copyright text overlay.
     overlay_cache: Cache,
+    /// The drawing cache for the waypoint info.
+    waypoint_cache: Cache,
     /// Tiles for the current view, possibly still filling up.
     drawing_tiles: Vec<TilesToDraw>,
     /// Last complete set, kept as backdrop while the current one fills up.
@@ -69,7 +70,12 @@ pub struct MapWidget {
     position_converter: Option<DrawingPositionConverter>,
     /// The copyright text we need for drawing.
     copyright_text: String,
+    /// Way point info ix existing.
+    waypoint_info: Vec<WaypointInfo>,
+    /// Flags that we want to have a focal reset usually because of waypoint or annotation changes from the outside.
+    request_focal_reset: bool,
 }
+
 
 /// The rectangle that covers one tile.
 const STANDARD_RECTANGLE: Rectangle = Rectangle {
@@ -85,12 +91,15 @@ impl MapWidget {
         Self {
             tile_drawing_cache: Default::default(),
             overlay_cache: Default::default(),
+            waypoint_cache: Default::default(),
             drawing_tiles: vec![],
             fallback_tiles: vec![],
             client_id,
             position_converter: None,
             focal_point,
             copyright_text,
+            waypoint_info: vec![],
+            request_focal_reset: true,
         }
     }
 
@@ -100,6 +109,7 @@ impl MapWidget {
         focal_point: FocalPoint,
         bounds: Rectangle,
     ) -> Option<BoundingRectangle> {
+        self.request_focal_reset = false;
         let (converter, rectangle) = DrawingPositionConverter::new(
             &focal_point.position,
             focal_point.continuous_zoom_level,
@@ -122,6 +132,18 @@ impl MapWidget {
             "Negative size in rectangle detected."
         );
         rectangle.ok()
+    }
+
+    /// Does an invalidation by requesting a reset of the focal point. This is
+    /// relevant, if waypoints change.
+    pub(crate) fn request_focal_reset(&mut self) {
+        self.request_focal_reset = true;
+    }
+
+    /// Called from outside the map widget system to set the waypoint information.
+    pub(crate) fn set_waypoint_info(&mut self, way_points: Vec<WaypointInfo>) {
+        self.waypoint_info = way_points;
+        self.waypoint_cache.clear();
     }
 
     /// Called from the outside if new tiles have arrived.
@@ -176,8 +198,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         bounds: Rectangle,
         cursor: Cursor,
     ) -> Option<Action<MapInteractionCommand>> {
-        if !state.is_initialized {
-            state.is_initialized = true;
+        if self.request_focal_reset {
             return self.publish(self.focal_point, bounds);
         }
 
@@ -261,7 +282,16 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
             self.print_copyright_text(bounds, frame);
         });
 
-        vec![content, copyright_content]
+        let way_point_content = self.waypoint_cache.draw(renderer, bounds.size(), |frame| {
+            for annotation in &self.waypoint_info {
+                // First get the drawing position.
+                if let Some(draw_pos) = converter.get_drawing_position(annotation.position) {
+                    println!("Drawing Waypoint {:?}", draw_pos);
+                }
+            }
+        });
+
+        vec![content, way_point_content, copyright_content]
     }
 
     fn mouse_interaction(

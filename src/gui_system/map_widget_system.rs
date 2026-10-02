@@ -9,6 +9,7 @@ use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::Task;
 use iced::widget::{Canvas, canvas};
 use tokio_stream::wrappers::ReceiverStream;
+use crate::annotation_system::waypoint_system::WaypointSystem;
 use crate::gui_system::internal_math::LatitudeLongitude;
 
 /// The messages dealing with the widgets these are messages from the
@@ -37,6 +38,7 @@ pub struct MapWidgetSystem {
     tile_cache: TileCache,
     widget_collection: Vec<MapWidget>,
     // TODO: Here we will also insert the landmark and track system
+    waypoint_system: WaypointSystem,
 }
 
 impl MapWidgetSystem {
@@ -53,9 +55,21 @@ impl MapWidgetSystem {
             Self {
                 tile_cache,
                 widget_collection: Vec::new(),
+                waypoint_system: Default::default(),
             },
             task,
         )
+    }
+
+
+   
+    
+    /// Gets a mutable access for the way point system to modify things.
+    pub fn get_waypoint_as_mut(&mut self) -> &mut WaypointSystem {
+        for widget in &mut self.widget_collection {
+            widget.request_focal_reset();
+        }
+        &mut self.waypoint_system
     }
 
     ///  The messages going into the caching system are processed here.
@@ -88,6 +102,9 @@ impl MapWidgetSystem {
                         // We have to reset the tiles here, because they may already exist from one of the other clients.
                         let tiles = self.tile_cache.get_all_images_for_client(client_id);
                         self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
+                        // TODO: Here we will add also the other information for the paths and regions.
+                        let way_points = self.waypoint_system.get_all_relevant_waypoints(&bounding);
+                        self.widget_collection[client_id as usize].set_waypoint_info(way_points);
                     }
                     None => self.tile_cache.completely_unsubscribe(client_id),
                 }

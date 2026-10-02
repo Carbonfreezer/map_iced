@@ -391,6 +391,27 @@ impl DrawingPositionConverter {
         })
     }
 
+    /// Gets the drawing position from within the widget for a certain Latitude, Longitude Vector.
+    pub fn get_drawing_position(&self, pos : LatitudeLongitude) -> Option<Vector> {
+        let tile = pos.get_tile_coordinates(self.zoom());
+
+        let extent =  self.transform_scaling; // on-screen edge length
+
+        let x = tile.x * self.transform_scaling + self.central_offset.x;
+        let y = tile.y * self.transform_scaling + self.central_offset.y;
+
+        if x <= 0.0
+            || y  <= 0.0
+            || x >= self.drawing_size.width
+            || y >= self.drawing_size.height
+        {
+            println!("Asked void position");
+            return None;
+        }
+
+        Some(Vector::new(x as f32, y as f32))
+    }
+
     /// Focus that results from dragging the map by `delta` pixels.
     pub fn get_new_coord_for_mouse_delta(&self, delta: Vector) -> LatitudeLongitude {
         let shifted = TileCoordinates {

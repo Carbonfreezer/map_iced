@@ -3,7 +3,7 @@
 //! to generate the tile caching system.
 
 pub(crate) mod high_level_tile_cache;
-pub(crate) mod internal_math;
+pub mod internal_math;
 pub mod map_widget;
 pub mod map_widget_system;
 pub mod tile_cache_construction;

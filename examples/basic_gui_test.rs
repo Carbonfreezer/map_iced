@@ -1,7 +1,9 @@
 use iced::widget::space::vertical;
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, text};
-use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
+use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
+use map_iced::annotation_system::waypoint_system::WaypointSymbol;
+use map_iced::gui_system::internal_math::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 
@@ -32,6 +34,8 @@ impl BasicApplication {
             .expect("Should not be possible to reach");
 
         let (mut widget_system, task) = MapWidgetSystem::boot(cache);
+        // TODO: Local hack.
+        widget_system.get_waypoint_as_mut().add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
         let widget_ids = [
             widget_system.request_new_widget(),
             widget_system.request_new_widget(),
