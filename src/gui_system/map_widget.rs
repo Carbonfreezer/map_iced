@@ -410,11 +410,26 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
 
     fn mouse_interaction(
         &self,
-        _state: &Self::State,
-        _bounds: Rectangle,
-        _cursor: Cursor,
+        state: &Self::State,
+        bounds: Rectangle,
+        cursor: Cursor,
     ) -> Interaction {
-        Interaction::None
+        // The cursor shape for the way points is decided here, in the lower canvas
+        // of the stack, and not in the overlay on top of it. `stack` levitates the
+        // cursor for every child below as soon as an upper child claims an
+        // interaction, which would cut this widget off from the middle button and
+        // the wheel. Nothing sits below this one, so claiming here is free.
+        if state.drag_origin.is_some() {
+            return Interaction::Grabbing;
+        }
+
+        match cursor
+            .position_in(bounds)
+            .and_then(|position| self.waypoint_at(position))
+        {
+            Some(_) => Interaction::Pointer,
+            None => Interaction::None,
+        }
     }
 }
 
@@ -541,17 +556,15 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
 
     fn mouse_interaction(
         &self,
-        state: &Self::State,
+        _state: &Self::State,
         _bounds: Rectangle,
         _cursor: Cursor,
     ) -> Interaction {
-        // Reported as soon as the cursor is on a symbol, not only once the dwell
-        // time for the description is over. Note that anything but `None` makes
-        // `stack` levitate the cursor for the children below, so the map does not
-        // drag or scroll while the cursor sits on a way point.
-        match state.hovered {
-            Some(_) => Interaction::Pointer,
-            None => Interaction::None,
-        }
+        // Must stay `None`. Anything else makes `stack` levitate the cursor for the
+        // children below, which would stop the map from panning and zooming while
+        // the cursor sits on a way point. The way point cursor shape therefore lives
+        // in `MapWidget::mouse_interaction`, and a click is claimed by capturing the
+        // event in `update`, which only consumes that single event.
+        Interaction::None
     }
 }
