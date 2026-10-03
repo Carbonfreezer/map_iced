@@ -237,7 +237,7 @@ impl MapWidgetSystem {
 
     /// The canvas stack for one widget. Returns an `Element`, because the map tiles
     /// and the annotations have to sit in two stacked canvases to end up in separate
-    /// render layers, see [`AnnotationOverlay`].
+    /// render layers, see `AnnotationOverlay`.
     pub fn canvas(&self, id: u32) -> Element<'_, MapInteractionCommand> {
         let widget = self
             .widget_collection

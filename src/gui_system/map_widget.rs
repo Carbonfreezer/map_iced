@@ -689,7 +689,7 @@ struct Hover {
 /// [`InteractionState`], because the overlay is a canvas of its own and therefore
 /// carries its own widget state.
 #[derive(Debug, Default)]
-pub struct AnnotationInteractionState {
+pub(crate) struct AnnotationInteractionState {
     /// The way point under the cursor, if any.
     hovered: Option<Hover>,
 }
@@ -743,7 +743,7 @@ impl AnnotationInteractionState {
 /// meshes and the map tiles are images, so a shared canvas would always bury the
 /// symbols underneath the map. Stacking a second canvas on top gives the
 /// annotations a layer, and hence a draw order, of their own.
-pub struct AnnotationOverlay<'a> {
+pub(crate) struct AnnotationOverlay<'a> {
     widget: &'a MapWidget,
 }
 
