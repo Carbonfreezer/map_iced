@@ -5,8 +5,9 @@
 mod direction_arrow;
 mod focus_animation;
 pub(crate) mod high_level_tile_cache;
-pub mod internal_math;
+pub(crate) mod internal_math;
 pub mod map_widget;
 pub mod map_widget_system;
 mod scale_bar;
 pub mod tile_cache_construction;
+pub mod latitude_longitude;

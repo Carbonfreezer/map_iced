@@ -8,11 +8,12 @@
 //! zooming out keeps the overlap between consecutive frames high.
 
 use crate::gui_system::internal_math::{
-    LatitudeLongitude, MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL, TileCoordinates,
+    MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL, TileCoordinates,
 };
 use crate::gui_system::map_widget::FocalPoint;
 use iced::Size;
 use iced::time::{Duration, Instant};
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 
 /// How long a pan takes, independent of its length.
 const PAN_DURATION: Duration = Duration::from_millis(1000);

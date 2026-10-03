@@ -3,7 +3,7 @@
 
 use crate::annotation_system::waypoint_system::{WaypointKey, WaypointSystem};
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
-use crate::gui_system::internal_math::LatitudeLongitude;
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::{
     AnnotationOverlay, FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand,
 };

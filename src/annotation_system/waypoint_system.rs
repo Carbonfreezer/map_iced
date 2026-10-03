@@ -1,11 +1,12 @@
 //! This module administrates the way points, A way point is a single isolated location on the map.
 //! This differentiates from the paths, where several points are interconnected with each other.
 
-use crate::gui_system::internal_math::{BoundingRectangle, LatitudeLongitude, TilePosition};
+use crate::gui_system::internal_math::{BoundingRectangle, TilePosition};
 use bytes::Bytes;
 use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 
 new_key_type! {
     /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so
@@ -39,7 +40,7 @@ impl WaypointSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// ```
@@ -70,7 +71,7 @@ impl WaypointSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let _ = system.update_waypoint_position(key, LatitudeLongitude::new(50.0, 8.0));
@@ -93,7 +94,7 @@ impl WaypointSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let _ = system.update_waypoint_symbol(key, WaypointSymbol::Cross(Color::BLACK));
@@ -120,7 +121,7 @@ impl WaypointSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let _ = system.update_waypoint_description(key, Some("Annotation".to_string()));
@@ -145,7 +146,7 @@ impl WaypointSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::waypoint_system::{WaypointFlag, WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let flag = WaypointFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
@@ -167,7 +168,7 @@ impl WaypointSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let _ = system.delete_waypoint(key);

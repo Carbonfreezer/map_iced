@@ -7,7 +7,7 @@ use crate::gui_system::direction_arrow::{
 use crate::gui_system::focus_animation::FocusAnimation;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
-    BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL,
+    BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL,
     RectConversionError, TILE_SIZE_PIXEL,
 };
 use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
@@ -18,6 +18,7 @@ use iced::time::{Duration, Instant};
 use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, Vector, mouse, window};
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
