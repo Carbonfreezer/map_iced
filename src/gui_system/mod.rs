@@ -11,3 +11,4 @@ pub mod map_widget;
 pub mod map_widget_system;
 mod scale_bar;
 pub mod tile_cache_construction;
+pub (crate) mod map_widget_support;

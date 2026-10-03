@@ -4,11 +4,12 @@
 //! where the view spans many degrees of latitude, not even that.
 
 use crate::gui_system::internal_math::TILE_SIZE_PIXEL;
-use crate::gui_system::map_widget::{FONT_SIZE, HALO_COLOR, TEXT_COLOR, fill_text_with_halo};
+use crate::gui_system::map_widget::{FONT_SIZE, TEXT_COLOR};
 use iced::advanced::graphics::geometry::Frame;
 use iced::alignment::Vertical;
 use iced::widget::canvas::{Path, Stroke, Text, stroke};
 use iced::{Color, Point, Renderer, Size};
+use crate::gui_system::map_widget_support::{fill_text_with_halo, HALO_COLOR};
 
 /// The radius of the sphere Web Mercator is defined on, in metres.
 const EARTH_RADIUS: f64 = 6_378_137.0;
