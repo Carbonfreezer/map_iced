@@ -40,7 +40,7 @@ const URGENT_FLAG: WaypointFlag = WaypointFlag {
 
 /// The way points this application offers, around the focal point the widgets start at,
 /// with the flag each one gets. The last three lie further away, to try the focus with.
-const CATALOGUE: [(&str, f64, f64, WaypointFlag); 8] = [
+const CATALOGUE: [(&str, f64, f64, WaypointFlag); 9] = [
     ("Trier Dom", 49.7554, 6.6436, FLAG),
     ("Trier West", 49.7540, 6.6100, FLAG),
     ("Pallien", 49.7650, 6.6250, FLAG),
@@ -49,6 +49,7 @@ const CATALOGUE: [(&str, f64, f64, WaypointFlag); 8] = [
     ("Mertert", 49.7031, 6.4797, FLAG),
     ("Köln", 50.9375, 6.9603, URGENT_FLAG),
     ("Montréal", 45.5017, -73.5673, FLAG),
+    ("User defined", 49.754, 6.63, FLAG),
 ];
 
 /// One row of the list. It carries the key for as long as the way point is
@@ -148,6 +149,17 @@ impl WaypointApplication {
                                 "Kartenfehler: {}",
                                 text.split("?").next().unwrap_or_default()
                             );
+                        }
+
+                        MapEvent::MapPositionClicked { position, .. } => {
+                            let entry = self.entries.last_mut().unwrap();
+                            if let Some(target_key) = entry.key {
+                                self.widget_system
+                                    .get_waypoint_system_as_mut()
+                                    .update_waypoint_position(target_key, position)
+                                    .expect("Key should be present");
+                                entry.position = position;
+                            }
                         }
                     }
                 }

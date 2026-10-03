@@ -1,12 +1,12 @@
 //! This module contains various functions related to `map_widget`, that are taken out here
 //! to make the module slimmer. These are the text functions and the annotation interaction functions.
 
-use std::time::{Duration, Instant};
-use iced::{Color, Renderer, Vector};
+use crate::gui_system::map_widget::MapInteractionCommand;
 use iced::advanced::graphics::geometry::Frame;
 use iced::widget::Action;
 use iced::widget::canvas::Text;
-use crate::gui_system::map_widget::MapInteractionCommand;
+use iced::{Color, Renderer, Vector};
+use std::time::{Duration, Instant};
 
 /// The light outline behind the map texts and the scale bar. No single colour reads
 /// on every map style, the outline keeps them readable on dark ones such as
@@ -18,7 +18,6 @@ const HALO_WIDTH: f32 = 1.0;
 
 /// How long the cursor has to rest on a way point before its description shows up.
 const HOVER_DELAY: Duration = Duration::from_secs(1);
-
 
 /// Draws `text` with a halo in [`HALO_COLOR`]: first in the halo colour, shifted to
 /// the eight neighbouring positions, then once in its own colour on top. Every
@@ -42,7 +41,6 @@ pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
     }
     frame.fill_text(text);
 }
-
 
 /// A way point the cursor currently rests on, together with the moment its
 /// description is due.
@@ -97,10 +95,9 @@ impl AnnotationInteractionState {
     }
 
     /// The way point whose description is due by now, if any.
-    pub(crate)fn description_index(&self) -> Option<usize> {
+    pub(crate) fn description_index(&self) -> Option<usize> {
         self.hovered
             .filter(|hover| Instant::now() >= hover.visible_at)
             .map(|hover| hover.index)
     }
 }
-

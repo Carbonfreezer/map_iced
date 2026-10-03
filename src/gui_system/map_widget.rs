@@ -11,6 +11,7 @@ use crate::gui_system::internal_math::{
     TILE_SIZE_PIXEL,
 };
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
+use crate::gui_system::map_widget_support::{AnnotationInteractionState, fill_text_with_halo};
 use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
@@ -19,7 +20,6 @@ use iced::time::Instant;
 use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, Vector, mouse, window};
-use crate::gui_system::map_widget_support::{fill_text_with_halo, AnnotationInteractionState};
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -29,7 +29,6 @@ pub(crate) const FONT_SIZE: f32 = 15.0;
 
 /// The color we use for drawing overlay text.
 pub(crate) const TEXT_COLOR: Color = Color::BLACK;
-
 
 /// Half the size of the way point we apply.
 const WAYPOINT_HALF_SIZE: f32 = 15.0;
@@ -76,6 +75,9 @@ pub enum SpecificInteractionCommand {
         generation: u64,
         finished: bool,
     },
+    /// The user has simply clicked onto a position on the map in latitude longitude.
+    /// Gets superseded by arrow and waypoint selection.
+    MapPointClicked(LatitudeLongitude),
 }
 
 /// The internal state for mouse processing.
@@ -580,6 +582,17 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                 )
             }
 
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                let position = cursor.position_in(bounds)?;
+                let converter = self.position_converter.as_ref()?;
+                let conv_pos = converter.get_latitude_longitude_for_mouse(position);
+
+                Some(Action::publish(MapInteractionCommand {
+                    client_id: self.client_id,
+                    command: SpecificInteractionCommand::MapPointClicked(conv_pos),
+                }))
+            }
+
             _ => None,
         }
     }
@@ -644,7 +657,6 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         }
     }
 }
-
 
 /// Draws the annotations of a [`MapWidget`] into a canvas of its own.
 ///

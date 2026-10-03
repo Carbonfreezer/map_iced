@@ -5,7 +5,7 @@
 //! Can be useful for internal computations.
 
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use iced::{Rectangle, Size, Vector};
+use iced::{Point, Rectangle, Size, Vector};
 use itertools::iproduct;
 use std::f64::consts::PI;
 
@@ -397,6 +397,16 @@ impl DrawingPositionConverter {
         let shifted = TileCoordinates {
             x: self.tile_center.x - delta.x as f64 / self.transform_scaling,
             y: self.tile_center.y - delta.y as f64 / self.transform_scaling,
+            zoom: self.tile_center.zoom,
+        };
+        shifted.into()
+    }
+
+    /// Computes the latitude and longitude for a mouse coordinate in the widget handed over.
+    pub fn get_latitude_longitude_for_mouse(&self, position: Point) -> LatitudeLongitude {
+        let shifted = TileCoordinates {
+            x: (position.x as f64 - self.central_offset.x) / self.transform_scaling,
+            y: (position.y as f64 - self.central_offset.y) / self.transform_scaling,
             zoom: self.tile_center.zoom,
         };
         shifted.into()

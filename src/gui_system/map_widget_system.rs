@@ -54,6 +54,12 @@ pub enum MapEvent {
     /// `client_id`. What follows is up to the application, typically a focus of that
     /// widget on the way point.
     ArrowClicked { client_id: u32, key: WaypointKey },
+    /// On the client simply a map position with latitude. longitude has been selected.
+    /// If there is some kind of annotation on the map this information would dominate.
+    MapPositionClicked {
+        client_id: u32,
+        position: LatitudeLongitude,
+    },
 }
 
 /// The map widget system administrates all the widgets in combination with a
@@ -136,6 +142,7 @@ impl MapWidgetSystem {
         }
     }
 
+    // TODO: Change from vector to option.
     fn process_widget_message(
         &mut self,
         client_id: u32,
@@ -179,6 +186,14 @@ impl MapWidgetSystem {
                     Some(_) => vec![MapEvent::WaypointSelected { client_id, key }],
                     None => vec![],
                 }
+            }
+
+            // In this case we have simply clicked somewhere on the map.
+            SpecificInteractionCommand::MapPointClicked(position) => {
+                vec![MapEvent::MapPositionClicked {
+                    client_id,
+                    position,
+                }]
             }
 
             SpecificInteractionCommand::ArrowClicked(key) => {
