@@ -4,14 +4,14 @@
 use crate::annotation_system::waypoint_system::{WaypointKey, WaypointSystem};
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget_components::{
+use crate::gui_system::map_widget::map_widget_components::{
     AnnotationOverlay, FocalPoint, MapInteractionCommand, SpecificInteractionCommand,
 };
+use crate::gui_system::map_widget::map_widget_core::MapWidget;
 use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
-use crate::gui_system::map_widget_core::MapWidget;
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
@@ -184,7 +184,9 @@ impl MapWidgetSystem {
                 // The widget reports what the click hit, the meaning is decided here.
                 // A way point that is gone by now must not reach the application, the
                 // snapshot in the widget can be older than the collection.
-                self.waypoint_system.get_waypoint_info(key).map(|_| MapEvent::WaypointSelected { client_id, key })
+                self.waypoint_system
+                    .get_waypoint_info(key)
+                    .map(|_| MapEvent::WaypointSelected { client_id, key })
             }
 
             // In this case we have simply clicked somewhere on the map.

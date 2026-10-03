@@ -14,7 +14,7 @@ use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::Bytes;
 use map_iced::annotation_system::waypoint_system::{WaypointFlag, WaypointKey, WaypointSymbol};
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
-use map_iced::gui_system::map_widget_components::FocalPoint;
+use map_iced::gui_system::map_widget::map_widget_components::FocalPoint;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 
@@ -126,7 +126,7 @@ impl WaypointApplication {
     fn update(&mut self, message: Message) {
         match message {
             Message::WidgetMessage(m) => {
-                if let  Some(event) = self.widget_system.process_message(m) {
+                if let Some(event) = self.widget_system.process_message(m) {
                     match event {
                         MapEvent::WaypointSelected { key, .. } => self.selected = Some(key),
                         MapEvent::FocusReached { .. } => {}

@@ -1,15 +1,15 @@
 //! This contains the map widget components which are mainly the canvasses.
 
-use crate::annotation_system::waypoint_system:: WaypointKey;
+use crate::annotation_system::waypoint_system::WaypointKey;
 use crate::gui_system::internal_math::MAXIMUM_ZOOM_LEVEL;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget_support::AnnotationInteractionState;
+use crate::gui_system::map_widget::map_widget_core::{MapWidget, STANDARD_RECTANGLE};
+use crate::gui_system::map_widget::map_widget_support::AnnotationInteractionState;
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::Geometry;
 use iced::widget::{Action, canvas};
-use iced::{Color, Event, Point, Rectangle, Renderer, Theme,  mouse, window};
-use crate::gui_system::map_widget_core::{MapWidget, STANDARD_RECTANGLE};
+use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -19,7 +19,6 @@ pub(crate) const FONT_SIZE: f32 = 15.0;
 
 /// The color we use for drawing overlay text.
 pub(crate) const TEXT_COLOR: Color = Color::BLACK;
-
 
 /// These become the interaction commands with the rest of the system later on. These
 /// commands contain the information of a specific client widget.

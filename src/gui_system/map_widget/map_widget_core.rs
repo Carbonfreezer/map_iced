@@ -1,29 +1,34 @@
 //! This module contains the core par of map widget.
 
-use std::time::Instant;
-use iced::{Point, Rectangle, Renderer, Vector};
+use crate::annotation_system::waypoint_system::{InternalWaypointImage, WaypointInfo, WaypointKey};
+use crate::gui_system::high_level_tile_cache::TilesToDraw;
+use crate::gui_system::internal_math::{
+    BoundingRectangle, DrawingPositionConverter, RectConversionError, TILE_SIZE_PIXEL,
+};
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
+use crate::gui_system::map_widget::direction_arrow::{
+    PlacedArrow, arrow_hit, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
+};
+use crate::gui_system::map_widget::focus_animation::FocusAnimation;
+use crate::gui_system::map_widget::map_widget_components::{
+    FONT_SIZE, FocalPoint, MapInteractionCommand, SpecificInteractionCommand, TEXT_COLOR,
+};
+use crate::gui_system::map_widget::map_widget_support::{
+    AnnotationInteractionState, fill_text_with_halo,
+};
+use crate::gui_system::map_widget::scale_bar::{draw_scale_bar, scale_bar};
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::widget::Action;
-use iced::widget::canvas::{stroke, Cache, Geometry, Stroke, Text, Path};
-use crate::annotation_system::waypoint_system::{InternalWaypointImage, WaypointInfo, WaypointKey};
-use crate::gui_system::direction_arrow::{symbol_visible, PlacedArrow, radar_arrow, attached_arrow, arrow_hit, draw_arrow};
-use crate::gui_system::focus_animation::FocusAnimation;
-use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::internal_math::{BoundingRectangle, DrawingPositionConverter, RectConversionError, TILE_SIZE_PIXEL};
-use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget_components::{FocalPoint, MapInteractionCommand, SpecificInteractionCommand, FONT_SIZE, TEXT_COLOR};
-use crate::gui_system::map_widget_support::{fill_text_with_halo, AnnotationInteractionState};
-use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
-
+use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
+use iced::{Point, Rectangle, Renderer, Vector};
+use std::time::Instant;
 
 /// Half the size of the way point we apply.
 const WAYPOINT_HALF_SIZE: f32 = 15.0;
 
 /// Horizontal gap between a way point symbol and its hover description.
 const DESCRIPTION_GAP: f32 = 4.0;
-
-
 
 /// The widget used for rendering a tile.
 pub(crate) struct MapWidget {
@@ -316,7 +321,11 @@ impl MapWidget {
 
     /// The way point symbols. Cached, because they only change with the way point
     /// snapshot or the focal point, never with the cursor.
-    pub(crate) fn draw_waypoint_symbols(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
+    pub(crate) fn draw_waypoint_symbols(
+        &self,
+        renderer: &Renderer,
+        bounds: Rectangle,
+    ) -> Geometry<Renderer> {
         self.waypoint_cache.draw(renderer, bounds.size(), |frame| {
             let Some(converter) = &self.position_converter else {
                 return;
@@ -408,7 +417,11 @@ impl MapWidget {
     }
 
     /// The copyright overlay. Cached, it only depends on the widget size.
-    pub(crate) fn draw_copyright(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
+    pub(crate) fn draw_copyright(
+        &self,
+        renderer: &Renderer,
+        bounds: Rectangle,
+    ) -> Geometry<Renderer> {
         self.overlay_cache.draw(renderer, bounds.size(), |frame| {
             self.print_copyright_text(bounds, frame);
         })
