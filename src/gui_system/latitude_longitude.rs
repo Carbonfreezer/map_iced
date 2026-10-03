@@ -1,8 +1,8 @@
-//! This module contains the latitude longitude positional representation that is visible to 
+//! This module contains the latitude longitude positional representation that is visible to
 //! the outside in this crate.
 
+use crate::gui_system::internal_math::{TileCoordinates, get_scaling_factor};
 use std::f64::consts::PI;
-use crate::gui_system::internal_math::{get_scaling_factor, TileCoordinates};
 
 /// The boundary latitude we do not overshoot. Needed
 /// because of distortion artifacts in the mercator projection.

@@ -16,7 +16,9 @@ use tokio_stream::wrappers::ReceiverStream;
 /// caching system and messages dealing with map interaction.
 #[derive(Debug, Clone)]
 pub enum MapWidgetMessage {
+    /// These are internal messages coming from the caching system basically flagging the arrival of data.
     CachingResultMessage(CachingResultMessage),
+    /// The messages and events from the real map interaction.
     MapInteractionCommand(MapInteractionCommand),
 }
 
@@ -65,6 +67,7 @@ pub struct MapWidgetSystem {
 
 impl MapWidgetSystem {
     /// Generates our instance and the stream for the messages.
+    /// The Tile cache is opaque but gets contructed in [`super::tile_cache_construction::TileCacheConfig`]
     pub fn boot(mut tile_cache: TileCache) -> (Self, Task<MapWidgetMessage>) {
         let receiver = tile_cache
             .get_receiver()

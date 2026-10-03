@@ -72,8 +72,10 @@ struct WaypointApplication {
     selected: Option<WaypointKey>,
 }
 
+/// The overall message system in this application.
 #[derive(Debug, Clone)]
 enum Message {
+    /// An internal message from the widget system.
     WidgetMessage(MapWidgetMessage),
     /// Register or unregister the way point of the given list row.
     Toggled(usize, bool),
@@ -228,6 +230,8 @@ impl WaypointApplication {
         }
     }
 
+    /// Returns the visual representation of this map element, that can be included in a view
+    /// command and can generate events.
     fn get_map_element(&self, widget_id: u32) -> Element<'_, Message> {
         let map: Element<'_, Message> = self
             .widget_system

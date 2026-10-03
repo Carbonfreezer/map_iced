@@ -4,10 +4,10 @@
 //! slippy tile system. It also administrates badges (bounding rectangles of tiles).
 //! Can be useful for internal computations.
 
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use iced::{Rectangle, Size, Vector};
 use itertools::iproduct;
 use std::f64::consts::PI;
-use crate::gui_system::latitude_longitude::LatitudeLongitude;
 
 /// The maximum zoom level we allow.
 pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;
@@ -239,7 +239,6 @@ pub fn get_scaling_factor(zoom: u8) -> f64 {
     f64::exp2(zoom as f64)
 }
 
-
 impl From<TileCoordinates> for LatitudeLongitude {
     fn from(value: TileCoordinates) -> Self {
         let scaling = get_scaling_factor(value.zoom);
@@ -407,9 +406,9 @@ impl DrawingPositionConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui_system::latitude_longitude::BOUNDARY_LATITUDE;
     use iced::{Point, Size};
     use proptest::{prop_assert, proptest};
-    use crate::gui_system::latitude_longitude::BOUNDARY_LATITUDE;
 
     proptest! {
         #[test]

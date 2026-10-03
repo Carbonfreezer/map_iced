@@ -7,9 +7,10 @@ use crate::gui_system::direction_arrow::{
 use crate::gui_system::focus_animation::FocusAnimation;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
-    BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL,
-    RectConversionError, TILE_SIZE_PIXEL,
+    BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL, RectConversionError,
+    TILE_SIZE_PIXEL,
 };
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
@@ -18,7 +19,6 @@ use iced::time::{Duration, Instant};
 use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, Vector, mouse, window};
-use crate::gui_system::latitude_longitude::LatitudeLongitude;
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -71,6 +71,8 @@ const HOVER_DELAY: Duration = Duration::from_secs(1);
 
 /// These become the interaction commands with the rest of the system later on. These
 /// commands contain the information of a specific client widget.
+/// Made public because it is needed for mapping in the view construction,
+/// as these are the highest level commands originating from the widget system.
 #[derive(Debug, Clone)]
 pub struct MapInteractionCommand {
     pub(crate) client_id: u32,
@@ -110,13 +112,13 @@ pub enum SpecificInteractionCommand {
 
 /// The internal state for mouse processing.
 #[derive(Default)]
-pub struct InteractionState {
+pub(crate) struct InteractionState {
     /// Contains the last position, when the middle mouse button is pressed.
     drag_origin: Option<Point>,
 }
 
 /// The widget used for rendering a tile.
-pub struct MapWidget {
+pub(crate) struct MapWidget {
     /// The drawing cache for the tiles.
     tile_drawing_cache: Cache,
     /// The copyright text overlay.

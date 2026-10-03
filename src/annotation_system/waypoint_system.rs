@@ -2,11 +2,11 @@
 //! This differentiates from the paths, where several points are interconnected with each other.
 
 use crate::gui_system::internal_math::{BoundingRectangle, TilePosition};
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use bytes::Bytes;
 use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};
-use crate::gui_system::latitude_longitude::LatitudeLongitude;
 
 new_key_type! {
     /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so
