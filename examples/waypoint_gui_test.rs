@@ -126,7 +126,7 @@ impl WaypointApplication {
     fn update(&mut self, message: Message) {
         match message {
             Message::WidgetMessage(m) => {
-                for event in self.widget_system.process_message(m) {
+                if let  Some(event) = self.widget_system.process_message(m) {
                     match event {
                         MapEvent::WaypointSelected { key, .. } => self.selected = Some(key),
                         MapEvent::FocusReached { .. } => {}

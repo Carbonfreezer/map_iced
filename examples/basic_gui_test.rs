@@ -52,15 +52,10 @@ impl BasicApplication {
         match message {
             Message::WidgetMessage(m) => {
                 let mut errors = String::new();
-                for event in self.widget_system.process_message(m) {
-                    match event {
-                        MapEvent::Error(text) => errors.push_str(&text),
+                match  self.widget_system.process_message(m) {
+                        Some(MapEvent::Error(text)) => errors.push_str(&text),
                         // This example does not deal with way points or focusing or map selection.
-                        MapEvent::WaypointSelected { .. }
-                        | MapEvent::FocusReached { .. }
-                        | MapEvent::ArrowClicked { .. }
-                        | MapEvent::MapPositionClicked { .. } => {}
-                    }
+                        _ => {}
                 }
                 // The question mark starts the beginning of API tokens and is very long.
                 let new_message = errors.split("?").collect::<Vec<&str>>()[0].to_string();

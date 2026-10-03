@@ -106,13 +106,14 @@ impl MapWidgetSystem {
     }
 
     ///  The messages going into the caching system are processed here.
-    fn process_caching_message(&mut self, message: CachingResultMessage) -> Vec<MapEvent> {
-        let mut result = Vec::new();
+    fn process_caching_message(&mut self, message: CachingResultMessage) -> Option<MapEvent> {
+        let mut final_message = "".to_string();
         self.tile_cache.process_caching_message(message);
         for msg in self.tile_cache.drain_result_messages() {
             match msg {
                 CacheUpdateMessage::ErrorMessage { text: msg } => {
-                    result.push(MapEvent::Error(msg));
+                    final_message += " ";
+                    final_message += &msg;
                 }
                 CacheUpdateMessage::RelevantTilesArrived { client } => {
                     let new_tiles = self.tile_cache.get_all_images_for_client(client);
@@ -120,7 +121,7 @@ impl MapWidgetSystem {
                 }
             }
         }
-        result
+        (!final_message.is_empty()).then_some(MapEvent::Error(final_message))
     }
 
     /// Moves a widget to a new view and hands it what it needs to draw there.
@@ -142,16 +143,16 @@ impl MapWidgetSystem {
         }
     }
 
-    // TODO: Change from vector to option.
+    /// Processes the messsage and eventually returns a map event for further processing.
     fn process_widget_message(
         &mut self,
         client_id: u32,
         message: SpecificInteractionCommand,
-    ) -> Vec<MapEvent> {
+    ) -> Option<MapEvent> {
         match message {
             SpecificInteractionCommand::SetFocalPoint(point, rectangle) => {
                 self.apply_focal_point(client_id, point, rectangle);
-                vec![]
+                None
             }
 
             SpecificInteractionCommand::AnimationFrame {
@@ -164,7 +165,7 @@ impl MapWidgetSystem {
                 // A frame of an animation that was replaced or cancelled after it
                 // had been published would drag the view back onto the old path.
                 if !widget.is_current_animation(generation) {
-                    return vec![];
+                    return None;
                 }
                 if finished {
                     widget.cancel_animation();
@@ -173,8 +174,8 @@ impl MapWidgetSystem {
                 // frame command.
                 self.apply_focal_point(client_id, focal_point, bounds);
                 match finished {
-                    true => vec![MapEvent::FocusReached { client_id }],
-                    false => vec![],
+                    true => Some(MapEvent::FocusReached { client_id }),
+                    false => None,
                 }
             }
 
@@ -182,18 +183,15 @@ impl MapWidgetSystem {
                 // The widget reports what the click hit, the meaning is decided here.
                 // A way point that is gone by now must not reach the application, the
                 // snapshot in the widget can be older than the collection.
-                match self.waypoint_system.get_waypoint_info(key) {
-                    Some(_) => vec![MapEvent::WaypointSelected { client_id, key }],
-                    None => vec![],
-                }
+                self.waypoint_system.get_waypoint_info(key).map(|_| MapEvent::WaypointSelected { client_id, key })
             }
 
             // In this case we have simply clicked somewhere on the map.
             SpecificInteractionCommand::MapPointClicked(position) => {
-                vec![MapEvent::MapPositionClicked {
+                Some(MapEvent::MapPositionClicked {
                     client_id,
                     position,
-                }]
+                })
             }
 
             SpecificInteractionCommand::ArrowClicked(key) => {
@@ -201,16 +199,16 @@ impl MapWidgetSystem {
                 // flag in the meantime has no arrow any more either.
                 match self.waypoint_system.get_waypoint_info(key) {
                     Some(point) if point.flag.is_some() => {
-                        vec![MapEvent::ArrowClicked { client_id, key }]
+                        Some(MapEvent::ArrowClicked { client_id, key })
                     }
-                    _ => vec![],
+                    _ => None,
                 }
             }
         }
     }
 
     /// Processes all the relevant messages and reports what came out of it.
-    pub fn process_message(&mut self, message: MapWidgetMessage) -> Vec<MapEvent> {
+    pub fn process_message(&mut self, message: MapWidgetMessage) -> Option<MapEvent> {
         match message {
             MapWidgetMessage::CachingResultMessage(msg) => self.process_caching_message(msg),
             MapWidgetMessage::MapInteractionCommand(MapInteractionCommand {
