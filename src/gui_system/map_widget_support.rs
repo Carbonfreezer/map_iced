@@ -1,7 +1,7 @@
 //! This module contains various functions related to `map_widget`, that are taken out here
 //! to make the module slimmer. These are the text functions and the annotation interaction functions.
 
-use crate::gui_system::map_widget::MapInteractionCommand;
+use crate::gui_system::map_widget_components::MapInteractionCommand;
 use iced::advanced::graphics::geometry::Frame;
 use iced::widget::Action;
 use iced::widget::canvas::Text;

@@ -9,7 +9,7 @@
 
 use crate::gui_system::internal_math::{MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL, TileCoordinates};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget::FocalPoint;
+use crate::gui_system::map_widget_components::FocalPoint;
 use iced::Size;
 use iced::time::{Duration, Instant};
 

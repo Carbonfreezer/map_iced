@@ -1,34 +1,21 @@
-//! This contains the core map widget.
+//! This module contains the core par of map widget.
 
-use crate::annotation_system::waypoint_system::{InternalWaypointImage, WaypointInfo, WaypointKey};
-use crate::gui_system::direction_arrow::{
-    PlacedArrow, arrow_hit, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
-};
-use crate::gui_system::focus_animation::FocusAnimation;
-use crate::gui_system::high_level_tile_cache::TilesToDraw;
-use crate::gui_system::internal_math::{
-    BoundingRectangle, DrawingPositionConverter, MAXIMUM_ZOOM_LEVEL, RectConversionError,
-    TILE_SIZE_PIXEL,
-};
-use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget_support::{AnnotationInteractionState, fill_text_with_halo};
-use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
+use std::time::Instant;
+use iced::{Point, Rectangle, Renderer, Vector};
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
-use iced::mouse::{Cursor, Interaction, ScrollDelta};
-use iced::time::Instant;
-use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
-use iced::widget::{Action, canvas};
-use iced::{Color, Event, Point, Rectangle, Renderer, Theme, Vector, mouse, window};
+use iced::widget::Action;
+use iced::widget::canvas::{stroke, Cache, Geometry, Stroke, Text, Path};
+use crate::annotation_system::waypoint_system::{InternalWaypointImage, WaypointInfo, WaypointKey};
+use crate::gui_system::direction_arrow::{symbol_visible, PlacedArrow, radar_arrow, attached_arrow, arrow_hit, draw_arrow};
+use crate::gui_system::focus_animation::FocusAnimation;
+use crate::gui_system::high_level_tile_cache::TilesToDraw;
+use crate::gui_system::internal_math::{BoundingRectangle, DrawingPositionConverter, RectConversionError, TILE_SIZE_PIXEL};
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
+use crate::gui_system::map_widget_components::{FocalPoint, MapInteractionCommand, SpecificInteractionCommand, FONT_SIZE, TEXT_COLOR};
+use crate::gui_system::map_widget_support::{fill_text_with_halo, AnnotationInteractionState};
+use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
 
-/// The velocity we use for mouse scrolling.
-const SCROLLING_SPEED: f32 = 0.05;
-
-/// The font size we want to use.
-pub(crate) const FONT_SIZE: f32 = 15.0;
-
-/// The color we use for drawing overlay text.
-pub(crate) const TEXT_COLOR: Color = Color::BLACK;
 
 /// Half the size of the way point we apply.
 const WAYPOINT_HALF_SIZE: f32 = 15.0;
@@ -36,61 +23,12 @@ const WAYPOINT_HALF_SIZE: f32 = 15.0;
 /// Horizontal gap between a way point symbol and its hover description.
 const DESCRIPTION_GAP: f32 = 4.0;
 
-/// These become the interaction commands with the rest of the system later on. These
-/// commands contain the information of a specific client widget.
-/// Made public because it is needed for mapping in the view construction,
-/// as these are the highest level commands originating from the widget system.
-#[derive(Debug, Clone)]
-pub struct MapInteractionCommand {
-    pub(crate) client_id: u32,
-    pub(crate) command: SpecificInteractionCommand,
-}
 
-/// Focal point info consisting of latitude, longitude and a
-/// continuous zoom level.
-#[derive(Debug, Clone, Copy)]
-pub struct FocalPoint {
-    pub position: LatitudeLongitude,
-    pub continuous_zoom_level: f32,
-}
-
-/// These are the interaction commands for a specific client widget. The association with the
-/// client widget is given over [`MapInteractionCommand`]. They report what happened in
-/// the widget; what it means is decided by [`MapWidgetSystem`].
-///
-/// [`MapWidgetSystem`]: crate::gui_system::map_widget_system::MapWidgetSystem
-#[derive(Debug, Clone)]
-pub enum SpecificInteractionCommand {
-    /// We want to set the focal point as latitude longitude and the zoom level.
-    SetFocalPoint(FocalPoint, Rectangle),
-    /// A left click landed on the given way point.
-    WaypointClicked(WaypointKey),
-    /// A left click landed on the direction arrow of the given way point.
-    ArrowClicked(WaypointKey),
-    /// One frame of the soft focus started under `generation`. `finished` marks the
-    /// last frame, which sits exactly on the target.
-    AnimationFrame {
-        focal_point: FocalPoint,
-        bounds: Rectangle,
-        generation: u64,
-        finished: bool,
-    },
-    /// The user has simply clicked onto a position on the map in latitude longitude.
-    /// Gets superseded by arrow and waypoint selection.
-    MapPointClicked(LatitudeLongitude),
-}
-
-/// The internal state for mouse processing.
-#[derive(Default)]
-pub(crate) struct InteractionState {
-    /// Contains the last position, when the middle mouse button is pressed.
-    drag_origin: Option<Point>,
-}
 
 /// The widget used for rendering a tile.
 pub(crate) struct MapWidget {
     /// The drawing cache for the tiles.
-    tile_drawing_cache: Cache,
+    pub(crate) tile_drawing_cache: Cache,
     /// The copyright text overlay.
     overlay_cache: Cache,
     /// The drawing cache for the waypoint info.
@@ -98,15 +36,15 @@ pub(crate) struct MapWidget {
     /// The drawing cache for the scale bar, it changes with the focal point.
     scale_cache: Cache,
     /// Tiles for the current view, possibly still filling up.
-    drawing_tiles: Vec<TilesToDraw>,
+    pub(crate) drawing_tiles: Vec<TilesToDraw>,
     /// Last complete set, kept as backdrop while the current one fills up.
-    fallback_tiles: Vec<TilesToDraw>,
+    pub(crate) fallback_tiles: Vec<TilesToDraw>,
     /// The internal id of the widget.
-    client_id: u32,
+    pub(crate) client_id: u32,
     /// The view this widget currently shows. Source of truth for interaction.
-    focal_point: FocalPoint,
+    pub(crate) focal_point: FocalPoint,
     /// Derived from `focal_point` plus the canvas bounds, for rendering only.
-    position_converter: Option<DrawingPositionConverter>,
+    pub(crate) position_converter: Option<DrawingPositionConverter>,
     /// The copyright text we need for drawing.
     copyright_text: String,
     /// Way point info ix existing.
@@ -114,16 +52,16 @@ pub(crate) struct MapWidget {
     /// The direction arrows of the current view, see [`Self::place_arrows`].
     arrows: Vec<PlacedArrow>,
     /// Flags that we want to have a focal reset usually because of waypoint or annotation changes from the outside.
-    request_focal_reset: bool,
+    pub(crate) request_focal_reset: bool,
     /// The soft focus currently running, if any.
-    animation: Option<FocusAnimation>,
+    pub(crate) animation: Option<FocusAnimation>,
     /// Counts the animations started, so that a frame published for an animation
     /// that has been replaced or cancelled in the meantime can be recognised.
-    animation_generation: u64,
+    pub(crate) animation_generation: u64,
 }
 
 /// The rectangle that covers one tile.
-const STANDARD_RECTANGLE: Rectangle = Rectangle {
+pub(crate) const STANDARD_RECTANGLE: Rectangle = Rectangle {
     x: 0.0,
     y: 0.0,
     width: TILE_SIZE_PIXEL as f32,
@@ -299,7 +237,7 @@ impl MapWidget {
     }
 
     /// Helper function to issue a command to set a focal point.
-    fn publish(
+    pub(crate) fn publish(
         &self,
         focal_point: FocalPoint,
         bounds: Rectangle,
@@ -378,7 +316,7 @@ impl MapWidget {
 
     /// The way point symbols. Cached, because they only change with the way point
     /// snapshot or the focal point, never with the cursor.
-    fn draw_waypoint_symbols(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
+    pub(crate) fn draw_waypoint_symbols(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
         self.waypoint_cache.draw(renderer, bounds.size(), |frame| {
             let Some(converter) = &self.position_converter else {
                 return;
@@ -437,7 +375,7 @@ impl MapWidget {
     /// Everything that depends on the overlay interaction state. Deliberately *not*
     /// cached, so a changed state shows up on the next redraw without anyone having
     /// to invalidate a cache.
-    fn draw_annotation_interaction(
+    pub(crate) fn draw_annotation_interaction(
         &self,
         renderer: &Renderer,
         bounds: Rectangle,
@@ -470,14 +408,14 @@ impl MapWidget {
     }
 
     /// The copyright overlay. Cached, it only depends on the widget size.
-    fn draw_copyright(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
+    pub(crate) fn draw_copyright(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
         self.overlay_cache.draw(renderer, bounds.size(), |frame| {
             self.print_copyright_text(bounds, frame);
         })
     }
 
     /// The scale bar, measured at the latitude of the centre of the view.
-    fn draw_scale(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
+    pub(crate) fn draw_scale(&self, renderer: &Renderer, bounds: Rectangle) -> Geometry<Renderer> {
         self.scale_cache.draw(renderer, bounds.size(), |frame| {
             if let Some(bar) = scale_bar(
                 self.focal_point.position.latitude,
@@ -486,274 +424,5 @@ impl MapWidget {
                 draw_scale_bar(frame, bounds.size(), &bar);
             }
         })
-    }
-}
-
-impl canvas::Program<MapInteractionCommand> for MapWidget {
-    type State = InteractionState;
-
-    fn update(
-        &self,
-        state: &mut Self::State,
-        event: &Event,
-        bounds: Rectangle,
-        cursor: Cursor,
-    ) -> Option<Action<MapInteractionCommand>> {
-        if self.request_focal_reset {
-            return self.publish(self.focal_point, bounds);
-        }
-
-        if let Some(animation) = &self.animation {
-            return match event {
-                // Every frame we publish is processed and followed by a redraw, so
-                // the animation keeps itself running until its last frame.
-                Event::Window(window::Event::RedrawRequested(now)) => {
-                    let (focal_point, finished) = animation.sample(*now);
-                    Some(Action::publish(MapInteractionCommand {
-                        client_id: self.client_id,
-                        command: SpecificInteractionCommand::AnimationFrame {
-                            focal_point,
-                            bounds,
-                            generation: self.animation_generation,
-                            finished,
-                        },
-                    }))
-                }
-                // Panning and zooming are suspended while the animation runs. A
-                // drag in progress still follows the cursor, so that it does not
-                // jump once the animation is over.
-                Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                    if state.drag_origin.is_some() {
-                        state.drag_origin = cursor.position_in(bounds);
-                    }
-                    None
-                }
-                Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) => {
-                    state.drag_origin = None;
-                    None
-                }
-                _ => None,
-            };
-        }
-
-        // Here we are not animating.
-        match event {
-            Event::Window(window::Event::Resized(_)) => self.publish(self.focal_point, bounds),
-
-            Event::Mouse(mouse::Event::WheelScrolled {
-                delta: ScrollDelta::Lines { y, .. },
-            }) if cursor.is_over(bounds) => {
-                let zoom = (self.focal_point.continuous_zoom_level + y * SCROLLING_SPEED)
-                    .clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
-                self.publish(
-                    FocalPoint {
-                        continuous_zoom_level: zoom,
-                        ..self.focal_point
-                    },
-                    bounds,
-                )
-            }
-
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle)) => {
-                state.drag_origin = cursor.position_in(bounds);
-                None
-            }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Middle)) => {
-                state.drag_origin = None;
-                None
-            }
-
-            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                let origin = state.drag_origin?;
-                let now = cursor.position_in(bounds)?;
-                let converter = self.position_converter.as_ref()?;
-
-                let delta = now - origin;
-                if delta.x == 0.0 && delta.y == 0.0 {
-                    return None;
-                }
-                state.drag_origin = Some(now);
-                self.publish(
-                    FocalPoint {
-                        position: converter.get_new_coord_for_mouse_delta(delta),
-                        ..self.focal_point
-                    },
-                    bounds,
-                )
-            }
-
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                let position = cursor.position_in(bounds)?;
-                let converter = self.position_converter.as_ref()?;
-                let conv_pos = converter.get_latitude_longitude_for_mouse(position);
-
-                Some(Action::publish(MapInteractionCommand {
-                    client_id: self.client_id,
-                    command: SpecificInteractionCommand::MapPointClicked(conv_pos),
-                }))
-            }
-
-            _ => None,
-        }
-    }
-
-    fn draw(
-        &self,
-        _state: &Self::State,
-        renderer: &Renderer,
-        _theme: &Theme,
-        bounds: Rectangle,
-        _cursor: Cursor,
-    ) -> Vec<Geometry<Renderer>> {
-        let Some(converter) = &self.position_converter else {
-            return vec![];
-        };
-        let content = self
-            .tile_drawing_cache
-            .draw(renderer, bounds.size(), |frame| {
-                for tile_and_pos in self.fallback_tiles.iter().chain(self.drawing_tiles.iter()) {
-                    let Some(draw) = converter.get_draw_instruction(tile_and_pos.position.into())
-                    else {
-                        continue;
-                    };
-                    frame.with_save(|frame| {
-                        frame.translate(draw.offset);
-                        frame.scale(draw.scale);
-                        // Snapped to the pixel grid, so that neighbouring tiles meet on
-                        // whole pixels. Otherwise iced antialiases both edges and the
-                        // background shows through the seam, flickering while animating.
-                        frame.draw_image(
-                            STANDARD_RECTANGLE,
-                            Image::new(tile_and_pos.image.clone()).snap(true),
-                        );
-                    })
-                }
-            });
-
-        vec![content]
-    }
-
-    fn mouse_interaction(
-        &self,
-        state: &Self::State,
-        bounds: Rectangle,
-        cursor: Cursor,
-    ) -> Interaction {
-        // The cursor shape for the way points is decided here, in the lower canvas
-        // of the stack, and not in the overlay on top of it. `stack` levitates the
-        // cursor for every child below as soon as an upper child claims an
-        // interaction, which would cut this widget off from the middle button and
-        // the wheel. Nothing sits below this one, so claiming here is free.
-        if state.drag_origin.is_some() {
-            return Interaction::Grabbing;
-        }
-
-        let hovers_something = cursor.position_in(bounds).is_some_and(|position| {
-            self.arrow_at(position).is_some() || self.waypoint_at(position).is_some()
-        });
-        match hovers_something {
-            true => Interaction::Pointer,
-            false => Interaction::None,
-        }
-    }
-}
-
-/// Draws the annotations of a [`MapWidget`] into a canvas of its own.
-///
-/// All geometry returned by a single canvas ends up in one render layer, and inside
-/// a layer iced renders strictly by primitive type - meshes, then images, then
-/// text - and not in the order the geometry was returned. The way point symbols are
-/// meshes and the map tiles are images, so a shared canvas would always bury the
-/// symbols underneath the map. Stacking a second canvas on top gives the
-/// annotations a layer, and hence a draw order, of their own.
-pub(crate) struct AnnotationOverlay<'a> {
-    widget: &'a MapWidget,
-}
-
-impl<'a> AnnotationOverlay<'a> {
-    /// Wraps the widget whose annotations we draw.
-    pub(crate) fn new(widget: &'a MapWidget) -> Self {
-        Self { widget }
-    }
-}
-
-impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
-    type State = AnnotationInteractionState;
-
-    fn update(
-        &self,
-        state: &mut Self::State,
-        event: &Event,
-        bounds: Rectangle,
-        cursor: Cursor,
-    ) -> Option<Action<MapInteractionCommand>> {
-        match event {
-            Event::Mouse(mouse::Event::CursorMoved { .. }) => state.aim(
-                cursor
-                    .position_in(bounds)
-                    .and_then(|position| self.widget.waypoint_at(position)),
-            ),
-
-            Event::Mouse(mouse::Event::CursorLeft) => state.aim(None),
-
-            Event::Window(window::Event::RedrawRequested(now)) => state.settle(*now),
-
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                let position = cursor.position_in(bounds)?;
-                // The arrows are drawn on top of the symbols, so they win the hit.
-                let command = match self.widget.arrow_at(position) {
-                    Some(key) => SpecificInteractionCommand::ArrowClicked(key),
-                    None => SpecificInteractionCommand::WaypointClicked(
-                        self.widget
-                            .waypoint_at(position)
-                            .and_then(|index| self.widget.waypoint(index))?
-                            .key,
-                    ),
-                };
-
-                // A click that hits nothing is not our business, it stays available to
-                // the map below. Capturing here keeps a hit click from also reaching it.
-                Some(
-                    Action::publish(MapInteractionCommand {
-                        client_id: self.widget.client_id,
-                        command,
-                    })
-                    .and_capture(),
-                )
-            }
-
-            _ => None,
-        }
-    }
-
-    fn draw(
-        &self,
-        state: &Self::State,
-        renderer: &Renderer,
-        _theme: &Theme,
-        bounds: Rectangle,
-        _cursor: Cursor,
-    ) -> Vec<Geometry<Renderer>> {
-        vec![
-            self.widget.draw_waypoint_symbols(renderer, bounds),
-            self.widget
-                .draw_annotation_interaction(renderer, bounds, state),
-            self.widget.draw_copyright(renderer, bounds),
-            self.widget.draw_scale(renderer, bounds),
-        ]
-    }
-
-    fn mouse_interaction(
-        &self,
-        _state: &Self::State,
-        _bounds: Rectangle,
-        _cursor: Cursor,
-    ) -> Interaction {
-        // Must stay `None`. Anything else makes `stack` levitate the cursor for the
-        // children below, which would stop the map from panning and zooming while
-        // the cursor sits on a way point. The way point cursor shape therefore lives
-        // in `MapWidget::mouse_interaction`, and a click is claimed by capturing the
-        // event in `update`, which only consumes that single event.
-        Interaction::None
     }
 }
