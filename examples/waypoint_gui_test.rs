@@ -159,15 +159,21 @@ impl WaypointApplication {
 
                 match (checked, key) {
                     (true, None) => {
-                        let key = self.widget_system.get_waypoint_as_mut().add_way_point(
-                            WaypointSymbol::Image(Bytes::from_static(ICON_DATA)),
-                            position,
-                            Some(name.to_string()),
-                        );
+                        let key = self
+                            .widget_system
+                            .get_waypoint_system_as_mut()
+                            .add_way_point(
+                                WaypointSymbol::Image(Bytes::from_static(ICON_DATA)),
+                                position,
+                                Some(name.to_string()),
+                            );
                         self.entries[index].key = Some(key);
                     }
                     (false, Some(key)) => {
-                        self.widget_system.get_waypoint_as_mut().delete_waypoint(key);
+                        self.widget_system
+                            .get_waypoint_system_as_mut()
+                            .delete_waypoint(key)
+                            .expect("Key not stored");
                         self.entries[index].key = None;
                         // The flag lived on the way point and is gone with it.
                         self.entries[index].flagged = false;
@@ -199,7 +205,7 @@ impl WaypointApplication {
                     return;
                 };
                 self.widget_system
-                    .get_waypoint_as_mut()
+                    .get_waypoint_system_as_mut()
                     .set_flag(key, flagged.then_some(flag));
                 self.entries[index].flagged = flagged;
             }
@@ -257,9 +263,11 @@ impl WaypointApplication {
             .wrapping(Wrapping::WordOrGlyph);
 
         // Only a registered way point can carry a flag.
-        let flag = checkbox(entry.flagged)
-            .label("Flag")
-            .on_toggle_maybe(entry.key.map(|_| move |flagged| Message::Flagged(index, flagged)));
+        let flag = checkbox(entry.flagged).label("Flag").on_toggle_maybe(
+            entry
+                .key
+                .map(|_| move |flagged| Message::Flagged(index, flagged)),
+        );
 
         let toggle = checkbox(entry.key.is_some())
             .on_toggle(move |checked| Message::Toggled(index, checked));

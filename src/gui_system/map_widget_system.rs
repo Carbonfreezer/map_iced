@@ -1,16 +1,16 @@
 //! This module contains a structure that administrates all the different map widgets and
 //! the internal cache.
 
+use crate::annotation_system::waypoint_system::{WaypointKey, WaypointSystem};
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
+use crate::gui_system::internal_math::LatitudeLongitude;
 use crate::gui_system::map_widget::{
     AnnotationOverlay, FocalPoint, MapInteractionCommand, MapWidget, SpecificInteractionCommand,
 };
 use crate::tile_cache::cache_core::CachingResultMessage;
-use iced::{Element, Fill, Rectangle, Task};
 use iced::widget::{canvas, stack};
+use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
-use crate::annotation_system::waypoint_system::{WaypointKey, WaypointSystem};
-use crate::gui_system::internal_math::LatitudeLongitude;
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
@@ -83,16 +83,13 @@ impl MapWidgetSystem {
         )
     }
 
-
-   
-    
     /// Read access to the way point system.
     pub fn get_waypoints(&self) -> &WaypointSystem {
         &self.waypoint_system
     }
 
     /// Gets a mutable access for the way point system to modify things.
-    pub fn get_waypoint_as_mut(&mut self) -> &mut WaypointSystem {
+    pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
         for widget in &mut self.widget_collection {
             widget.request_focal_reset();
         }
@@ -119,8 +116,7 @@ impl MapWidgetSystem {
 
     /// Moves a widget to a new view and hands it what it needs to draw there.
     fn apply_focal_point(&mut self, client_id: u32, point: FocalPoint, rectangle: Rectangle) {
-        let result =
-            self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
+        let result = self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
         match result {
             Some(bounding) => {
                 self.tile_cache
@@ -164,7 +160,7 @@ impl MapWidgetSystem {
                     widget.cancel_animation();
                 }
                 // Setting the focal point initiates the redraw which itself generates an animation
-                // frame command. 
+                // frame command.
                 self.apply_focal_point(client_id, focal_point, bounds);
                 match finished {
                     true => vec![MapEvent::FocusReached { client_id }],

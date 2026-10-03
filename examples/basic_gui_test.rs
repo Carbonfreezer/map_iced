@@ -117,10 +117,10 @@ impl BasicApplication {
         let button_container = container(retry).align_x(Alignment::Center).width(Fill);
 
         column![head_container, message, vertical(), button_container]
-        .padding(10)
-        .width(FillPortion(1))
-        .height(Fill)
-        .into()
+            .padding(10)
+            .width(FillPortion(1))
+            .height(Fill)
+            .into()
     }
 
     fn view(&self) -> Element<'_, Message> {

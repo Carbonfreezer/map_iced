@@ -92,12 +92,8 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn real_requester() {
-        let requester = Requester::new(
-            "https://tile.openstreetmap.org/",
-            "",
-            "test_runner christoph.luerig@gmail.com",
-        )
-        .unwrap();
+        let requester =
+            Requester::new("https://tile.openstreetmap.org/", "", "test_runner").unwrap();
         let data = requester
             .get_image_data(TileSpecification::new(0, 0, 0))
             .await

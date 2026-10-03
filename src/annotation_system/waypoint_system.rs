@@ -1,11 +1,11 @@
 //! This module administrates the way points, A way point is a single isolated location on the map.
 //! This differentiates from the paths, where several points are interconnected with each other.
 
-use bytes::Bytes;
-use iced::advanced::image::Handle;
-use iced::Color;
 use crate::gui_system::internal_math::{BoundingRectangle, LatitudeLongitude, TilePosition};
-use slotmap::{new_key_type, SlotMap};
+use bytes::Bytes;
+use iced::Color;
+use iced::advanced::image::Handle;
+use slotmap::{SlotMap, new_key_type};
 
 new_key_type! {
     /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so
@@ -13,8 +13,7 @@ new_key_type! {
     pub struct WaypointKey;
 }
 
-
-/// The way point parameter symbol we paint over.
+/// The way point parameter symbol we paint over the map.
 pub enum WaypointSymbol {
     /// Image with raw image data, from an image file.
     Image(Bytes),
@@ -22,16 +21,18 @@ pub enum WaypointSymbol {
     Cross(Color),
 }
 
-
 /// The administration for the whole waypoint system.
 #[derive(Debug, Clone, Default)]
 pub struct WaypointSystem {
     /// The collection as a slot map.
-    waypoint_collection : SlotMap<WaypointKey, WaypointInfo>,
+    waypoint_collection: SlotMap<WaypointKey, WaypointInfo>,
 }
 
-impl WaypointSystem {
+/// Error type for that case that the waypoint is not contained in the structure.
+#[derive(Debug, Clone, Copy)]
+pub struct WaypointKeyNotContained;
 
+impl WaypointSystem {
     /// Adds a new waypoint to the system.
     ///
     /// # Example
@@ -42,19 +43,98 @@ impl WaypointSystem {
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// ```
-    pub fn add_way_point(&mut self, symbol: WaypointSymbol, position: LatitudeLongitude, description: Option<String>) -> WaypointKey{
+    pub fn add_way_point(
+        &mut self,
+        symbol: WaypointSymbol,
+        position: LatitudeLongitude,
+        description: Option<String>,
+    ) -> WaypointKey {
         let image = match symbol {
             WaypointSymbol::Image(image) => InternalWaypointImage::Image(Handle::from_bytes(image)),
-            WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color)
+            WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color),
         };
 
-        self.waypoint_collection.insert_with_key(|key| WaypointInfo {
-            key,
-            image,
-            position,
-            description,
-            flag: None,
-        })
+        self.waypoint_collection
+            .insert_with_key(|key| WaypointInfo {
+                key,
+                image,
+                position,
+                description,
+                flag: None,
+            })
+    }
+
+    /// Sets the position of an existing way point.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
+    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// let mut system = WaypointSystem::default();
+    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let _ = system.update_waypoint_position(key, LatitudeLongitude::new(50.0, 8.0));
+    /// ```
+    pub fn update_waypoint_position(
+        &mut self,
+        key: WaypointKey,
+        position: LatitudeLongitude,
+    ) -> Result<(), WaypointKeyNotContained> {
+        self.waypoint_collection
+            .get_mut(key)
+            .ok_or(WaypointKeyNotContained)?
+            .position = position;
+        Ok(())
+    }
+
+    /// Sets the image / symbol of an existing way point.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
+    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// let mut system = WaypointSystem::default();
+    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let _ = system.update_waypoint_symbol(key, WaypointSymbol::Cross(Color::BLACK));
+    /// ```
+    pub fn update_waypoint_symbol(
+        &mut self,
+        key: WaypointKey,
+        symbol: WaypointSymbol,
+    ) -> Result<(), WaypointKeyNotContained> {
+        let image = match symbol {
+            WaypointSymbol::Image(image) => InternalWaypointImage::Image(Handle::from_bytes(image)),
+            WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color),
+        };
+        self.waypoint_collection
+            .get_mut(key)
+            .ok_or(WaypointKeyNotContained)?
+            .image = image;
+        Ok(())
+    }
+
+    /// Sets the (optional) of an existing way point.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
+    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
+    /// let mut system = WaypointSystem::default();
+    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let _ = system.update_waypoint_description(key, Some("Annotation".to_string()));
+    /// ```
+    pub fn update_waypoint_description(
+        &mut self,
+        key: WaypointKey,
+        description: Option<String>,
+    ) -> Result<(), WaypointKeyNotContained> {
+        self.waypoint_collection
+            .get_mut(key)
+            .ok_or(WaypointKeyNotContained)?
+            .description = description;
+        Ok(())
     }
 
     /// Flags the way point, or takes the flag away with `None`. A flagged way point
@@ -81,7 +161,7 @@ impl WaypointSystem {
         }
     }
 
-    /// Deletes the way point with the indicated key and returns it.
+    /// Deletes the way point with the indicated key returns as a result if it was possible.
     ///
     /// # Example
     /// ```
@@ -90,37 +170,35 @@ impl WaypointSystem {
     /// use map_iced::gui_system::internal_math::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
-    /// system.delete_waypoint(key);
+    /// let _ = system.delete_waypoint(key);
     /// ```
-    pub fn delete_waypoint(&mut self, key: WaypointKey) -> Option<WaypointInfo> {
-        self.waypoint_collection.remove(key)
+    pub fn delete_waypoint(&mut self, key: WaypointKey) -> Result<(), WaypointKeyNotContained> {
+        let deletion = self.waypoint_collection.remove(key);
+        if deletion.is_some() {
+            Ok(())
+        } else {
+            Err(WaypointKeyNotContained)
+        }
     }
-
 
     /// Gets a reference to the waypoint info if existing.
     ///
-    ///
-    /// # Example
-    /// ```
-    /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::internal_math::LatitudeLongitude;
-    /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
-    /// let point = system.get_waypoint_info(key);
-    /// ```
-    pub fn get_waypoint_info(&self, key: WaypointKey) -> Option<&WaypointInfo> {
+    pub(crate) fn get_waypoint_info(&self, key: WaypointKey) -> Option<&WaypointInfo> {
         self.waypoint_collection.get(key)
     }
 
     /// Gets all relevant items waypoint for the indicated bounding rectangle.
     /// Mainly intended for internal rendering.
-    pub(crate) fn get_all_relevant_waypoints(&self, area: &BoundingRectangle) -> Vec<WaypointInfo>   {
+    pub(crate) fn get_all_relevant_waypoints(&self, area: &BoundingRectangle) -> Vec<WaypointInfo> {
         let zoom = area.zoom;
-        self.waypoint_collection.values().filter_map( move |point| {
-            let tile_pos = point.position.get_tile_coordinates(zoom);
-            area.contains_position(&TilePosition::from(tile_pos)).then_some(point.clone())
-        }).collect()
+        self.waypoint_collection
+            .values()
+            .filter_map(move |point| {
+                let tile_pos = point.position.get_tile_coordinates(zoom);
+                area.contains_position(&TilePosition::from(tile_pos))
+                    .then_some(point.clone())
+            })
+            .collect()
     }
 
     /// All flagged way points, wherever they are. Deliberately not filtered by area:
@@ -136,29 +214,30 @@ impl WaypointSystem {
 
 /// The internal way point image we have as a way point.
 #[derive(Debug, Clone)]
-pub(crate) enum InternalWaypointImage{
+pub(crate) enum InternalWaypointImage {
     /// A registered image as a handle.
     Image(Handle),
     /// A cross with an indicated color.
     Cross(Color),
 }
 
-/// The way point information stored.
+/// The way point information stored. This only becomes relevant in deletion, then it
+/// can be modified to to be stored as a new waypoint.
 #[derive(Debug, Clone)]
-pub struct WaypointInfo {
+pub(crate) struct WaypointInfo {
     /// The key this way point is stored under. Stable across focal point changes,
-    /// unlike the index into a way point snapshot.
-    pub key: WaypointKey,
+    /// unlike the index into a way point snapshot ([see]()) .
+    pub(crate) key: WaypointKey,
     /// This contains the graphical representation. Internal, the outside has no
     /// business with the way we hold on to an image or a colour.
     pub(crate) image: InternalWaypointImage,
     /// The position on the map.
-    pub position: LatitudeLongitude,
+    pub(crate) position: LatitudeLongitude,
     /// An optional string that may be drawn in hover over.
-    pub description: Option<String>,
+    pub(crate) description: Option<String>,
     /// The direction arrow, if the way point is flagged. Set with
     /// [`WaypointSystem::set_flag`].
-    pub flag: Option<WaypointFlag>,
+    pub(crate) flag: Option<WaypointFlag>,
 }
 
 /// How the direction arrow of a flagged way point looks.
@@ -175,17 +254,19 @@ pub struct WaypointFlag {
 mod tests {
     use super::*;
 
-
     #[test]
     fn creation_deletion() {
         let mut system = WaypointSystem::default();
 
-        let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+        let key = system.add_way_point(
+            WaypointSymbol::Cross(Color::WHITE),
+            LatitudeLongitude::new(50.0, 7.0),
+            None,
+        );
         assert_ne!(key, WaypointKey::default());
         let first = system.delete_waypoint(key);
-        assert!(first.is_some(), "We should have some data here.");
+        assert!(first.is_ok(), "We should have some data here.");
         let second = system.delete_waypoint(key);
-        assert!(second.is_none(), "That should be empty.");
-
+        assert!(second.is_err(), "That should be empty.");
     }
 }

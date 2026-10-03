@@ -85,8 +85,8 @@ impl FocusAnimation {
                 duration: PAN_DURATION,
             }],
             Some(zoom_out) => {
-                let zoom_duration = ZOOM_DURATION_PER_LEVEL
-                    .mul_f32(from.continuous_zoom_level - zoom_out);
+                let zoom_duration =
+                    ZOOM_DURATION_PER_LEVEL.mul_f32(from.continuous_zoom_level - zoom_out);
                 let out = FocalPoint {
                     continuous_zoom_level: zoom_out,
                     ..from

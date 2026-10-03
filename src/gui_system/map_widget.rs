@@ -1,16 +1,16 @@
 //! This contains the core map widget.
 
-use crate::annotation_system::waypoint_system::{WaypointInfo, WaypointKey, InternalWaypointImage};
+use crate::annotation_system::waypoint_system::{InternalWaypointImage, WaypointInfo, WaypointKey};
 use crate::gui_system::direction_arrow::{
     PlacedArrow, arrow_hit, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
 };
 use crate::gui_system::focus_animation::FocusAnimation;
-use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
     BoundingRectangle, DrawingPositionConverter, LatitudeLongitude, MAXIMUM_ZOOM_LEVEL,
     RectConversionError, TILE_SIZE_PIXEL,
 };
+use crate::gui_system::scale_bar::{draw_scale_bar, scale_bar};
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
@@ -477,25 +477,21 @@ impl MapWidget {
                 .description_index()
                 .and_then(|index| self.waypoint(index)),
             self.position_converter.as_ref(),
-        )
-            && let (Some(description), Some(anchor)) = (
-                annotation.description.as_ref(),
-                converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64),
-            ) {
-                fill_text_with_halo(
-                    &mut frame,
-                    Text {
-                        content: description.clone(),
-                        position: Point::new(
-                            anchor.x + WAYPOINT_HALF_SIZE + DESCRIPTION_GAP,
-                            anchor.y,
-                        ),
-                        color: TEXT_COLOR,
-                        size: FONT_SIZE.into(),
-                        ..Default::default()
-                    },
-                );
-            }
+        ) && let (Some(description), Some(anchor)) = (
+            annotation.description.as_ref(),
+            converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64),
+        ) {
+            fill_text_with_halo(
+                &mut frame,
+                Text {
+                    content: description.clone(),
+                    position: Point::new(anchor.x + WAYPOINT_HALF_SIZE + DESCRIPTION_GAP, anchor.y),
+                    color: TEXT_COLOR,
+                    size: FONT_SIZE.into(),
+                    ..Default::default()
+                },
+            );
+        }
 
         frame.into_geometry()
     }

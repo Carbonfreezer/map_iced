@@ -1,6 +1,8 @@
 //! This module contains all related to latitude longitude
 //! and tile coordinate system. This is the pure internal representation
-//! of the coordinates.
+//! of the coordinates. It contains all to the tile coordinates used in the
+//! slippy tile system. It also administrates badges (bounding rectangles of tiles).
+//! Can be useful for internal computations.
 
 use iced::{Rectangle, Size, Vector};
 use itertools::iproduct;
@@ -250,9 +252,7 @@ pub struct LatitudeLongitude {
     pub longitude: f64,
 }
 
-
 impl LatitudeLongitude {
-
     /// Constructs the object and makes sure, that both coordinates are in the valid range
     /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
     pub fn new(latitude: f64, longitude: f64) -> Self {
@@ -261,7 +261,7 @@ impl LatitudeLongitude {
             longitude: longitude.clamp(-180.0, 180.0),
         }
     }
-    
+
     /// Gets the tile coordinates in the indicated zoom level
     pub(crate) fn get_tile_coordinates(&self, zoom: u8) -> TileCoordinates {
         let scaling = get_scaling_factor(zoom);
@@ -364,7 +364,10 @@ impl DrawingPositionConverter {
 
     /// Size of the drawing area in pixels.
     pub(crate) fn drawing_size(&self) -> Size {
-        Size::new(self.drawing_size.width as f32, self.drawing_size.height as f32)
+        Size::new(
+            self.drawing_size.width as f32,
+            self.drawing_size.height as f32,
+        )
     }
 
     /// Gets the discreet zoom level.
@@ -399,11 +402,11 @@ impl DrawingPositionConverter {
 
     /// Gets the drawing position from within the widget for a certain Latitude, Longitude Vector.
     /// Returns None of the resulting position is outside the drawing area.
-    pub fn get_drawing_position(&self, pos : LatitudeLongitude, half_size: f64) -> Option<Vector> {
+    pub fn get_drawing_position(&self, pos: LatitudeLongitude, half_size: f64) -> Option<Vector> {
         let Vector { x, y } = self.get_unclipped_drawing_position(pos);
 
-        if x < - half_size
-            || y  <= - half_size
+        if x < -half_size
+            || y <= -half_size
             || x >= self.drawing_size.width + half_size
             || y >= self.drawing_size.height + half_size
         {

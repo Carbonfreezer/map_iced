@@ -20,6 +20,6 @@ pub mod slotmap {
     pub use ::slotmap::*;
 }
 
+pub mod annotation_system;
 pub mod gui_system;
 pub(crate) mod tile_cache;
-pub mod annotation_system;

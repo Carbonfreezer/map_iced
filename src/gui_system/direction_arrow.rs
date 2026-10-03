@@ -55,7 +55,10 @@ pub(crate) fn symbol_visible(size: Size, target: Vector<f64>, half_size: f64) ->
 /// [`EDGE_INSET`]. `None` if the widget is too small to hold an arrow.
 pub(crate) fn radar_arrow(size: Size, target: Vector<f64>) -> Option<ArrowPlacement> {
     let (half_width, half_height) = (size.width as f64 * 0.5, size.height as f64 * 0.5);
-    let (reach_x, reach_y) = (half_width - EDGE_INSET as f64, half_height - EDGE_INSET as f64);
+    let (reach_x, reach_y) = (
+        half_width - EDGE_INSET as f64,
+        half_height - EDGE_INSET as f64,
+    );
     if reach_x <= 0.0 || reach_y <= 0.0 {
         return None;
     }
@@ -67,14 +70,21 @@ pub(crate) fn radar_arrow(size: Size, target: Vector<f64>) -> Option<ArrowPlacem
     }
     let scale = (reach_x / dx.abs()).min(reach_y / dy.abs());
     Some(ArrowPlacement {
-        tip: Point::new((half_width + dx * scale) as f32, (half_height + dy * scale) as f32),
+        tip: Point::new(
+            (half_width + dx * scale) as f32,
+            (half_height + dy * scale) as f32,
+        ),
         direction: Vector::new((dx / length) as f32, (dy / length) as f32),
     })
 }
 
 /// The arrow attached to a visible symbol at `target`, pointing at it along
 /// `direction`, with the tip just in front of the symbol.
-pub(crate) fn attached_arrow(target: Vector<f64>, direction: Vector, half_size: f32) -> ArrowPlacement {
+pub(crate) fn attached_arrow(
+    target: Vector<f64>,
+    direction: Vector,
+    half_size: f32,
+) -> ArrowPlacement {
     let centre = Point::new(target.x as f32, target.y as f32);
     ArrowPlacement {
         tip: centre - direction * (half_size + SYMBOL_GAP),
@@ -91,7 +101,8 @@ pub(crate) fn arrow_hit(placement: ArrowPlacement, position: Point) -> bool {
     let along = -(offset.x * direction.x + offset.y * direction.y);
     let across = (offset.x * -direction.y + offset.y * direction.x).abs();
     (-HIT_TOLERANCE..=ARROW_LENGTH + HIT_TOLERANCE).contains(&along)
-        && across <= ARROW_HALF_WIDTH * along.clamp(0.0, ARROW_LENGTH) / ARROW_LENGTH + HIT_TOLERANCE
+        && across
+            <= ARROW_HALF_WIDTH * along.clamp(0.0, ARROW_LENGTH) / ARROW_LENGTH + HIT_TOLERANCE
 }
 
 /// Draws the arrow as a filled triangle with an outline.
