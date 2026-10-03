@@ -163,6 +163,8 @@ impl MapWidgetSystem {
                 if finished {
                     widget.cancel_animation();
                 }
+                // Setting the focal point initiates the redraw which itself generates an animation
+                // frame command. 
                 self.apply_focal_point(client_id, focal_point, bounds);
                 match finished {
                     true => vec![MapEvent::FocusReached { client_id }],

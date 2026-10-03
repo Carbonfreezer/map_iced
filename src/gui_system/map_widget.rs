@@ -26,7 +26,7 @@ const SCROLLING_SPEED: f32 = 0.05;
 pub(crate) const FONT_SIZE: f32 = 15.0;
 
 /// The color we use for drawing overlay text.
-pub(crate) const TEXT_COLOR: Color = Color::from_rgb(0.6, 0.4, 0.4);
+pub(crate) const TEXT_COLOR: Color = Color::BLACK;
 
 /// The light outline behind the map texts and the scale bar. No single colour reads
 /// on every map style, the outline keeps them readable on dark ones such as
@@ -60,7 +60,7 @@ pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
 }
 
 /// Half the size of the way point we apply.
-const WAYPOINT_HALF_SIZE: f32 = 10.0;
+const WAYPOINT_HALF_SIZE: f32 = 15.0;
 
 /// Horizontal gap between a way point symbol and its hover description.
 const DESCRIPTION_GAP: f32 = 4.0;
@@ -245,7 +245,6 @@ impl MapWidget {
         }
         self.focal_point = focal_point;
         self.position_converter = Some(converter);
-        // TODO: Here we have to ask the map widget system for way point information. and also invalidate the overlay cache.
         self.tile_drawing_cache.clear();
         self.scale_cache.clear();
         debug_assert!(
@@ -326,6 +325,7 @@ impl MapWidget {
         self.tile_drawing_cache.clear();
     }
 
+    /// Helper function to issue a command to set a focal point.
     fn publish(
         &self,
         focal_point: FocalPoint,
@@ -567,6 +567,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
             };
         }
 
+        // Here we are not animating.
         match event {
             Event::Window(window::Event::Resized(_)) => self.publish(self.focal_point, bounds),
 

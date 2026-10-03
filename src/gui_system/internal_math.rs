@@ -300,7 +300,8 @@ pub struct TileDrawInstruction {
     pub scale: f32,
 }
 
-/// Helper structure to convert coordinates into actual drawing positions
+/// Helper structure to convert coordinates into actual drawing positions.
+/// This depends on the current center of the drawing area and the zoom factor applied.
 pub struct DrawingPositionConverter {
     /// The offset in x,y that needs to get added.
     central_offset: Vector<f64>,
@@ -397,6 +398,7 @@ impl DrawingPositionConverter {
     }
 
     /// Gets the drawing position from within the widget for a certain Latitude, Longitude Vector.
+    /// Returns None of the resulting position is outside the drawing area.
     pub fn get_drawing_position(&self, pos : LatitudeLongitude, half_size: f64) -> Option<Vector> {
         let Vector { x, y } = self.get_unclipped_drawing_position(pos);
 

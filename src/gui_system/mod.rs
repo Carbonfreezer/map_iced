@@ -1,5 +1,5 @@
 //! Ths contains all high level functions that sit on top of the ui.
-//! The central entry point of usage is here [`tile_cache_construction::generate_from_config_default`]
+//! The central entry point of usage is here [`tile_cache_construction::TileCacheConfig`]
 //! to generate the tile caching system.
 
 mod direction_arrow;

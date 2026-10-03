@@ -72,6 +72,7 @@ pub(crate) fn scale_bar(latitude: f64, zoom: f32) -> Option<ScaleBar> {
 }
 
 /// Draws the bar into the lower left corner of a frame of `size`.
+/// Drawing is done with a halo, that different structures may be visible on different map colors.
 pub(crate) fn draw_scale_bar(frame: &mut Frame<Renderer>, size: Size, bar: &ScaleBar) {
     let left = MARGIN;
     let right = MARGIN + bar.length;
