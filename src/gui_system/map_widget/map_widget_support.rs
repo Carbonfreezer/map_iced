@@ -42,6 +42,8 @@ pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
     frame.fill_text(text);
 }
 
+// TODO: All usize here has to be replaced with the general index.
+
 /// A way point the cursor currently rests on, together with the moment its
 /// description is due.
 #[derive(Debug, Clone, Copy)]

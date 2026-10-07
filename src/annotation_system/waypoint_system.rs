@@ -8,6 +8,8 @@ use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};
 
+
+// TODO: All indizes have to get into an enum
 new_key_type! {
     /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so
     /// that it cannot be confused with the handles of the other annotation kinds.
@@ -21,6 +23,8 @@ pub enum WaypointSymbol {
     /// A cross we want to draw with an indicated color.
     Cross(Color),
 }
+
+// TODO: This becomes a general system. The general way point system needs to get a method, to ask for position, and annotation, and radius either in meter or pixel.
 
 /// The administration for the whole waypoint system.
 #[derive(Debug, Clone, Default)]

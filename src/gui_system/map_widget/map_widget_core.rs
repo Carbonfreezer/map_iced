@@ -52,6 +52,7 @@ pub(crate) struct MapWidget {
     pub(crate) position_converter: Option<DrawingPositionConverter>,
     /// The copyright text we need for drawing.
     copyright_text: String,
+    // TODO: Replace vec waypoint info with placeable info that uses internal keys only.
     /// Way point info ix existing.
     waypoint_info: Vec<WaypointInfo>,
     /// The direction arrows of the current view, see [`Self::place_arrows`].
@@ -176,6 +177,9 @@ impl MapWidget {
         self.request_focal_reset = true;
     }
 
+    
+    // TODO: The information if flagged should get inside the waypoint.
+    
     /// Called from outside the map widget system to set the waypoint information:
     /// the way points around the view, and all flagged ones for the arrows.
     pub(crate) fn set_waypoint_info(
@@ -290,6 +294,7 @@ impl MapWidget {
             .map(|arrow| arrow.key)
     }
 
+    // TODO: replace with annotation info that gets a general key to placeable.
     /// Hit test in widget coordinates. Returns the index of the topmost way point
     /// of the current snapshot that covers `position`.
     ///
