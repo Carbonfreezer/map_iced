@@ -24,7 +24,7 @@ pub enum WaypointSymbol {
     Cross(Color),
 }
 
-// TODO: This becomes a general system. The general way point system needs to get a method, to ask for position, and annotation, and radius either in meter or pixel.
+// TODO: accumulate this in three separate annotation systems. Unifying it over an enum is not worth the huzzle.
 
 /// The administration for the whole waypoint system.
 #[derive(Debug, Clone, Default)]

@@ -8,6 +8,9 @@ use iced::widget::canvas::Text;
 use iced::{Color, Renderer, Vector};
 use std::time::{Duration, Instant};
 
+
+// TODO: Add special hover indizes here.
+
 /// The light outline behind the map texts and the scale bar. No single colour reads
 /// on every map style, the outline keeps them readable on dark ones such as
 /// satellite imagery.
@@ -64,6 +67,7 @@ pub(crate) struct AnnotationInteractionState {
 }
 
 impl AnnotationInteractionState {
+    // TODO: The index must become the internal key.
     /// Points the hover at `index`.
     ///
     /// The dwell timer only restarts when the target actually changes, so the jitter
