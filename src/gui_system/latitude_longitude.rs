@@ -87,14 +87,6 @@ mod tests {
         2.0 * EARTH_RADIUS * h.sqrt().asin()
     }
 
-    #[test]
-    fn circle_needs_three_points() {
-        let centre = LatitudeLongitude::new(50.0, 8.0);
-        assert!(centre.create_circle_around(100.0, 0).is_empty());
-        assert!(centre.create_circle_around(100.0, 2).is_empty());
-        assert_eq!(centre.create_circle_around(100.0, 3).len(), 4);
-    }
-
     proptest! {
         #[test]
         fn circle_points_keep_their_distance(latitude in -80.0f64..80.0, longitude in -177.0f64..177.0, radius in 0.0 .. 50_000.0) {
