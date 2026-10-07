@@ -19,8 +19,8 @@ pub(crate) trait Annotation {
     fn description(&self, cursor: LatitudeLongitude) -> &str;
     /// Gets the colling boundaries of the system.
     fn cull_bounds(&self) -> MercatorRectangle;
-    /// Does a hit test if a position handed over  
-    fn hit_test(&self, position: LatitudeLongitude) -> bool;
+    /// Does a hit test if a position handed over. The degree per pixel is needed to adjust for the waypoint detection tolerance.  
+    fn hit_test(&self, position: LatitudeLongitude, degree_per_pixel_scaling : f64) -> bool;
     /// Gets the anchor position of the label.
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition;
 }
