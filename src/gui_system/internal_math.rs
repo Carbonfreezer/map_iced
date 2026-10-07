@@ -8,6 +8,7 @@ use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use iced::{Point, Rectangle, Size, Vector};
 use itertools::iproduct;
 use std::f64::consts::PI;
+use crate::annotation_system::annotation_support::{MercatorRectangle, TopLeftBottomRight};
 
 /// The maximum zoom level we allow.
 pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;
@@ -403,13 +404,32 @@ impl DrawingPositionConverter {
     }
 
     /// Computes the latitude and longitude for a mouse coordinate in the widget handed over.
-    pub fn get_latitude_longitude_for_mouse(&self, position: Point) -> LatitudeLongitude {
+    pub fn get_latitude_longitude_for_pixel_point(&self, position: Point) -> LatitudeLongitude {
         let shifted = TileCoordinates {
             x: (position.x as f64 - self.central_offset.x) / self.transform_scaling,
             y: (position.y as f64 - self.central_offset.y) / self.transform_scaling,
             zoom: self.tile_center.zoom,
         };
         shifted.into()
+    }
+
+    /// Checks of a mercator rectangle handed over is actually visible by the inner drawing rectangle.
+    pub fn is_mercator_visible(&self, mercator_rect : &MercatorRectangle) -> bool {
+        let boundary = TopLeftBottomRight::from(mercator_rect);
+        let top_left = self.get_unclipped_drawing_position(boundary.top_left);
+        let bottom_right = self.get_unclipped_drawing_position(boundary.bottom_right);
+        debug_assert!(
+            bottom_right.x >= top_left.x && bottom_right.y >= top_left.y,
+            "Sign flip happened"
+        );
+        // Drawing positions are relative to the widget, so the test runs against
+        // 0..drawing_size, not against the widget bounds in the window. Kept in f64,
+        // at high zoom the corners of a long track are millions of pixels away.
+        let padding = mercator_rect.pixel_padding;
+        top_left.x - padding < self.drawing_size.width
+            && top_left.y - padding < self.drawing_size.height
+            && bottom_right.x + padding > 0.0
+            && bottom_right.y + padding > 0.0
     }
 }
 
@@ -435,6 +455,38 @@ mod tests {
             prop_assert!((width * 0.5 - drawing.offset.x).abs() < 0.01, "x coordinate off" );
             prop_assert!((height * 0.5 - drawing.offset.y).abs() < 0.01, "x coordinate off" );
         }
+    }
+
+    /// A widget that does not sit at the window origin, as the second of several
+    /// map widgets would. Visibility must only depend on its size.
+    #[test]
+    fn mercator_visibility_ignores_widget_offset() {
+        let bounds = Rectangle::new(Point { x: 800.0, y: 600.0 }, Size::new(400.0, 300.0));
+        let focus = LatitudeLongitude::new(50.0, 8.0);
+        let converter = DrawingPositionConverter::new(&focus, 12.0, &bounds).0;
+        let at_pixel = |x: f32, y: f32| {
+            converter.get_latitude_longitude_for_pixel_point(Point { x, y })
+        };
+        let point_rect = |position, padding| MercatorRectangle::create_from_position(position, padding);
+
+        assert!(converter.is_mercator_visible(&point_rect(focus, 0.0)));
+        assert!(converter.is_mercator_visible(&point_rect(at_pixel(5.0, 5.0), 0.0)));
+        // Left of the widget, where the old test against the window bounds failed.
+        assert!(!converter.is_mercator_visible(&point_rect(at_pixel(-20.0, 150.0), 0.0)));
+        assert!(converter.is_mercator_visible(&point_rect(at_pixel(-20.0, 150.0), 30.0)));
+        // A track crossing the whole view with both ends far outside.
+        let track = MercatorRectangle::create_from_position_array(
+            [at_pixel(-1e6, 150.0), at_pixel(1e6, 160.0)].into_iter(),
+            0.0,
+        )
+        .unwrap();
+        assert!(converter.is_mercator_visible(&track));
+        let below = MercatorRectangle::create_from_position_array(
+            [at_pixel(-1e6, 400.0), at_pixel(1e6, 420.0)].into_iter(),
+            0.0,
+        )
+        .unwrap();
+        assert!(!converter.is_mercator_visible(&below));
     }
 
     #[test]

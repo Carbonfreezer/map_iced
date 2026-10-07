@@ -10,9 +10,7 @@ use iced::advanced::graphics::geometry::Frame;
 use iced::alignment::Vertical;
 use iced::widget::canvas::{Path, Stroke, Text, stroke};
 use iced::{Color, Point, Renderer, Size};
-
-/// The radius of the sphere Web Mercator is defined on, in metres.
-const EARTH_RADIUS: f64 = 6_378_137.0;
+use crate::gui_system::latitude_longitude::EARTH_CIRCUMFERENCE;
 
 /// The longest the bar may get, the actual length is the nicest round distance below.
 const MAXIMUM_LENGTH: f32 = 120.0;
@@ -43,7 +41,7 @@ pub(crate) struct ScaleBar {
 /// `zoom` level.
 pub(crate) fn metres_per_pixel(latitude: f64, zoom: f32) -> f64 {
     let world_size = TILE_SIZE_PIXEL as f64 * f64::exp2(zoom as f64);
-    2.0 * std::f64::consts::PI * EARTH_RADIUS * latitude.to_radians().cos() / world_size
+    EARTH_CIRCUMFERENCE * latitude.to_radians().cos() / world_size
 }
 
 /// The bar for a view centred at `latitude` with the continuous `zoom` level: the
@@ -117,8 +115,7 @@ mod tests {
     #[test]
     fn equator_at_zoom_zero_is_the_whole_earth() {
         let per_pixel = metres_per_pixel(0.0, 0.0);
-        let circumference = 2.0 * std::f64::consts::PI * EARTH_RADIUS;
-        assert!((per_pixel * TILE_SIZE_PIXEL as f64 - circumference).abs() < 1e-3);
+        assert!((per_pixel * TILE_SIZE_PIXEL as f64 - EARTH_CIRCUMFERENCE).abs() < 1e-3);
     }
 
     #[test]

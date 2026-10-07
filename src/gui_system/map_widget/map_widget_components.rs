@@ -167,7 +167,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 let position = cursor.position_in(bounds)?;
                 let converter = self.position_converter.as_ref()?;
-                let conv_pos = converter.get_latitude_longitude_for_mouse(position);
+                let conv_pos = converter.get_latitude_longitude_for_pixel_point(position);
 
                 Some(Action::publish(MapInteractionCommand {
                     client_id: self.client_id,

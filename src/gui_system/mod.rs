@@ -8,3 +8,4 @@ pub mod latitude_longitude;
 pub mod map_widget;
 pub mod map_widget_system;
 pub mod tile_cache_construction;
+mod hashmap_stable;
