@@ -52,7 +52,7 @@ impl LatitudeLongitude {
     
     /// Builds the position points of a circle around the position with the radius indicated in meters.
     /// The ring is closed, the last point repeats the first, so it has `num_points + 1` entries.
-    /// Fewer than three points make no ring, the result is empty then.
+    /// Fewer than three points make no ring.
     ///
     /// Every point is the destination of walking `radius_meter` along a great circle in its
     /// bearing, which stays correct near the poles where a squeezed circle breaks down.
@@ -63,6 +63,29 @@ impl LatitudeLongitude {
         let angular_distance = radius_meter / EARTH_RADIUS;
         let (sin_distance, cos_distance) = angular_distance.sin_cos();
         let (sin_latitude, cos_latitude) = self.latitude.to_radians().sin_cos();
+        // On the unit sphere, with δ = angular_distance, θ = bearing (0 north, π/2 east)
+        // and the centre at latitude φ and longitude λ, every point is
+        //
+        //     q = R_z(λ) · R_y(φ) · (cos δ, sin δ · sin θ, sin δ · cos θ)ᵀ
+        //
+        // The vector on the right is the circle around (0°, 0°), where east is +y and
+        // north is +z. R_y(φ) tilts it north to latitude φ:
+        //
+        //            ⎡ cos φ   0   −sin φ ⎤
+        //   R_y(φ) = ⎢   0     1     0    ⎥
+        //            ⎣ sin φ   0    cos φ ⎦
+        //
+        // R_z(λ) turns about the earth's axis, so it only adds λ to the longitude.
+        // Multiplied out, before R_z:
+        //
+        //   q_x = cos φ · cos δ − sin φ · sin δ · cos θ
+        //   q_y = sin δ · sin θ
+        //   q_z = sin φ · cos δ + cos φ · sin δ · cos θ
+        //
+        // The latitude is asin(q_z), the longitude offset atan2(q_y, q_x). Both atan2
+        // arguments below are scaled by cos φ, which reuses sin(lat) = q_z:
+        // cos δ − sin φ · q_z = cos φ · q_x. atan2 ignores a common positive factor,
+        // and cos φ > 0 because the latitude stays within BOUNDARY_LATITUDE.
         (0..=num_points).map(|i| {
             let bearing = i as f64 / num_points as f64 * 2.0 * PI;
             let lat = (sin_latitude * cos_distance + cos_latitude * sin_distance * bearing.cos()).asin();
