@@ -59,9 +59,7 @@ impl LatitudeLongitude {
     /// The map does not wrap around at the date line, so a circle crossing it is clamped
     /// to the map edge by [`Self::new`], the same as it gets clipped there on screen.
     pub(crate) fn create_circle_around(&self, radius_meter : f64, num_points: usize) -> Vec<LatitudeLongitude> {
-        if num_points < 3 {
-            return Vec::new();
-        }
+        assert!(num_points >= 3, "Needed at least 3 points for a circle.");
         let angular_distance = radius_meter / EARTH_RADIUS;
         let (sin_distance, cos_distance) = angular_distance.sin_cos();
         let (sin_latitude, cos_latitude) = self.latitude.to_radians().sin_cos();
