@@ -429,6 +429,22 @@ impl DrawingPositionConverter {
             && bottom_right.x + padding > 0.0
             && bottom_right.y + padding > 0.0
     }
+
+
+    /// Analyzes whether a drawing position handed over is in the mercator rectangle.
+    /// This method is intended as a precheck for the hit point test on drawing elements.
+    pub fn is_pixel_point_in_rectangle(&self, point: Point, mercator_rect : &MercatorRectangle) -> bool {
+        if !mercator_rect.is_valid {return false};
+        let boundary = TopLeftBottomRight::from(mercator_rect);
+        let top_left = self.get_unclipped_drawing_position(boundary.top_left);
+        let bottom_right = self.get_unclipped_drawing_position(boundary.bottom_right);
+        let padding = mercator_rect.pixel_padding;
+
+        point.x as f64  >= top_left.x - padding
+            && point.x as f64 <= bottom_right.x + padding
+            && point.y as f64 >= top_left.y - padding
+            && point.y as f64 <= bottom_right.y + padding
+    }
 }
 
 #[cfg(test)]
@@ -437,6 +453,9 @@ mod tests {
     use crate::gui_system::latitude_longitude::BOUNDARY_LATITUDE;
     use iced::{Point, Size};
     use proptest::{prop_assert, proptest};
+
+
+    // TODO: Write a proptest for is_pixel_point_in_rectangle
 
     proptest! {
         #[test]
