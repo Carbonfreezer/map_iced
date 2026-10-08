@@ -1,10 +1,11 @@
 //! Contains supporting functionality for annotation.
 
+use crate::annotation_system::waypoint_system::WaypointKey;
 use crate::gui_system::latitude_longitude::{LatitudeLongitude, BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE};
 
 /// Indicates where a  label should be positioned.
 pub enum LabelPosition {
-    /// No label at att.
+    /// No label at all.
     NoLabel,
     /// Show it at mouse position.
     AtMousePosition,
@@ -19,10 +20,18 @@ pub(crate) trait Annotation {
     fn description(&self, cursor: LatitudeLongitude) -> &str;
     /// Gets the colling boundaries of the system.
     fn cull_bounds(&self) -> MercatorRectangle;
-    /// Does a hit test if a position handed over. The degree per pixel is needed to adjust for the waypoint detection tolerance.  
-    fn hit_test(&self, position: LatitudeLongitude, degree_per_pixel_scaling : f64) -> bool;
+    /// Does a hit test if a position handed over. This has be to combined with a test against the cull bounds
+    /// upfront. For a waypoint this is always true. For a region or path that can be used as a filter to
+    /// only hit test against specific regions.
+    fn hit_test_specific(&self, position: LatitudeLongitude) -> bool;
     /// Gets the anchor position of the label.
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition;
+}
+
+/// The generalized form of annotation keys. Can be used to query all annotations.
+pub enum AnnotationKey{
+    /// The key for the way points.
+    Waypoint(WaypointKey)
 }
 
 /// The mercator rectangle an annotation feature covers on the map
@@ -35,6 +44,8 @@ pub struct MercatorRectangle {
     pub min_max_long: (f64, f64),
     /// The extra pixel padding in every dimension.
     pub pixel_padding: f64,
+    /// Indicates if the rectangle is valid, may become invalid if constructed from an empty set.
+    pub is_valid: bool,
 }
 
 /// The top left bottom right position to be able to check with the Rectangle of the viewport later on.
@@ -64,6 +75,7 @@ impl MercatorRectangle {
             min_max_lat: (position.latitude, position.latitude),
             min_max_long: (position.longitude, position.longitude),
             pixel_padding,
+            is_valid: true,
         }
     }
 
@@ -72,9 +84,7 @@ impl MercatorRectangle {
     pub fn create_from_position_array(
         position_array: impl Iterator<Item = LatitudeLongitude>,
         pixel_padding: f64,
-    ) -> Option<MercatorRectangle> {
-        let mut position_array = position_array.peekable();
-        position_array.peek()?;
+    ) -> MercatorRectangle {
         let (min_lat, max_lat, min_long, max_long) = position_array.fold(
             (
                 BOUNDARY_LATITUDE,
@@ -91,11 +101,12 @@ impl MercatorRectangle {
                 )
             },
         );
-        Some(Self {
+        Self {
             min_max_lat : (min_lat, max_lat),
             min_max_long : (min_long, max_long),
             pixel_padding,
-        })
+            is_valid:  max_lat >= min_lat && max_long >= min_long,
+        }
     }
 
 }
@@ -106,7 +117,7 @@ mod tests {
 
     #[test]
     fn empty_position_array_has_no_rectangle() {
-        assert!(MercatorRectangle::create_from_position_array(std::iter::empty(), 0.0).is_none());
+        assert!(!MercatorRectangle::create_from_position_array(std::iter::empty(), 0.0).is_valid);
     }
 
     #[test]
@@ -119,8 +130,7 @@ mod tests {
             ]
             .into_iter(),
             3.0,
-        )
-        .unwrap();
+        );
         assert_eq!(rect.min_max_lat, (48.0, 52.0));
         assert_eq!(rect.min_max_long, (8.0, 11.0));
     }

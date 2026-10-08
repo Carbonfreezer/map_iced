@@ -415,13 +415,11 @@ impl DrawingPositionConverter {
 
     /// Checks of a mercator rectangle handed over is actually visible by the inner drawing rectangle.
     pub fn is_mercator_visible(&self, mercator_rect : &MercatorRectangle) -> bool {
+        // If there is no real rectangle it may never become visible.
+        if !mercator_rect.is_valid {return false};
         let boundary = TopLeftBottomRight::from(mercator_rect);
         let top_left = self.get_unclipped_drawing_position(boundary.top_left);
         let bottom_right = self.get_unclipped_drawing_position(boundary.bottom_right);
-        debug_assert!(
-            bottom_right.x >= top_left.x && bottom_right.y >= top_left.y,
-            "Sign flip happened"
-        );
         // Drawing positions are relative to the widget, so the test runs against
         // 0..drawing_size, not against the widget bounds in the window. Kept in f64,
         // at high zoom the corners of a long track are millions of pixels away.
@@ -478,14 +476,12 @@ mod tests {
         let track = MercatorRectangle::create_from_position_array(
             [at_pixel(-1e6, 150.0), at_pixel(1e6, 160.0)].into_iter(),
             0.0,
-        )
-        .unwrap();
+        );
         assert!(converter.is_mercator_visible(&track));
         let below = MercatorRectangle::create_from_position_array(
             [at_pixel(-1e6, 400.0), at_pixel(1e6, 420.0)].into_iter(),
             0.0,
-        )
-        .unwrap();
+        );
         assert!(!converter.is_mercator_visible(&below));
     }
 
