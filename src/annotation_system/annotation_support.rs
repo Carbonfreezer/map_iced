@@ -1,6 +1,8 @@
 //! Contains supporting functionality for annotation.
 
-use crate::annotation_system::waypoint_system::WaypointKey;
+use bytes::Bytes;
+use iced::Color;
+use crate::annotation_system::waypoint_system::{WaypointFlag, WaypointKey};
 use crate::gui_system::latitude_longitude::{
     BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
 };
@@ -19,7 +21,7 @@ pub enum LabelPosition {
 pub(crate) trait Annotation {
     /// Asks for the annotation description, can process the cursor being handed over in latitude longitude
     /// coordinates, for instance if the annotation should change on cursor position (for instance on a track)
-    fn description(&self, cursor: LatitudeLongitude) -> &str;
+    fn description(&self, cursor: LatitudeLongitude) -> Option<String>;
     /// Gets the colling boundaries of the system.
     fn cull_bounds(&self) -> MercatorRectangle;
     /// Does a hit test if a position handed over. This has be to combined with a test against the cull bounds
@@ -28,12 +30,24 @@ pub(crate) trait Annotation {
     fn hit_test_specific(&self, position: LatitudeLongitude) -> bool;
     /// Gets the anchor position of the label.
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition;
+    /// Gets the waypoint info if existing.
+    fn get_flag(&self) -> Option<WaypointFlag>;
+    /// This method returns all information to render the specific object.
+    fn get_render_information(&self)->RenderingInformation;
 }
 
 /// The generalized form of annotation keys. Can be used to query all annotations.
 pub enum AnnotationKey {
     /// The key for the way points.
     Waypoint(WaypointKey),
+}
+
+/// The information needed to render an annotation element.
+pub enum RenderingInformation {
+    /// Image with raw image data, from an image file. (used in waypoint)
+    Image(Bytes),
+    /// A cross we want to draw with an indicated color. (used in waypoint)
+    Cross(Color),
 }
 
 /// The mercator rectangle an annotation feature covers on the map
@@ -109,6 +123,14 @@ impl MercatorRectangle {
             pixel_padding,
             is_valid: max_lat >= min_lat && max_long >= min_long,
         }
+    }
+
+
+    /// Asks for the center position of the region, that gets used to get the pointers of the
+    /// annotation elements.
+    pub fn get_center(&self) -> LatitudeLongitude {
+        LatitudeLongitude::new((self.min_max_lat.0 + self.min_max_lat.1) * 0.5 ,
+                               (self.min_max_long.0 + self.min_max_long.1) * 0.5)
     }
 }
 
