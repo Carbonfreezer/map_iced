@@ -433,6 +433,7 @@ impl DrawingPositionConverter {
 
     /// Analyzes whether a drawing position handed over is in the mercator rectangle.
     /// This method is intended as a precheck for the hit point test on drawing elements.
+    /// Warning: point must be in widget relative coordinates.
     pub fn is_pixel_point_in_rectangle(&self, point: Point, mercator_rect : &MercatorRectangle) -> bool {
         if !mercator_rect.is_valid {return false};
         let boundary = TopLeftBottomRight::from(mercator_rect);
@@ -452,10 +453,61 @@ mod tests {
     use super::*;
     use crate::gui_system::latitude_longitude::BOUNDARY_LATITUDE;
     use iced::{Point, Size};
-    use proptest::{prop_assert, proptest};
+    use proptest::{prop_assert, prop_assert_eq, prop_assume, proptest};
 
+    proptest! {
+        /// The rectangle is spanned by two widget pixels that are turned into latitude longitude,
+        /// so the pixel rectangle they span is the independent oracle. Focus and zoom keep the widget
+        /// inside the world, where nothing gets clamped. The point may lie far outside the widget.
+        #[test]
+        fn pixel_point_in_rectangle(latitude in -60f64 .. 60f64, longitude in -150f64 .. 150f64,
+            scaling in 8f32 ..= MAXIMUM_ZOOM_LEVEL as f32, width in 1f32..1000.0, height in 1f32..1000.0,
+            corner_a in (0f32..1.0, 0f32..1.0), corner_b in (0f32..1.0, 0f32..1.0),
+            padding in 0f64..50.0, point in (-0.5f32..1.5, -0.5f32..1.5)) {
 
-    // TODO: Write a proptest for is_pixel_point_in_rectangle
+            let bounds = Rectangle::new(Point { x: 0.0, y: 0.0 }, Size { width, height });
+            let focus = LatitudeLongitude::new(latitude, longitude);
+            let converter = DrawingPositionConverter::new(&focus, scaling, &bounds).0;
+
+            let corners = [corner_a, corner_b].map(|(x, y)| Point { x: x * width, y: y * height });
+            let rect = MercatorRectangle::create_from_position_array(
+                corners.iter().map(|p| converter.get_latitude_longitude_for_pixel_point(*p)),
+                padding,
+            );
+            let point = Point { x: point.0 * width, y: point.1 * height };
+
+            let (x, y) = (point.x as f64, point.y as f64);
+            let x_range = (corners[0].x.min(corners[1].x) as f64 - padding, corners[0].x.max(corners[1].x) as f64 + padding);
+            let y_range = (corners[0].y.min(corners[1].y) as f64 - padding, corners[0].y.max(corners[1].y) as f64 + padding);
+            // The round trip through latitude longitude is not exact, stay clear of the edges.
+            const MARGIN: f64 = 1e-3;
+            prop_assume!([x - x_range.0, x - x_range.1, y - y_range.0, y - y_range.1].iter().all(|d| d.abs() > MARGIN));
+
+            let expected = (x_range.0..=x_range.1).contains(&x) && (y_range.0..=y_range.1).contains(&y);
+            prop_assert_eq!(converter.is_pixel_point_in_rectangle(point, &rect), expected);
+        }
+    }
+
+    /// A single position as used by the way points: the padding alone spans the hit area,
+    /// and an invalid rectangle never gets hit.
+    #[test]
+    fn pixel_point_in_waypoint_rectangle() {
+        let bounds = Rectangle::new(Point { x: 800.0, y: 600.0 }, Size::new(400.0, 300.0));
+        let focus = LatitudeLongitude::new(50.0, 8.0);
+        let converter = DrawingPositionConverter::new(&focus, 12.0, &bounds).0;
+        let center = Point { x: 200.0, y: 150.0 };
+        let waypoint = MercatorRectangle::create_from_position(focus, 10.0);
+
+        assert!(converter.is_pixel_point_in_rectangle(center, &waypoint));
+        assert!(converter.is_pixel_point_in_rectangle(Point { x: 209.0, y: 141.0 }, &waypoint));
+        assert!(!converter.is_pixel_point_in_rectangle(Point { x: 211.0, y: 150.0 }, &waypoint));
+        assert!(!converter.is_pixel_point_in_rectangle(Point { x: 200.0, y: 139.0 }, &waypoint));
+        // Window coordinates are not widget coordinates.
+        assert!(!converter.is_pixel_point_in_rectangle(Point { x: 1000.0, y: 750.0 }, &waypoint));
+
+        let empty = MercatorRectangle::create_from_position_array(std::iter::empty(), 1e9);
+        assert!(!converter.is_pixel_point_in_rectangle(center, &empty));
+    }
 
     proptest! {
         #[test]
