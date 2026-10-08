@@ -8,7 +8,6 @@ use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};
 
-
 // TODO: All indizes have to get into an enum
 new_key_type! {
     /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so

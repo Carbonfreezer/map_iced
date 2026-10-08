@@ -177,9 +177,8 @@ impl MapWidget {
         self.request_focal_reset = true;
     }
 
-    
     // TODO: The information if flagged should get inside the waypoint.
-    
+
     /// Called from outside the map widget system to set the waypoint information:
     /// the way points around the view, and all flagged ones for the arrows.
     pub(crate) fn set_waypoint_info(

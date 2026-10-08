@@ -8,7 +8,6 @@ use iced::widget::canvas::Text;
 use iced::{Color, Renderer, Vector};
 use std::time::{Duration, Instant};
 
-
 // TODO: Add special hover indizes here.
 
 /// The light outline behind the map texts and the scale bar. No single colour reads

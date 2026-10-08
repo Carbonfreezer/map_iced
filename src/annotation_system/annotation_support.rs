@@ -1,7 +1,9 @@
 //! Contains supporting functionality for annotation.
 
 use crate::annotation_system::waypoint_system::WaypointKey;
-use crate::gui_system::latitude_longitude::{LatitudeLongitude, BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE};
+use crate::gui_system::latitude_longitude::{
+    BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
+};
 
 /// Indicates where a  label should be positioned.
 pub enum LabelPosition {
@@ -29,9 +31,9 @@ pub(crate) trait Annotation {
 }
 
 /// The generalized form of annotation keys. Can be used to query all annotations.
-pub enum AnnotationKey{
+pub enum AnnotationKey {
     /// The key for the way points.
-    Waypoint(WaypointKey)
+    Waypoint(WaypointKey),
 }
 
 /// The mercator rectangle an annotation feature covers on the map
@@ -102,13 +104,12 @@ impl MercatorRectangle {
             },
         );
         Self {
-            min_max_lat : (min_lat, max_lat),
-            min_max_long : (min_long, max_long),
+            min_max_lat: (min_lat, max_lat),
+            min_max_long: (min_long, max_long),
             pixel_padding,
-            is_valid:  max_lat >= min_lat && max_long >= min_long,
+            is_valid: max_lat >= min_lat && max_long >= min_long,
         }
     }
-
 }
 
 #[cfg(test)]

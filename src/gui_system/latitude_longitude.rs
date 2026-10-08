@@ -14,10 +14,8 @@ pub const BOUNDARY_LONGITUDE: f64 = 180.0;
 /// The radius of the sphere Web Mercator is defined on, in metres.
 const EARTH_RADIUS: f64 = 6_378_137.0;
 
-
 /// The circumference of the earth we have.
 pub const EARTH_CIRCUMFERENCE: f64 = 2.0 * PI * EARTH_RADIUS;
-
 
 /// The latitude longitude pair. Both are given in degrees.
 /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
@@ -49,7 +47,7 @@ impl LatitudeLongitude {
 
         TileCoordinates { x, y, zoom }
     }
-    
+
     /// Builds the position points of a circle around the position with the radius indicated in meters.
     /// The ring is closed, the last point repeats the first, so it has `num_points + 1` entries.
     /// Fewer than three points make no ring.
@@ -58,7 +56,11 @@ impl LatitudeLongitude {
     /// bearing, which stays correct near the poles where a squeezed circle breaks down.
     /// The map does not wrap around at the date line, so a circle crossing it is clamped
     /// to the map edge by [`Self::new`], the same as it gets clipped there on screen.
-    pub(crate) fn create_circle_around(&self, radius_meter : f64, num_points: usize) -> Vec<LatitudeLongitude> {
+    pub(crate) fn create_circle_around(
+        &self,
+        radius_meter: f64,
+        num_points: usize,
+    ) -> Vec<LatitudeLongitude> {
         assert!(num_points >= 3, "Needed at least 3 points for a circle.");
         let angular_distance = radius_meter / EARTH_RADIUS;
         let (sin_distance, cos_distance) = angular_distance.sin_cos();
@@ -86,27 +88,32 @@ impl LatitudeLongitude {
         // arguments below are scaled by cos φ, which reuses sin(lat) = q_z:
         // cos δ − sin φ · q_z = cos φ · q_x. atan2 ignores a common positive factor,
         // and cos φ > 0 because the latitude stays within BOUNDARY_LATITUDE.
-        (0..=num_points).map(|i| {
-            let bearing = i as f64 / num_points as f64 * 2.0 * PI;
-            let lat = (sin_latitude * cos_distance + cos_latitude * sin_distance * bearing.cos()).asin();
-            let long_diff = (bearing.sin() * sin_distance * cos_latitude)
-                .atan2(cos_distance - sin_latitude * lat.sin());
-            LatitudeLongitude::new(lat.to_degrees(), self.longitude + long_diff.to_degrees())
-        }).collect()
+        (0..=num_points)
+            .map(|i| {
+                let bearing = i as f64 / num_points as f64 * 2.0 * PI;
+                let lat = (sin_latitude * cos_distance
+                    + cos_latitude * sin_distance * bearing.cos())
+                .asin();
+                let long_diff = (bearing.sin() * sin_distance * cos_latitude)
+                    .atan2(cos_distance - sin_latitude * lat.sin());
+                LatitudeLongitude::new(lat.to_degrees(), self.longitude + long_diff.to_degrees())
+            })
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use proptest::{prop_assert, proptest};
     use super::*;
+    use proptest::{prop_assert, proptest};
 
     /// Great circle distance in metres, as an independent check.
     fn haversine(a: LatitudeLongitude, b: LatitudeLongitude) -> f64 {
         let (lat_a, lat_b) = (a.latitude.to_radians(), b.latitude.to_radians());
         let d_lat = lat_b - lat_a;
         let d_long = (b.longitude - a.longitude).to_radians();
-        let h = (d_lat * 0.5).sin().powi(2) + lat_a.cos() * lat_b.cos() * (d_long * 0.5).sin().powi(2);
+        let h =
+            (d_lat * 0.5).sin().powi(2) + lat_a.cos() * lat_b.cos() * (d_long * 0.5).sin().powi(2);
         2.0 * EARTH_RADIUS * h.sqrt().asin()
     }
 

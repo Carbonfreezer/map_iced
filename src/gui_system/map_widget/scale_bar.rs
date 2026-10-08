@@ -4,13 +4,13 @@
 //! where the view spans many degrees of latitude, not even that.
 
 use crate::gui_system::internal_math::TILE_SIZE_PIXEL;
+use crate::gui_system::latitude_longitude::EARTH_CIRCUMFERENCE;
 use crate::gui_system::map_widget::map_widget_components::{FONT_SIZE, TEXT_COLOR};
 use crate::gui_system::map_widget::map_widget_support::{HALO_COLOR, fill_text_with_halo};
 use iced::advanced::graphics::geometry::Frame;
 use iced::alignment::Vertical;
 use iced::widget::canvas::{Path, Stroke, Text, stroke};
 use iced::{Color, Point, Renderer, Size};
-use crate::gui_system::latitude_longitude::EARTH_CIRCUMFERENCE;
 
 /// The longest the bar may get, the actual length is the nicest round distance below.
 const MAXIMUM_LENGTH: f32 = 120.0;

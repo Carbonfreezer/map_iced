@@ -4,11 +4,11 @@
 //! slippy tile system. It also administrates badges (bounding rectangles of tiles).
 //! Can be useful for internal computations.
 
+use crate::annotation_system::annotation_support::{MercatorRectangle, TopLeftBottomRight};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use iced::{Point, Rectangle, Size, Vector};
 use itertools::iproduct;
 use std::f64::consts::PI;
-use crate::annotation_system::annotation_support::{MercatorRectangle, TopLeftBottomRight};
 
 /// The maximum zoom level we allow.
 pub const MAXIMUM_ZOOM_LEVEL: u8 = 19;
@@ -414,9 +414,11 @@ impl DrawingPositionConverter {
     }
 
     /// Checks of a mercator rectangle handed over is actually visible by the inner drawing rectangle.
-    pub fn is_mercator_visible(&self, mercator_rect : &MercatorRectangle) -> bool {
+    pub fn is_mercator_visible(&self, mercator_rect: &MercatorRectangle) -> bool {
         // If there is no real rectangle it may never become visible.
-        if !mercator_rect.is_valid {return false};
+        if !mercator_rect.is_valid {
+            return false;
+        };
         let boundary = TopLeftBottomRight::from(mercator_rect);
         let top_left = self.get_unclipped_drawing_position(boundary.top_left);
         let bottom_right = self.get_unclipped_drawing_position(boundary.bottom_right);
@@ -430,18 +432,23 @@ impl DrawingPositionConverter {
             && bottom_right.y + padding > 0.0
     }
 
-
     /// Analyzes whether a drawing position handed over is in the mercator rectangle.
     /// This method is intended as a precheck for the hit point test on drawing elements.
     /// Warning: point must be in widget relative coordinates.
-    pub fn is_pixel_point_in_rectangle(&self, point: Point, mercator_rect : &MercatorRectangle) -> bool {
-        if !mercator_rect.is_valid {return false};
+    pub fn is_pixel_point_in_rectangle(
+        &self,
+        point: Point,
+        mercator_rect: &MercatorRectangle,
+    ) -> bool {
+        if !mercator_rect.is_valid {
+            return false;
+        };
         let boundary = TopLeftBottomRight::from(mercator_rect);
         let top_left = self.get_unclipped_drawing_position(boundary.top_left);
         let bottom_right = self.get_unclipped_drawing_position(boundary.bottom_right);
         let padding = mercator_rect.pixel_padding;
 
-        point.x as f64  >= top_left.x - padding
+        point.x as f64 >= top_left.x - padding
             && point.x as f64 <= bottom_right.x + padding
             && point.y as f64 >= top_left.y - padding
             && point.y as f64 <= bottom_right.y + padding
@@ -503,7 +510,13 @@ mod tests {
         assert!(!converter.is_pixel_point_in_rectangle(Point { x: 211.0, y: 150.0 }, &waypoint));
         assert!(!converter.is_pixel_point_in_rectangle(Point { x: 200.0, y: 139.0 }, &waypoint));
         // Window coordinates are not widget coordinates.
-        assert!(!converter.is_pixel_point_in_rectangle(Point { x: 1000.0, y: 750.0 }, &waypoint));
+        assert!(!converter.is_pixel_point_in_rectangle(
+            Point {
+                x: 1000.0,
+                y: 750.0
+            },
+            &waypoint
+        ));
 
         let empty = MercatorRectangle::create_from_position_array(std::iter::empty(), 1e9);
         assert!(!converter.is_pixel_point_in_rectangle(center, &empty));
@@ -533,10 +546,10 @@ mod tests {
         let bounds = Rectangle::new(Point { x: 800.0, y: 600.0 }, Size::new(400.0, 300.0));
         let focus = LatitudeLongitude::new(50.0, 8.0);
         let converter = DrawingPositionConverter::new(&focus, 12.0, &bounds).0;
-        let at_pixel = |x: f32, y: f32| {
-            converter.get_latitude_longitude_for_pixel_point(Point { x, y })
-        };
-        let point_rect = |position, padding| MercatorRectangle::create_from_position(position, padding);
+        let at_pixel =
+            |x: f32, y: f32| converter.get_latitude_longitude_for_pixel_point(Point { x, y });
+        let point_rect =
+            |position, padding| MercatorRectangle::create_from_position(position, padding);
 
         assert!(converter.is_mercator_visible(&point_rect(focus, 0.0)));
         assert!(converter.is_mercator_visible(&point_rect(at_pixel(5.0, 5.0), 0.0)));

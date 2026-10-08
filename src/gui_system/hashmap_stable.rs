@@ -1,21 +1,24 @@
 //! This module consists of an encapsulation of FxHashmap, that can directly give an iterator to
 //! iterate over the elements in the sequence they are handed over.
 
-use std::hash::Hash;
 use fxhash::FxHashMap;
-
+use std::hash::Hash;
 
 /// The stable hashmap.
-pub(crate) struct StableHashmap<Key, Value> where Key: Hash + Eq  {
-    internal_map : FxHashMap<Key, usize>,
-    internal_vector : Vec<Value>
+pub(crate) struct StableHashmap<Key, Value>
+where
+    Key: Hash + Eq,
+{
+    internal_map: FxHashMap<Key, usize>,
+    internal_vector: Vec<Value>,
 }
 
 impl<Key, Value> StableHashmap<Key, Value>
-    where Key: Hash + Eq
+where
+    Key: Hash + Eq,
 {
     /// Creates the hashmap from a key value pair iterator stream.-
-    pub(crate) fn new(input : impl Iterator<Item = (Key, Value)>) -> Self {
+    pub(crate) fn new(input: impl Iterator<Item = (Key, Value)>) -> Self {
         let mut internal_map = FxHashMap::default();
         let mut internal_vector = Vec::new();
         for (key, val) in input {
@@ -26,7 +29,7 @@ impl<Key, Value> StableHashmap<Key, Value>
 
         Self {
             internal_map,
-            internal_vector
+            internal_vector,
         }
     }
 
@@ -45,19 +48,19 @@ impl<Key, Value> StableHashmap<Key, Value>
 
 #[cfg(test)]
 mod tests {
-    use slotmap::SlotMap;
     use super::*;
+    use slotmap::SlotMap;
     #[test]
     fn stable_hash_test() {
         let mut base = SlotMap::new();
         let input = ["foo".to_string(), "bar".to_string(), "baz".to_string()];
-        let keys : Vec<_>= input.iter().map(|x| base.insert(x.clone())).collect();
+        let keys: Vec<_> = input.iter().map(|x| base.insert(x.clone())).collect();
         let stable = StableHashmap::new(base.into_iter());
         for (key, value) in keys.iter().zip(input.iter()) {
             assert_eq!(stable.get(key), Some(value));
         }
 
-        for (x,y) in stable.get_iterator().zip(input.iter()) {
+        for (x, y) in stable.get_iterator().zip(input.iter()) {
             assert_eq!(x, y);
         }
     }
