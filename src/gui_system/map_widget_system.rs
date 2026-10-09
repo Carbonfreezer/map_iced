@@ -135,8 +135,9 @@ impl MapWidgetSystem {
                 // We have to reset the tiles here, because they may already exist from one of the other clients.
                 let tiles = self.tile_cache.get_all_images_for_client(client_id);
                 self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
-                // TODO: Here we will add also the other information for the paths and regions.
-                // TODO: We should get a general information here for all placeable elements on the map
+
+                // TODO: We only get the keys from the general system and do the filtering here to compound
+                // TODO: the hashmap stables, that get handed over to the widgets,
                 let way_points = self.waypoint_system.get_all_relevant_waypoints(&bounding);
                 let flagged = self.waypoint_system.get_all_flagged_waypoints();
                 self.widget_collection[client_id as usize].set_waypoint_info(way_points, flagged);
