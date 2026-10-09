@@ -23,8 +23,8 @@ pub(crate) trait Annotation : Debug  {
     /// Asks for the annotation description, can process the cursor being handed over in latitude longitude
     /// coordinates, for instance if the annotation should change on cursor position (for instance on a track)
     fn description(&self, cursor: LatitudeLongitude) -> Option<String>;
-    /// Gets the colling boundaries of the system.
-    fn cull_bounds(&self) -> MercatorRectangle;
+    /// Gets the colling boundaries of the system, should be precomputed.
+    fn cull_bounds(&self) -> &MercatorRectangle;
     /// Does a hit test if a position handed over. This has be to combined with a test against the cull bounds
     /// upfront. For a waypoint this is always true. For a region or path that can be used as a filter to
     /// only hit test against specific regions.

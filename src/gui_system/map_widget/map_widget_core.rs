@@ -301,7 +301,7 @@ impl MapWidget {
             .get_iterator()
             .rev()
             .find(|(_, annotation)| {
-                converter.is_pixel_point_in_rectangle(position, &annotation.cull_bounds()) &&
+                converter.is_pixel_point_in_rectangle(position, annotation.cull_bounds()) &&
                     annotation.hit_test_specific(converter.get_latitude_longitude_for_pixel_point(position))
             })
             .map(|(index, _)| index)

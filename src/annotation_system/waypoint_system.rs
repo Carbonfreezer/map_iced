@@ -63,7 +63,7 @@ impl WaypointSystem {
         self.waypoint_collection
             .insert( WaypointInfo {
                 image,
-                position,
+                mercator_rectangle: MercatorRectangle::create_from_position(position, WAYPOINT_HALF_SIZE as f64),
                 description,
                 flag: None,
             })
@@ -88,7 +88,7 @@ impl WaypointSystem {
         self.waypoint_collection
             .get_mut(key)
             .ok_or(WaypointKeyNotContained)?
-            .position = position;
+            .mercator_rectangle = MercatorRectangle::create_from_position(position, WAYPOINT_HALF_SIZE as f64);
         Ok(())
     }
 
@@ -185,31 +185,7 @@ impl WaypointSystem {
             Err(WaypointKeyNotContained)
         }
     }
-
-  
-    /// Gets all relevant items waypoint for the indicated bounding rectangle.
-    /// Mainly intended for internal rendering.
-    pub(crate) fn get_all_relevant_waypoints(&self, area: &BoundingRectangle) -> Vec<WaypointInfo> {
-        let zoom = area.zoom;
-        self.waypoint_collection
-            .values()
-            .filter_map(move |point| {
-                let tile_pos = point.position.get_tile_coordinates(zoom);
-                area.contains_position(&TilePosition::from(tile_pos))
-                    .then_some(point.clone())
-            })
-            .collect()
-    }
-
-    /// All flagged way points, wherever they are. Deliberately not filtered by area:
-    /// the arrows are needed for exactly those points that are off screen.
-    pub(crate) fn get_all_flagged_waypoints(&self) -> Vec<WaypointInfo> {
-        self.waypoint_collection
-            .values()
-            .filter(|point| point.flag.is_some())
-            .cloned()
-            .collect()
-    }
+    
 }
 
 /// The internal way point image we have as a way point.
@@ -228,13 +204,13 @@ pub(crate) struct WaypointInfo {
     /// This contains the graphical representation. Internal, the outside has no
     /// business with the way we hold on to an image or a colour.
     pub(crate) image: InternalWaypointImage,
-    /// The position on the map.
-    pub(crate) position: LatitudeLongitude,
     /// An optional string that may be drawn in hover over.
     pub(crate) description: Option<String>,
     /// The direction arrow, if the way point is flagged. Set with
     /// [`WaypointSystem::set_flag`].
     pub(crate) flag: Option<DirectiontFlag>,
+    /// The mercator rectangle for the waypoint.
+    pub(crate) mercator_rectangle: MercatorRectangle
 }
 
 
@@ -243,8 +219,8 @@ impl Annotation for WaypointInfo {
         self.description.clone()
     }
 
-    fn cull_bounds(&self) -> MercatorRectangle {
-        MercatorRectangle::create_from_position(self.position, WAYPOINT_HALF_SIZE as f64)
+    fn cull_bounds(&self) -> &MercatorRectangle {
+        &self.mercator_rectangle
     }
 
     fn hit_test_specific(&self, position: LatitudeLongitude) -> bool {
@@ -252,7 +228,7 @@ impl Annotation for WaypointInfo {
     }
 
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition {
-        LabelPosition::FixGeoLocation(self.position)
+        LabelPosition::FixGeoLocation(self.mercator_rectangle.get_center())
     }
 
     fn get_flag(&self) -> Option<DirectiontFlag> {

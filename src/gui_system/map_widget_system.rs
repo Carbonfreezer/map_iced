@@ -137,7 +137,7 @@ impl MapWidgetSystem {
                 // TODO: We only get the keys from the general system and do the filtering here to compound
                 // TODO: the hashmap stables, that get handed over to the widgets,
                 let render_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
-                    .filter(|(key, annotation)| converter.is_mercator_visible(&annotation.cull_bounds()))
+                    .filter(|(key, annotation)| converter.is_mercator_visible(annotation.cull_bounds()))
                     .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
                 let flagged_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
                     .filter(|(key, annotation)| annotation.get_flag().is_some())
