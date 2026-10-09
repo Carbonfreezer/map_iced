@@ -8,7 +8,6 @@ use iced::widget::Action;
 use iced::widget::canvas::Text;
 use iced::{Color, Renderer, Vector};
 use std::time::{Duration, Instant};
-// TODO: Add special hover indizes here.
 
 /// The light outline behind the map texts and the scale bar. No single colour reads
 /// on every map style, the outline keeps them readable on dark ones such as
@@ -43,8 +42,6 @@ pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
     }
     frame.fill_text(text);
 }
-
-// TODO: All usize here has to be replaced with the general index.
 
 /// An annotation the cursor currently rests on, together with the moment its
 /// description is due.

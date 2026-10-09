@@ -27,9 +27,6 @@ use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
 use iced::{Point, Rectangle, Renderer, Vector};
 use std::time::Instant;
 
-/// Half the size of the way point we apply.
-pub(crate) const WAYPOINT_HALF_SIZE: f32 = 15.0;
-
 /// Horizontal gap between a way point symbol and its hover description.
 const DESCRIPTION_GAP: f32 = 4.0;
 

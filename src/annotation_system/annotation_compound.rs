@@ -3,6 +3,10 @@
 use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
 use crate::annotation_system::waypoint_system::WaypointSystem;
 
+/// The annotation system as a compound of one separate subsystem per annotation kind:
+/// way points now, paths and regions later. Each kind keeps its own storage, unifying
+/// the storage over an enum is not worth the hassle. Only the keys are unified, in
+/// [`AnnotationKey`], and the widgets see all kinds through the [`Annotation`] trait.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct AnnotationSystem {
     pub(crate) waypoint_system: WaypointSystem,

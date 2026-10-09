@@ -5,13 +5,17 @@ use crate::annotation_system::annotation_support::{
     Annotation, LabelPosition, MercatorRectangle, RenderingInformation,
 };
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget::map_widget_core::WAYPOINT_HALF_SIZE;
 use bytes::Bytes;
 use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};
 
-// TODO: All indizes have to get into an enum
+/// Half the size of a way point symbol in pixels. It is at the same time the pixel
+/// padding of the way point's [`MercatorRectangle`], which the widget uses for
+/// culling, hit testing and the size of the drawn symbol. Widening the padding
+/// therefore also grows the symbol.
+const WAYPOINT_HALF_SIZE: f64 = 15.0;
+
 new_key_type! {
     /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so
     /// that it cannot be confused with the handles of the other annotation kinds.
@@ -25,8 +29,6 @@ pub enum WaypointSymbol {
     /// A cross we want to draw with an indicated color.
     Cross(Color),
 }
-
-// TODO: accumulate this in three separate annotation systems. Unifying it over an enum is not worth the huzzle.
 
 /// The administration for the whole waypoint system.
 #[derive(Debug, Clone, Default)]
@@ -65,7 +67,7 @@ impl WaypointSystem {
             image,
             mercator_rectangle: MercatorRectangle::create_from_position(
                 position,
-                WAYPOINT_HALF_SIZE as f64,
+                WAYPOINT_HALF_SIZE,
             ),
             description,
             flag: None,
@@ -92,7 +94,7 @@ impl WaypointSystem {
             .get_mut(key)
             .ok_or(WaypointKeyNotContained)?
             .mercator_rectangle =
-            MercatorRectangle::create_from_position(position, WAYPOINT_HALF_SIZE as f64);
+            MercatorRectangle::create_from_position(position, WAYPOINT_HALF_SIZE);
         Ok(())
     }
 
