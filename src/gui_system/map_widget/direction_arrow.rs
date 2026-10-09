@@ -4,7 +4,6 @@
 //! During a soft focus an arrow does not vanish when its way point comes into view,
 //! it attaches to the symbol instead and stays until the animation is over.
 
-use crate::annotation_system::waypoint_system::WaypointKey;
 use iced::advanced::graphics::geometry::Frame;
 use iced::widget::canvas::{Path, Stroke, stroke};
 use iced::{Color, Point, Renderer, Size, Vector};

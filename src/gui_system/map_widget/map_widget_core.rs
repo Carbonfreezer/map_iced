@@ -1,6 +1,5 @@
 //! This module contains the core par of map widget.
 
-use crate::annotation_system::waypoint_system::{InternalWaypointImage, WaypointInfo, WaypointKey};
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
     BoundingRectangle, DrawingPositionConverter, RectConversionError, TILE_SIZE_PIXEL,
@@ -105,7 +104,7 @@ impl MapWidget {
     
     
     /// Asks for the drawing position converter if existing.
-    pub(crate) fn position_converter(&self) -> Option<&DrawingPositionConverter> {(&self.position_converter).as_ref()}
+    pub(crate) fn position_converter(&self) -> Option<&DrawingPositionConverter> {self.position_converter.as_ref()}
 
     /// The hard focus: jumps to `focal_point` and cancels a running soft focus. The
     /// new view is applied with the next event, the widget needs its bounds for it.

@@ -2,7 +2,6 @@
 //! iterate over the elements in the sequence they are handed over.
 
 use fxhash::FxHashMap;
-use std::hash::Hash;
 use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
 
 /// The stable hashmap.
@@ -21,7 +20,7 @@ impl HashmapStable
         let mut internal_vector = Vec::new();
         for (key, val) in input {
             internal_vector.push((key, val));
-            debug_assert!(internal_map.get(&key).is_none(), "The key is already used.");
+            debug_assert!(!internal_map.contains_key(&key), "The key is already used.");
             internal_map.insert(key, internal_vector.len() - 1);
         }
 
@@ -34,7 +33,7 @@ impl HashmapStable
     /// Tries to get the element with the specific key.
     /// Returns the value if possible.
     pub(crate) fn get(&self, key: &AnnotationKey) -> Option<&dyn Annotation> {
-        self.internal_vector.get(*self.internal_map.get(key)?).map(|(key, val)|val.as_ref())
+        self.internal_vector.get(*self.internal_map.get(key)?).map(|(_, val)|val.as_ref())
     }
 
     /// Asks for the internal iterator that returns the elements in the sequence as handed over in

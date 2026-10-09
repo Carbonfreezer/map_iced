@@ -1,7 +1,7 @@
 //! This module contains a structure that administrates all the different map widgets and
 //! the internal cache.
 
-use crate::annotation_system::waypoint_system::{WaypointKey, WaypointSystem};
+use crate::annotation_system::waypoint_system::WaypointSystem;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::{
@@ -138,10 +138,10 @@ impl MapWidgetSystem {
         
         let converter = self.widget_collection[client_id as usize].position_converter().expect("Just applied focal point, position converted should exist.");
         let render_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
-            .filter(|(key, annotation)| converter.is_mercator_visible(annotation.cull_bounds()))
+            .filter(|(_, annotation)| converter.is_mercator_visible(annotation.cull_bounds()))
             .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
         let flagged_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
-            .filter(|(key, annotation)| annotation.get_flag().is_some())
+            .filter(|(_, annotation)| annotation.get_flag().is_some())
             .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
         
         self.widget_collection[client_id as usize].set_annotation_info(render_points, flagged_points);

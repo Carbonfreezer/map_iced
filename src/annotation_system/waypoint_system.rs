@@ -1,7 +1,6 @@
 //! This module administrates the way points, A way point is a single isolated location on the map.
 //! This differentiates from the paths, where several points are interconnected with each other.
 
-use crate::gui_system::internal_math::{BoundingRectangle, TilePosition};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use bytes::Bytes;
 use iced::Color;
@@ -31,7 +30,7 @@ pub enum WaypointSymbol {
 #[derive(Debug, Clone, Default)]
 pub struct WaypointSystem {
     /// The collection as a slot map.
-    pub waypoint_collection: SlotMap<WaypointKey, WaypointInfo>,
+    pub(crate) waypoint_collection: SlotMap<WaypointKey, WaypointInfo>,
 }
 
 /// Error type for that case that the waypoint is not contained in the structure.
@@ -223,11 +222,11 @@ impl Annotation for WaypointInfo {
         &self.mercator_rectangle
     }
 
-    fn hit_test_specific(&self, position: LatitudeLongitude) -> bool {
+    fn hit_test_specific(&self, _position: LatitudeLongitude) -> bool {
         true
     }
 
-    fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition {
+    fn label_anchor(&self, _cursor: LatitudeLongitude) -> LabelPosition {
         LabelPosition::FixGeoLocation(self.mercator_rectangle.get_center())
     }
 

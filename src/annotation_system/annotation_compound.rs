@@ -2,7 +2,6 @@
 
 use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
 use crate::annotation_system::waypoint_system::WaypointSystem;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct AnnotationSystem {
