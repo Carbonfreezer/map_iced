@@ -219,11 +219,12 @@ impl MapWidget {
                 let flag = annotation.get_flag()?;
                 let target = converter.get_unclipped_drawing_position(annotation.get_center());
                 let distance = (target.x - centre.x).hypot(target.y - centre.y);
-                let placement = if !symbol_visible(size, target, WAYPOINT_HALF_SIZE as f64) {
+                let padding = annotation.cull_bounds().pixel_padding();
+                let placement = if !symbol_visible(size, target, padding as f64) {
                     radar_arrow(size, target)?
                 } else if animating {
                     let carried = previous.iter().find(|arrow| arrow.key == key)?;
-                    attached_arrow(target, carried.placement.direction, WAYPOINT_HALF_SIZE)
+                    attached_arrow(target, carried.placement.direction, padding)
                 } else {
                     return None;
                 };
@@ -387,8 +388,8 @@ impl MapWidget {
 
         if let (Some(annotation), Some(converter)) = (
             state
-                .description_index()
-                .and_then(|index| self.annotation_info.get(&index)),
+                .description_key()
+                .and_then(|key| self.annotation_info.get(&key)),
             self.position_converter.as_ref(),
         ) && let Some(cursor_pos) =
             cursor.map(|x| converter.get_latitude_longitude_for_pixel_point(x))
@@ -404,7 +405,7 @@ impl MapWidget {
                 fill_text_with_halo(
                     &mut frame,
                     Text {
-                        content: description.clone(),
+                        content: description,
                         position: Point::new(label_pos.x + padding + DESCRIPTION_GAP, label_pos.y),
                         color: TEXT_COLOR,
                         size: FONT_SIZE.into(),

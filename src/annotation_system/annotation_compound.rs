@@ -24,12 +24,13 @@ impl AnnotationSystem {
             .map(|(key, value)| (AnnotationKey::Waypoint(key), value as &dyn Annotation))
     }
 
-    pub(crate) fn get_specific_element(&self, key: AnnotationKey) -> Option<Box<dyn Annotation>> {
+    pub(crate) fn get_specific_element(&self, key: AnnotationKey) -> Option<&dyn Annotation> {
         match key {
-            AnnotationKey::Waypoint(key) => {
-                let value = self.waypoint_system.waypoint_collection.get(key)?;
-                Some(Box::new(value.clone()))
-            }
+            AnnotationKey::Waypoint(key) => self
+                .waypoint_system
+                .waypoint_collection
+                .get(key)
+                .map(|value| value as &dyn Annotation),
         }
     }
 }

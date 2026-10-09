@@ -1,6 +1,6 @@
 //! Contains supporting functionality for annotation.
 
-use crate::annotation_system::waypoint_system::{DirectiontFlag, WaypointKey};
+use crate::annotation_system::waypoint_system::{DirectionFlag, WaypointKey};
 use crate::gui_system::latitude_longitude::{
     BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
 };
@@ -36,9 +36,11 @@ pub(crate) trait Annotation: Debug {
     /// Gets the anchor position of the label.
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition;
     /// Gets the waypoint info if existing.
-    fn get_flag(&self) -> Option<DirectiontFlag>;
+    fn get_flag(&self) -> Option<DirectionFlag>;
     /// This method returns all information to render the specific object.
     fn get_render_information(&self) -> RenderingInformation;
+    /// Clones the annotation into a box, so the widgets can take a snapshot of it.
+    fn clone_box(&self) -> Box<dyn Annotation>;
 }
 
 /// The generalized form of annotation keys. Can be used to query all annotations.
@@ -108,7 +110,7 @@ impl MercatorRectangle {
     }
 
     /// Crates the mercator rectangle from a position array as it may be used by a way path or region marked by gps points.
-    /// Returns None for an empty array, there is nothing to cover then.
+    /// An empty array gives a rectangle marked as invalid, there is nothing to cover then.
     pub fn create_from_position_array(
         position_array: impl Iterator<Item = LatitudeLongitude>,
         pixel_padding: f64,

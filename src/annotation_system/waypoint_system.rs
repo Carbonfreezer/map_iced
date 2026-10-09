@@ -153,14 +153,14 @@ impl WaypointSystem {
     /// # Example
     /// ```
     /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::{DirectiontFlag, WaypointSymbol, WaypointSystem};
+    /// use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
-    /// let flag = DirectiontFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
+    /// let flag = DirectionFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
     /// assert!(system.set_flag(key, Some(flag)));
     /// ```
-    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<DirectiontFlag>) -> bool {
+    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<DirectionFlag>) -> bool {
         match self.waypoint_collection.get_mut(key) {
             Some(point) => {
                 point.flag = flag;
@@ -211,7 +211,7 @@ pub(crate) struct WaypointInfo {
     pub(crate) description: Option<String>,
     /// The direction arrow, if the way point is flagged. Set with
     /// [`WaypointSystem::set_flag`].
-    pub(crate) flag: Option<DirectiontFlag>,
+    pub(crate) flag: Option<DirectionFlag>,
     /// The mercator rectangle for the waypoint.
     pub(crate) mercator_rectangle: MercatorRectangle,
 }
@@ -233,7 +233,7 @@ impl Annotation for WaypointInfo {
         LabelPosition::FixGeoLocation(self.mercator_rectangle.get_center())
     }
 
-    fn get_flag(&self) -> Option<DirectiontFlag> {
+    fn get_flag(&self) -> Option<DirectionFlag> {
         self.flag
     }
 
@@ -243,11 +243,15 @@ impl Annotation for WaypointInfo {
             InternalWaypointImage::Cross(color) => RenderingInformation::Cross(color),
         }
     }
+
+    fn clone_box(&self) -> Box<dyn Annotation> {
+        Box::new(self.clone())
+    }
 }
 
 /// How the direction arrow of a flagged way point looks.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DirectiontFlag {
+pub struct DirectionFlag {
     /// The fill colour of the arrow.
     pub color: Color,
     /// Where several arrows overlap, the higher priority is drawn on top and wins

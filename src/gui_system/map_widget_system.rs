@@ -142,27 +142,13 @@ impl MapWidgetSystem {
             self.annotation_system
                 .get_complete_render_list()
                 .filter(|(_, annotation)| converter.is_mercator_visible(annotation.cull_bounds()))
-                .map(|(key, _)| {
-                    (
-                        key,
-                        self.annotation_system
-                            .get_specific_element(key)
-                            .expect("Key should be present"),
-                    )
-                }),
+                .map(|(key, annotation)| (key, annotation.clone_box())),
         );
         let flagged_points = HashmapStable::new(
             self.annotation_system
                 .get_complete_render_list()
                 .filter(|(_, annotation)| annotation.get_flag().is_some())
-                .map(|(key, _)| {
-                    (
-                        key,
-                        self.annotation_system
-                            .get_specific_element(key)
-                            .expect("Key should be present"),
-                    )
-                }),
+                .map(|(key, annotation)| (key, annotation.clone_box())),
         );
 
         self.widget_collection[client_id as usize]

@@ -46,12 +46,13 @@ pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
 
 // TODO: All usize here has to be replaced with the general index.
 
-/// A way point the cursor currently rests on, together with the moment its
+/// An annotation the cursor currently rests on, together with the moment its
 /// description is due.
 #[derive(Debug, Clone, Copy)]
 struct Hover {
-    /// Index into the current way point snapshot, see [`MapWidget::waypoint_at`].
-    index: AnnotationKey,
+    /// The hovered annotation, see [`MapWidget::annotation_at`]. Unlike an index into
+    /// the snapshot, the key stays valid when the snapshot is replaced.
+    key: AnnotationKey,
     /// The instant from which on the description is shown.
     visible_at: Instant,
 }
@@ -61,12 +62,12 @@ struct Hover {
 /// carries its own widget state.
 #[derive(Debug, Default)]
 pub(crate) struct AnnotationInteractionState {
-    /// The way point under the cursor, if any.
+    /// The annotation under the cursor, if any.
     hovered: Option<Hover>,
 }
 
 impl AnnotationInteractionState {
-    /// Points the hover at `index`.
+    /// Points the hover at `key`.
     ///
     /// The dwell timer only restarts when the target actually changes, so the jitter
     /// of a cursor resting inside one symbol does not keep pushing the description
@@ -75,13 +76,13 @@ impl AnnotationInteractionState {
         &mut self,
         key: Option<AnnotationKey>,
     ) -> Option<Action<MapInteractionCommand>> {
-        if self.hovered.map(|hover| hover.index) == key {
+        if self.hovered.map(|hover| hover.key) == key {
             return None;
         }
 
-        let was_visible = self.description_index().is_some();
-        self.hovered = key.map(|index| Hover {
-            index,
+        let was_visible = self.description_key().is_some();
+        self.hovered = key.map(|key| Hover {
+            key,
             visible_at: Instant::now() + HOVER_DELAY,
         });
 
@@ -101,10 +102,10 @@ impl AnnotationInteractionState {
         (now < hover.visible_at).then(|| Action::request_redraw_at(hover.visible_at))
     }
 
-    /// The way point whose description is due by now, if any.
-    pub(crate) fn description_index(&self) -> Option<AnnotationKey> {
+    /// The annotation whose description is due by now, if any.
+    pub(crate) fn description_key(&self) -> Option<AnnotationKey> {
         self.hovered
             .filter(|hover| Instant::now() >= hover.visible_at)
-            .map(|hover| hover.index)
+            .map(|hover| hover.key)
     }
 }

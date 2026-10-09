@@ -11,9 +11,9 @@
 use iced::widget::text::Wrapping;
 use iced::widget::{button, checkbox, column, container, row, text};
 use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
-use map_iced::annotation_system::annotation_support::AnnotationKey;
 use map_iced::Bytes;
-use map_iced::annotation_system::waypoint_system::{DirectiontFlag, WaypointSymbol};
+use map_iced::annotation_system::annotation_support::AnnotationKey;
+use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol};
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
 use map_iced::gui_system::map_widget::map_widget_components::FocalPoint;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
@@ -26,7 +26,7 @@ const CONFIG_DATA: &str = include_str!("../osm.json");
 const ICON_DATA: &[u8] = include_bytes!("../assets/Icon.png");
 
 /// The direction arrow of a flagged way point.
-const FLAG: DirectiontFlag = DirectiontFlag {
+const FLAG: DirectionFlag = DirectionFlag {
     color: Color::from_rgb(0.95, 0.6, 0.1),
     priority: 0,
 };
@@ -34,14 +34,14 @@ const FLAG: DirectiontFlag = DirectiontFlag {
 /// The direction arrow of the one urgent way point. Seen from Montréal, Köln lies in
 /// the same direction as the points in Trier, and its arrow stays on top although
 /// it is not the nearest.
-const URGENT_FLAG: DirectiontFlag = DirectiontFlag {
+const URGENT_FLAG: DirectionFlag = DirectionFlag {
     color: Color::from_rgb(0.9, 0.15, 0.15),
     priority: 1,
 };
 
 /// The way points this application offers, around the focal point the widgets start at,
 /// with the flag each one gets. The last three lie further away, to try the focus with.
-const CATALOGUE: [(&str, f64, f64, DirectiontFlag); 9] = [
+const CATALOGUE: [(&str, f64, f64, DirectionFlag); 9] = [
     ("Trier Dom", 49.7554, 6.6436, FLAG),
     ("Trier West", 49.7540, 6.6100, FLAG),
     ("Pallien", 49.7650, 6.6250, FLAG),
@@ -60,7 +60,7 @@ struct WaypointEntry {
     position: LatitudeLongitude,
     key: Option<AnnotationKey>,
     /// The flag this way point gets when flagged.
-    flag: DirectiontFlag,
+    flag: DirectionFlag,
     /// Whether the way point is flagged, i.e. gets a direction arrow while off screen.
     flagged: bool,
 }
@@ -184,7 +184,7 @@ impl WaypointApplication {
                             );
                         self.entries[index].key = Some(key.into());
                     }
-                    (false, Some(AnnotationKey::Waypoint( key))) => {
+                    (false, Some(AnnotationKey::Waypoint(key))) => {
                         self.widget_system
                             .get_waypoint_system_as_mut()
                             .delete_waypoint(key)

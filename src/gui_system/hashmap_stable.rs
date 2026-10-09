@@ -46,3 +46,60 @@ impl HashmapStable {
             .map(|(key, val)| (*key, val.as_ref()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
+    use crate::gui_system::latitude_longitude::LatitudeLongitude;
+    use iced::Color;
+
+    #[test]
+    fn stable_hash_test() {
+        let mut system = WaypointSystem::default();
+        let names = ["foo", "bar", "baz"];
+        let keys: Vec<AnnotationKey> = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                system
+                    .add_way_point(
+                        WaypointSymbol::Cross(Color::WHITE),
+                        LatitudeLongitude::new(50.0, 7.0 + index as f64),
+                        Some(name.to_string()),
+                    )
+                    .into()
+            })
+            .collect();
+        let cursor = LatitudeLongitude::new(0.0, 0.0);
+        let stable = HashmapStable::new(
+            system
+                .waypoint_collection
+                .iter()
+                .map(|(key, value)| (AnnotationKey::Waypoint(key), value.clone_box())),
+        );
+
+        for (key, name) in keys.iter().zip(names) {
+            let annotation = stable.get(key).expect("Key should be present");
+            assert_eq!(annotation.description(cursor).as_deref(), Some(name));
+        }
+
+        let iterated: Vec<_> = stable.get_iterator().collect();
+        assert_eq!(iterated.len(), names.len());
+        for ((key, annotation), name) in iterated.iter().zip(names) {
+            assert_eq!(annotation.description(cursor).as_deref(), Some(name));
+            assert_eq!(
+                stable.get(key).unwrap().description(cursor).as_deref(),
+                Some(name)
+            );
+        }
+
+        // A key that did not make it into the snapshot is not found.
+        let missing = system.add_way_point(
+            WaypointSymbol::Cross(Color::WHITE),
+            LatitudeLongitude::new(0.0, 0.0),
+            None,
+        );
+        assert!(stable.get(&missing.into()).is_none());
+    }
+}
