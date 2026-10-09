@@ -13,6 +13,7 @@ use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
 use crate::annotation_system::annotation_compound::AnnotationSystem;
+use crate::annotation_system::annotation_support::AnnotationKey;
 use crate::gui_system::hashmap_stable::HashmapStable;
 
 /// The messages dealing with the widgets these are messages from the
@@ -47,16 +48,16 @@ impl From<CachingResultMessage> for MapWidgetMessage {
 pub enum MapEvent {
     /// Something went wrong, with a text meant for the user.
     Error(String),
-    /// The user picked this way point. `client_id` says in which widget that
+    /// The user picked this annotation element. `client_id` says in which widget that
     /// happened, it does not make that widget an owner of anything.
-    WaypointSelected { client_id: u32, key: WaypointKey },
+    AnnotationSelected { client_id: u32, key: AnnotationKey },
     /// A soft focus started with [`MapWidgetSystem::animate_to`] has arrived. Not
     /// sent for an animation that was cancelled or replaced on the way.
     FocusReached { client_id: u32 },
     /// The user clicked the direction arrow of this flagged way point in the widget
     /// `client_id`. What follows is up to the application, typically a focus of that
     /// widget on the way point.
-    ArrowClicked { client_id: u32, key: WaypointKey },
+    ArrowClicked { client_id: u32, key: AnnotationKey },
     /// On the client simply a map position with latitude. longitude has been selected.
     /// If there is some kind of annotation on the map this information would dominate.
     MapPositionClicked {
@@ -125,29 +126,26 @@ impl MapWidgetSystem {
     /// Moves a widget to a new view and hands it what it needs to draw there.
     fn apply_focal_point(&mut self, client_id: u32, point: FocalPoint, rectangle: Rectangle) {
         let result = self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
-        let converter = self.widget_collection[client_id as usize].position_converter;
-        match (result, converter) {
-            (Some(bounding), Some(converter)) => {
-                self.tile_cache
-                    .register_new_interest_area(client_id, bounding);
-                // We have to reset the tiles here, because they may already exist from one of the other clients.
-                let tiles = self.tile_cache.get_all_images_for_client(client_id);
-                self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
-
-                // TODO: We only get the keys from the general system and do the filtering here to compound
-                // TODO: the hashmap stables, that get handed over to the widgets,
-                let render_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
-                    .filter(|(key, annotation)| converter.is_mercator_visible(annotation.cull_bounds()))
-                    .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
-                let flagged_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
-                    .filter(|(key, annotation)| annotation.get_flag().is_some())
-                    .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
-                
-             
-                self.widget_collection[client_id as usize].set_annotation_info(render_points, flagged_points);
-            }
-            _ => self.tile_cache.completely_unsubscribe(client_id),
-        }
+        let Some(bounding) = result else {
+            self.tile_cache.completely_unsubscribe(client_id);
+            return 
+        };
+        self.tile_cache
+            .register_new_interest_area(client_id, bounding);
+        // We have to reset the tiles here, because they may already exist from one of the other clients.
+        let tiles = self.tile_cache.get_all_images_for_client(client_id);
+        self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
+        
+        let converter = self.widget_collection[client_id as usize].position_converter().expect("Just applied focal point, position converted should exist.");
+        let render_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
+            .filter(|(key, annotation)| converter.is_mercator_visible(annotation.cull_bounds()))
+            .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
+        let flagged_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
+            .filter(|(key, annotation)| annotation.get_flag().is_some())
+            .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
+        
+        self.widget_collection[client_id as usize].set_annotation_info(render_points, flagged_points);
+        
     }
 
     /// Processes the messsage and eventually returns a map event for further processing.
@@ -186,13 +184,11 @@ impl MapWidgetSystem {
                 }
             }
 
-            SpecificInteractionCommand::WaypointClicked(key) => {
+            SpecificInteractionCommand::AnnotationClicked(key) => {
                 // The widget reports what the click hit, the meaning is decided here.
                 // A way point that is gone by now must not reach the application, the
                 // snapshot in the widget can be older than the collection.
-                self.waypoint_system
-                    .get_waypoint_info(key)
-                    .map(|_| MapEvent::WaypointSelected { client_id, key })
+                self.annotation_system.get_specific_element(key).map(|_| MapEvent::AnnotationSelected { client_id, key })
             }
 
             // In this case we have simply clicked somewhere on the map.
@@ -206,8 +202,8 @@ impl MapWidgetSystem {
             SpecificInteractionCommand::ArrowClicked(key) => {
                 // Same reasoning as for the way point, and a way point that lost its
                 // flag in the meantime has no arrow any more either.
-                match self.waypoint_system.get_waypoint_info(key) {
-                    Some(point) if point.flag.is_some() => {
+                match self.annotation_system.get_specific_element(key) {
+                    Some(annotation) if annotation.get_flag().is_some() => {
                         Some(MapEvent::ArrowClicked { client_id, key })
                     }
                     _ => None,

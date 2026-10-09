@@ -7,7 +7,7 @@ use iced::widget::Action;
 use iced::widget::canvas::Text;
 use iced::{Color, Renderer, Vector};
 use std::time::{Duration, Instant};
-
+use crate::annotation_system::annotation_support::AnnotationKey;
 // TODO: Add special hover indizes here.
 
 /// The light outline behind the map texts and the scale bar. No single colour reads
@@ -51,7 +51,7 @@ pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
 #[derive(Debug, Clone, Copy)]
 struct Hover {
     /// Index into the current way point snapshot, see [`MapWidget::waypoint_at`].
-    index: usize,
+    index: AnnotationKey,
     /// The instant from which on the description is shown.
     visible_at: Instant,
 }
@@ -66,19 +66,18 @@ pub(crate) struct AnnotationInteractionState {
 }
 
 impl AnnotationInteractionState {
-    // TODO: The index must become the internal key.
     /// Points the hover at `index`.
     ///
     /// The dwell timer only restarts when the target actually changes, so the jitter
     /// of a cursor resting inside one symbol does not keep pushing the description
     /// away.
-    pub(crate) fn aim(&mut self, index: Option<usize>) -> Option<Action<MapInteractionCommand>> {
-        if self.hovered.map(|hover| hover.index) == index {
+    pub(crate) fn aim(&mut self, key: Option<AnnotationKey>) -> Option<Action<MapInteractionCommand>> {
+        if self.hovered.map(|hover| hover.index) == key {
             return None;
         }
 
         let was_visible = self.description_index().is_some();
-        self.hovered = index.map(|index| Hover {
+        self.hovered = key.map(|index| Hover {
             index,
             visible_at: Instant::now() + HOVER_DELAY,
         });
@@ -100,7 +99,7 @@ impl AnnotationInteractionState {
     }
 
     /// The way point whose description is due by now, if any.
-    pub(crate) fn description_index(&self) -> Option<usize> {
+    pub(crate) fn description_index(&self) -> Option<AnnotationKey> {
         self.hovered
             .filter(|hover| Instant::now() >= hover.visible_at)
             .map(|hover| hover.index)

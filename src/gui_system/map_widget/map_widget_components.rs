@@ -1,6 +1,5 @@
 //! This contains the map widget components which are mainly the canvasses.
 
-use crate::annotation_system::waypoint_system::WaypointKey;
 use crate::gui_system::internal_math::MAXIMUM_ZOOM_LEVEL;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_core::{MapWidget, STANDARD_RECTANGLE};
@@ -10,6 +9,7 @@ use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::Geometry;
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
+use crate::annotation_system::annotation_support::AnnotationKey;
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -47,10 +47,10 @@ pub struct FocalPoint {
 pub enum SpecificInteractionCommand {
     /// We want to set the focal point as latitude longitude and the zoom level.
     SetFocalPoint(FocalPoint, Rectangle),
-    /// A left click landed on the given way point.
-    WaypointClicked(WaypointKey),
+    /// A left click landed on the given annotation element.
+    AnnotationClicked(AnnotationKey),
     /// A left click landed on the direction arrow of the given way point.
-    ArrowClicked(WaypointKey),
+    ArrowClicked(AnnotationKey),
     /// One frame of the soft focus started under `generation`. `finished` marks the
     /// last frame, which sits exactly on the target.
     AnimationFrame {
@@ -285,11 +285,8 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
                 // The arrows are drawn on top of the symbols, so they win the hit.
                 let command = match self.widget.arrow_at(position) {
                     Some(key) => SpecificInteractionCommand::ArrowClicked(key),
-                    None => SpecificInteractionCommand::WaypointClicked(
-                        self.widget
-                            .annotation_at(position)
-                            .and_then(|index| self.widget.waypoint(index))?
-                            .key,
+                    None => SpecificInteractionCommand::AnnotationClicked(
+                        self.widget.annotation_at(position)?
                     ),
                 };
 
@@ -314,12 +311,12 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
-        _cursor: Cursor,
+        cursor: Cursor,
     ) -> Vec<Geometry<Renderer>> {
         vec![
-            self.widget.draw_waypoint_symbols(renderer, bounds),
+            self.widget.draw_annotation_symbols(renderer, bounds),
             self.widget
-                .draw_annotation_interaction(renderer, bounds, state),
+                .draw_annotation_interaction(renderer, bounds, state, cursor.position_in(bounds)),
             self.widget.draw_copyright(renderer, bounds),
             self.widget.draw_scale(renderer, bounds),
         ]

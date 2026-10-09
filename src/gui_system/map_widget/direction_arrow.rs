@@ -8,6 +8,7 @@ use crate::annotation_system::waypoint_system::WaypointKey;
 use iced::advanced::graphics::geometry::Frame;
 use iced::widget::canvas::{Path, Stroke, stroke};
 use iced::{Color, Point, Renderer, Size, Vector};
+use crate::annotation_system::annotation_support::AnnotationKey;
 
 /// How far the tip stays inside the edge, so that it is not cut off.
 const EDGE_INSET: f32 = 2.0;
@@ -38,7 +39,7 @@ pub(crate) struct ArrowPlacement {
 /// arrow carries its direction over from the frame before.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PlacedArrow {
-    pub key: WaypointKey,
+    pub key: AnnotationKey,
     pub placement: ArrowPlacement,
     pub color: Color,
 }

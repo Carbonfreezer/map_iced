@@ -367,19 +367,11 @@ impl DrawingPositionConverter {
     }
 
     /// Gets the drawing position from within the widget for a certain Latitude, Longitude Vector.
-    /// Returns None of the resulting position is outside the drawing area.
-    pub fn get_drawing_position(&self, pos: LatitudeLongitude, half_size: f64) -> Option<Vector> {
+    /// Test for visibility is already done upfront when changing the focus for the culling bounds.
+    pub fn get_drawing_position(&self, pos: LatitudeLongitude) -> Vector {
         let Vector { x, y } = self.get_unclipped_drawing_position(pos);
-
-        if x < -half_size
-            || y <= -half_size
-            || x >= self.drawing_size.width + half_size
-            || y >= self.drawing_size.height + half_size
-        {
-            return None;
-        }
-
-        Some(Vector::new(x as f32, y as f32))
+        
+        Vector::new(x as f32, y as f32)
     }
 
     /// The position within the widget for a certain Latitude, Longitude, also when
@@ -435,7 +427,7 @@ impl DrawingPositionConverter {
     /// Analyzes whether a drawing position handed over is in the mercator rectangle.
     /// This method is intended as a precheck for the hit point test on drawing elements.
     /// Warning: point must be in widget relative coordinates.
-    pub fn is_pixel_point_in_rectangle(
+    pub fn is_pixel_point_in_mercator(
         &self,
         point: Point,
         mercator_rect: &MercatorRectangle,
@@ -491,7 +483,7 @@ mod tests {
             prop_assume!([x - x_range.0, x - x_range.1, y - y_range.0, y - y_range.1].iter().all(|d| d.abs() > MARGIN));
 
             let expected = (x_range.0..=x_range.1).contains(&x) && (y_range.0..=y_range.1).contains(&y);
-            prop_assert_eq!(converter.is_pixel_point_in_rectangle(point, &rect), expected);
+            prop_assert_eq!(converter.is_pixel_point_in_mercator(point, &rect), expected);
         }
     }
 
@@ -505,12 +497,12 @@ mod tests {
         let center = Point { x: 200.0, y: 150.0 };
         let waypoint = MercatorRectangle::create_from_position(focus, 10.0);
 
-        assert!(converter.is_pixel_point_in_rectangle(center, &waypoint));
-        assert!(converter.is_pixel_point_in_rectangle(Point { x: 209.0, y: 141.0 }, &waypoint));
-        assert!(!converter.is_pixel_point_in_rectangle(Point { x: 211.0, y: 150.0 }, &waypoint));
-        assert!(!converter.is_pixel_point_in_rectangle(Point { x: 200.0, y: 139.0 }, &waypoint));
+        assert!(converter.is_pixel_point_in_mercator(center, &waypoint));
+        assert!(converter.is_pixel_point_in_mercator(Point { x: 209.0, y: 141.0 }, &waypoint));
+        assert!(!converter.is_pixel_point_in_mercator(Point { x: 211.0, y: 150.0 }, &waypoint));
+        assert!(!converter.is_pixel_point_in_mercator(Point { x: 200.0, y: 139.0 }, &waypoint));
         // Window coordinates are not widget coordinates.
-        assert!(!converter.is_pixel_point_in_rectangle(
+        assert!(!converter.is_pixel_point_in_mercator(
             Point {
                 x: 1000.0,
                 y: 750.0
@@ -519,7 +511,7 @@ mod tests {
         ));
 
         let empty = MercatorRectangle::create_from_position_array(std::iter::empty(), 1e9);
-        assert!(!converter.is_pixel_point_in_rectangle(center, &empty));
+        assert!(!converter.is_pixel_point_in_mercator(center, &empty));
     }
 
     proptest! {

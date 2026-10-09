@@ -128,7 +128,7 @@ impl WaypointApplication {
             Message::WidgetMessage(m) => {
                 if let Some(event) = self.widget_system.process_message(m) {
                     match event {
-                        MapEvent::WaypointSelected { key, .. } => self.selected = Some(key),
+                        MapEvent::AnnotationSelected { key, .. } => self.selected = Some(key),
                         MapEvent::FocusReached { .. } => {}
                         // An arrow click acts like the focus button: all maps follow.
                         MapEvent::ArrowClicked { key, .. } => {
