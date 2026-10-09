@@ -154,12 +154,15 @@ impl WaypointApplication {
 
                         MapEvent::MapPositionClicked { position, .. } => {
                             let entry = self.entries.last_mut().unwrap();
-                            if let Some(AnnotationKey::Waypoint(waypoint_key)) = entry.key {
-                                self.widget_system
-                                    .get_waypoint_system_as_mut()
-                                    .update_waypoint_position(waypoint_key, position)
-                                    .expect("Key should be present");
-                                entry.position = position;
+                            match entry.key {
+                                Some(AnnotationKey::Waypoint(waypoint_key)) => {
+                                    self.widget_system
+                                        .get_waypoint_system_as_mut()
+                                        .update_waypoint_position(waypoint_key, position)
+                                        .expect("Key should be present");
+                                    entry.position = position;
+                                }
+                                None => {}
                             }
                         }
                     }
@@ -197,7 +200,8 @@ impl WaypointApplication {
                             self.selected = None;
                         }
                     }
-                    _ => {}
+                    // Already in the state the checkbox asks for.
+                    (true, Some(_)) | (false, None) => {}
                 }
             }
 
@@ -212,16 +216,20 @@ impl WaypointApplication {
             }
 
             Message::Flagged(index, flagged) => {
-                let Some((AnnotationKey::Waypoint(key), flag)) = self
+                let Some((key, flag)) = self
                     .entries
                     .get(index)
                     .and_then(|entry| Some((entry.key?, entry.flag)))
                 else {
                     return;
                 };
-                self.widget_system
-                    .get_waypoint_system_as_mut()
-                    .set_flag(key, flagged.then_some(flag));
+                match key {
+                    AnnotationKey::Waypoint(key) => {
+                        self.widget_system
+                            .get_waypoint_system_as_mut()
+                            .set_flag(key, flagged.then_some(flag));
+                    }
+                }
                 self.entries[index].flagged = flagged;
             }
         }
