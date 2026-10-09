@@ -100,7 +100,7 @@ impl MapWidgetSystem {
         for widget in &mut self.widget_collection {
             widget.request_focal_reset();
         }
-        &mut self.annotation_system.waypoint_system
+        self.annotation_system.waypoint_system()
     }
 
     ///  The messages going into the caching system are processed here.
