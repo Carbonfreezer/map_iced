@@ -16,13 +16,8 @@ impl AnnotationCompound {
     }
 
     /// Gets the complete content in drawing order of regions, pathes waypoints later on.
-    pub fn get_complete_render_list(&self) -> Vec<AnnotationKey> {
-        let mut result = Vec::new();
-        for key in self.waypoint_system.waypoint_collection.keys() {
-            result.push(AnnotationKey::Waypoint(key));
-        }
-
-        result
+    pub fn get_complete_render_list(&self) -> impl Iterator<Item=AnnotationKey> {
+        self.waypoint_system.waypoint_collection.keys().map(|key| AnnotationKey::Waypoint(key))
     }
 
     /// Asks for a specific element as a reference.
