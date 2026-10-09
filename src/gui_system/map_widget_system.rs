@@ -12,6 +12,8 @@ use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
+use crate::annotation_system::annotation_compound::AnnotationSystem;
+use crate::gui_system::hashmap_stable::HashmapStable;
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
@@ -68,8 +70,7 @@ pub enum MapEvent {
 pub struct MapWidgetSystem {
     tile_cache: TileCache,
     widget_collection: Vec<MapWidget>,
-    // TODO: Here we will also insert the landmark and track system
-    waypoint_system: WaypointSystem,
+    annotation_system: AnnotationSystem,
 }
 
 impl MapWidgetSystem {
@@ -87,23 +88,19 @@ impl MapWidgetSystem {
             Self {
                 tile_cache,
                 widget_collection: Vec::new(),
-                waypoint_system: Default::default(),
+                annotation_system: Default::default(),
             },
             task,
         )
     }
 
-    /// Read access to the way point system.
-    pub fn get_waypoints(&self) -> &WaypointSystem {
-        &self.waypoint_system
-    }
-
+  
     /// Gets a mutable access for the way point system to modify things.
     pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
         for widget in &mut self.widget_collection {
             widget.request_focal_reset();
         }
-        &mut self.waypoint_system
+        &mut self.annotation_system.waypoint_system
     }
 
     ///  The messages going into the caching system are processed here.
@@ -128,8 +125,9 @@ impl MapWidgetSystem {
     /// Moves a widget to a new view and hands it what it needs to draw there.
     fn apply_focal_point(&mut self, client_id: u32, point: FocalPoint, rectangle: Rectangle) {
         let result = self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
-        match result {
-            Some(bounding) => {
+        let converter = self.widget_collection[client_id as usize].position_converter;
+        match (result, converter) {
+            (Some(bounding), Some(converter)) => {
                 self.tile_cache
                     .register_new_interest_area(client_id, bounding);
                 // We have to reset the tiles here, because they may already exist from one of the other clients.
@@ -138,11 +136,17 @@ impl MapWidgetSystem {
 
                 // TODO: We only get the keys from the general system and do the filtering here to compound
                 // TODO: the hashmap stables, that get handed over to the widgets,
-                let way_points = self.waypoint_system.get_all_relevant_waypoints(&bounding);
-                let flagged = self.waypoint_system.get_all_flagged_waypoints();
-                self.widget_collection[client_id as usize].set_waypoint_info(way_points, flagged);
+                let render_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
+                    .filter(|(key, annotation)| converter.is_mercator_visible(&annotation.cull_bounds()))
+                    .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
+                let flagged_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
+                    .filter(|(key, annotation)| annotation.get_flag().is_some())
+                    .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
+                
+             
+                self.widget_collection[client_id as usize].set_annotation_info(render_points, flagged_points);
             }
-            None => self.tile_cache.completely_unsubscribe(client_id),
+            _ => self.tile_cache.completely_unsubscribe(client_id),
         }
     }
 

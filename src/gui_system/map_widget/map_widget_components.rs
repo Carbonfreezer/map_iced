@@ -231,7 +231,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         }
 
         let hovers_something = cursor.position_in(bounds).is_some_and(|position| {
-            self.arrow_at(position).is_some() || self.waypoint_at(position).is_some()
+            self.arrow_at(position).is_some() || self.annotation_at(position).is_some()
         });
         match hovers_something {
             true => Interaction::Pointer,
@@ -273,7 +273,7 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
             Event::Mouse(mouse::Event::CursorMoved { .. }) => state.aim(
                 cursor
                     .position_in(bounds)
-                    .and_then(|position| self.widget.waypoint_at(position)),
+                    .and_then(|position| self.widget.annotation_at(position)),
             ),
 
             Event::Mouse(mouse::Event::CursorLeft) => state.aim(None),
@@ -287,7 +287,7 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
                     Some(key) => SpecificInteractionCommand::ArrowClicked(key),
                     None => SpecificInteractionCommand::WaypointClicked(
                         self.widget
-                            .waypoint_at(position)
+                            .annotation_at(position)
                             .and_then(|index| self.widget.waypoint(index))?
                             .key,
                     ),

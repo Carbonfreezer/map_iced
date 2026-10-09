@@ -5,29 +5,32 @@ use crate::annotation_system::waypoint_system::WaypointSystem;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default)]
-pub struct AnnotationCompound {
-    waypoint_system: WaypointSystem,
+pub(crate) struct AnnotationSystem {
+    pub(crate) waypoint_system: WaypointSystem,
 }
 
-impl AnnotationCompound {
+impl AnnotationSystem {
     /// Gets the way point system
     pub fn waypoint_system(&mut self) -> &mut WaypointSystem {
         &mut self.waypoint_system
     }
 
-    /// Gets the complete content in drawing order of regions, pathes waypoints later on.
-    pub fn get_complete_render_list(&self) -> impl Iterator<Item=AnnotationKey> {
-        self.waypoint_system.waypoint_collection.keys().map(|key| AnnotationKey::Waypoint(key))
+    pub(crate) fn get_complete_render_list(
+        &self,
+    ) -> impl Iterator<Item = (AnnotationKey, &dyn Annotation)> {
+        // TODO: Has to be chained with the other elements,
+        self.waypoint_system
+            .waypoint_collection
+            .iter()
+            .map(|(key, value)| (AnnotationKey::Waypoint(key), value as &dyn Annotation))
     }
 
-    /// Asks for a specific element as a reference.
-    pub(crate) fn get_element(&self, key: AnnotationKey) -> Option<&dyn Annotation> {
+    pub(crate) fn get_specific_element(&self, key: AnnotationKey) -> Option<Box<dyn Annotation>> {
         match key {
-            AnnotationKey::Waypoint(key) => self
-                .waypoint_system
-                .waypoint_collection
-                .get(key)
-                .map(|x| x as &dyn Annotation),
+            AnnotationKey::Waypoint(key) => {
+                let value = self.waypoint_system.waypoint_collection.get(key)?;
+                Some(Box::new(value.clone()))
+            }
         }
     }
 }

@@ -23,9 +23,11 @@ use iced::widget::Action;
 use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
 use iced::{Point, Rectangle, Renderer, Vector};
 use std::time::Instant;
+use crate::annotation_system::annotation_support::AnnotationKey;
+use crate::gui_system::hashmap_stable::HashmapStable;
 
 /// Half the size of the way point we apply.
-const WAYPOINT_HALF_SIZE: f32 = 15.0;
+pub (crate) const WAYPOINT_HALF_SIZE: f32 = 15.0;
 
 /// Horizontal gap between a way point symbol and its hover description.
 const DESCRIPTION_GAP: f32 = 4.0;
@@ -37,7 +39,7 @@ pub(crate) struct MapWidget {
     /// The copyright text overlay.
     overlay_cache: Cache,
     /// The drawing cache for the waypoint info.
-    waypoint_cache: Cache,
+    renderpoint_cache: Cache,
     /// The drawing cache for the scale bar, it changes with the focal point.
     scale_cache: Cache,
     /// Tiles for the current view, possibly still filling up.
@@ -52,9 +54,8 @@ pub(crate) struct MapWidget {
     pub(crate) position_converter: Option<DrawingPositionConverter>,
     /// The copyright text we need for drawing.
     copyright_text: String,
-    // TODO: Replace vec waypoint info with placeable info that uses internal keys only.
-    /// Way point info ix existing.
-    waypoint_info: Vec<WaypointInfo>,
+    /// All the elements that gets rendered as overlay.
+    annotation_info: HashmapStable,
     /// The direction arrows of the current view, see [`Self::place_arrows`].
     arrows: Vec<PlacedArrow>,
     /// Flags that we want to have a focal reset usually because of waypoint or annotation changes from the outside.
@@ -80,7 +81,7 @@ impl MapWidget {
         Self {
             tile_drawing_cache: Default::default(),
             overlay_cache: Default::default(),
-            waypoint_cache: Default::default(),
+            renderpoint_cache: Default::default(),
             scale_cache: Default::default(),
             drawing_tiles: vec![],
             fallback_tiles: vec![],
@@ -88,7 +89,7 @@ impl MapWidget {
             position_converter: None,
             focal_point,
             copyright_text,
-            waypoint_info: vec![],
+            annotation_info: Default::default(),
             arrows: vec![],
             request_focal_reset: true,
             animation: None,
@@ -180,14 +181,14 @@ impl MapWidget {
 
     /// Called from outside the map widget system to set the waypoint information:
     /// the way points around the view, and all flagged ones for the arrows.
-    pub(crate) fn set_waypoint_info(
+    pub(crate) fn set_annotation_info(
         &mut self,
-        way_points: Vec<WaypointInfo>,
-        flagged: Vec<WaypointInfo>,
+        render_points: HashmapStable,
+        flagged_points: HashmapStable,
     ) {
-        self.waypoint_info = way_points;
+        self.annotation_info = render_points;
         self.place_arrows(&flagged);
-        self.waypoint_cache.clear();
+        self.renderpoint_cache.clear();
     }
 
     /// Places the direction arrows for the current view.
@@ -292,34 +293,24 @@ impl MapWidget {
             .map(|arrow| arrow.key)
     }
 
-    // TODO: replace with annotation info that gets a general key to placeable.
-    /// Hit test in widget coordinates. Returns the index of the topmost way point
-    /// of the current snapshot that covers `position`.
-    ///
-    /// The index refers to the snapshot installed by [`Self::set_waypoint_info`],
-    /// which is replaced on every focal point change. Resolve it within the event
-    /// that produced `position` rather than storing it across frames.
-    pub(crate) fn waypoint_at(&self, position: Point) -> Option<usize> {
+   
+    /// Looks if we have an annotation at the indicated position. Returns the annotation information.
+    pub(crate) fn annotation_at(&self, position: Point) -> Option<AnnotationKey> {
         let converter = self.position_converter.as_ref()?;
-        self.waypoint_info
-            .iter()
-            .enumerate()
+        self.annotation_info
+            .get_iterator()
             .rev()
             .find(|(_, annotation)| {
-                converter
-                    .get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64)
-                    .is_some_and(|symbol| {
-                        ((position.x - symbol.x).abs() <= WAYPOINT_HALF_SIZE)
-                            && ((position.y - symbol.y).abs() <= WAYPOINT_HALF_SIZE)
-                    })
+                converter.is_pixel_point_in_rectangle(position, &annotation.cull_bounds()) &&
+                    annotation.hit_test_specific(converter.get_latitude_longitude_for_pixel_point(position))
             })
             .map(|(index, _)| index)
     }
 
-    /// A way point of the current snapshot. See [`Self::waypoint_at`] for how long
+    /// A way point of the current snapshot. See [`Self::annotation_at`] for how long
     /// an index stays valid.
     pub(crate) fn waypoint(&self, index: usize) -> Option<&WaypointInfo> {
-        self.waypoint_info.get(index)
+        self.annotation_info.get(index)
     }
 
     /// The way point symbols. Cached, because they only change with the way point
@@ -329,11 +320,11 @@ impl MapWidget {
         renderer: &Renderer,
         bounds: Rectangle,
     ) -> Geometry<Renderer> {
-        self.waypoint_cache.draw(renderer, bounds.size(), |frame| {
+        self.renderpoint_cache.draw(renderer, bounds.size(), |frame| {
             let Some(converter) = &self.position_converter else {
                 return;
             };
-            for annotation in &self.waypoint_info {
+            for annotation in &self.annotation_info {
                 let Some(draw_pos) =
                     converter.get_drawing_position(annotation.position, WAYPOINT_HALF_SIZE as f64)
                 else {

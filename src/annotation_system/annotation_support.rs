@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 use iced::advanced::image::Handle;
 use iced::Color;
-use crate::annotation_system::waypoint_system::{WaypointFlag, WaypointKey};
+use crate::annotation_system::waypoint_system::{DirectiontFlag, WaypointKey};
 use crate::gui_system::latitude_longitude::{
     BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
 };
@@ -19,7 +19,7 @@ pub enum LabelPosition {
 }
 
 /// A trait that gets implemented by all annotation features.
-pub(crate) trait Annotation : Debug {
+pub(crate) trait Annotation : Debug  {
     /// Asks for the annotation description, can process the cursor being handed over in latitude longitude
     /// coordinates, for instance if the annotation should change on cursor position (for instance on a track)
     fn description(&self, cursor: LatitudeLongitude) -> Option<String>;
@@ -32,7 +32,7 @@ pub(crate) trait Annotation : Debug {
     /// Gets the anchor position of the label.
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition;
     /// Gets the waypoint info if existing.
-    fn get_flag(&self) -> Option<WaypointFlag>;
+    fn get_flag(&self) -> Option<DirectiontFlag>;
     /// This method returns all information to render the specific object.
     fn get_render_information(&self)->RenderingInformation;
 }
@@ -54,7 +54,7 @@ pub enum RenderingInformation {
 
 /// The mercator rectangle an annotation feature covers on the map
 /// with extra pixel padding.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MercatorRectangle {
     /// The minimum and maximum latitude we cover.
     pub min_max_lat: (f64, f64),

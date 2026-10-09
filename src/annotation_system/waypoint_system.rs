@@ -8,6 +8,7 @@ use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};
 use crate::annotation_system::annotation_support::{Annotation, LabelPosition, MercatorRectangle, RenderingInformation};
+use crate::gui_system::map_widget::map_widget_core::WAYPOINT_HALF_SIZE;
 
 // TODO: All indizes have to get into an enum
 new_key_type! {
@@ -60,8 +61,7 @@ impl WaypointSystem {
         };
 
         self.waypoint_collection
-            .insert_with_key(|key| WaypointInfo {
-                key,
+            .insert( WaypointInfo {
                 image,
                 position,
                 description,
@@ -149,14 +149,14 @@ impl WaypointSystem {
     /// # Example
     /// ```
     /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::{WaypointFlag, WaypointSymbol, WaypointSystem};
+    /// use map_iced::annotation_system::waypoint_system::{DirectiontFlag, WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
-    /// let flag = WaypointFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
+    /// let flag = DirectiontFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
     /// assert!(system.set_flag(key, Some(flag)));
     /// ```
-    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<WaypointFlag>) -> bool {
+    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<DirectiontFlag>) -> bool {
         match self.waypoint_collection.get_mut(key) {
             Some(point) => {
                 point.flag = flag;
@@ -186,12 +186,7 @@ impl WaypointSystem {
         }
     }
 
-    /// Gets a reference to the waypoint info if existing.
-    ///
-    pub(crate) fn get_waypoint_info(&self, key: WaypointKey) -> Option<&WaypointInfo> {
-        self.waypoint_collection.get(key)
-    }
-
+  
     /// Gets all relevant items waypoint for the indicated bounding rectangle.
     /// Mainly intended for internal rendering.
     pub(crate) fn get_all_relevant_waypoints(&self, area: &BoundingRectangle) -> Vec<WaypointInfo> {
@@ -230,9 +225,6 @@ pub(crate) enum InternalWaypointImage {
 /// can be modified to to be stored as a new waypoint.
 #[derive(Debug, Clone)]
 pub(crate) struct WaypointInfo {
-    /// The key this way point is stored under. Stable across focal point changes,
-    /// unlike the index into a way point snapshot ([see]()) .
-    pub(crate) key: WaypointKey,
     /// This contains the graphical representation. Internal, the outside has no
     /// business with the way we hold on to an image or a colour.
     pub(crate) image: InternalWaypointImage,
@@ -242,7 +234,7 @@ pub(crate) struct WaypointInfo {
     pub(crate) description: Option<String>,
     /// The direction arrow, if the way point is flagged. Set with
     /// [`WaypointSystem::set_flag`].
-    pub(crate) flag: Option<WaypointFlag>,
+    pub(crate) flag: Option<DirectiontFlag>,
 }
 
 
@@ -252,29 +244,32 @@ impl Annotation for WaypointInfo {
     }
 
     fn cull_bounds(&self) -> MercatorRectangle {
-        todo!()
+        MercatorRectangle::create_from_position(self.position, WAYPOINT_HALF_SIZE as f64)
     }
 
     fn hit_test_specific(&self, position: LatitudeLongitude) -> bool {
-        todo!()
+        true
     }
 
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition {
-        todo!()
+        LabelPosition::FixGeoLocation(self.position)
     }
 
-    fn get_flag(&self) -> Option<WaypointFlag> {
-        todo!()
+    fn get_flag(&self) -> Option<DirectiontFlag> {
+        self.flag
     }
 
     fn get_render_information(&self) -> RenderingInformation {
-        todo!()
+        match self.image.clone() {
+            InternalWaypointImage::Image(image) => RenderingInformation::Image(image),
+            InternalWaypointImage::Cross(color) => RenderingInformation::Cross(color),
+        }
     }
 }
 
 /// How the direction arrow of a flagged way point looks.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WaypointFlag {
+pub struct DirectiontFlag {
     /// The fill colour of the arrow.
     pub color: Color,
     /// Where several arrows overlap, the higher priority is drawn on top and wins

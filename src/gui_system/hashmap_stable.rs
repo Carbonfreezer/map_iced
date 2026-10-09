@@ -3,26 +3,24 @@
 
 use fxhash::FxHashMap;
 use std::hash::Hash;
+use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
 
 /// The stable hashmap.
-pub(crate) struct StableHashmap<Key, Value>
-where
-    Key: Hash + Eq,
+#[derive(Default, Debug)]
+pub(crate) struct HashmapStable
 {
-    internal_map: FxHashMap<Key, usize>,
-    internal_vector: Vec<Value>,
+    internal_map: FxHashMap<AnnotationKey, usize>,
+    internal_vector: Vec<(AnnotationKey, Box<dyn Annotation>)>,
 }
 
-impl<Key, Value> StableHashmap<Key, Value>
-where
-    Key: Hash + Eq,
+impl HashmapStable
 {
     /// Creates the hashmap from a key value pair iterator stream.-
-    pub(crate) fn new(input: impl Iterator<Item = (Key, Value)>) -> Self {
+    pub(crate) fn new(input: impl Iterator<Item = (AnnotationKey, Box<dyn Annotation>)>) -> Self {
         let mut internal_map = FxHashMap::default();
         let mut internal_vector = Vec::new();
         for (key, val) in input {
-            internal_vector.push(val);
+            internal_vector.push((key, val));
             debug_assert!(internal_map.get(&key).is_none(), "The key is already used.");
             internal_map.insert(key, internal_vector.len() - 1);
         }
@@ -35,33 +33,14 @@ where
 
     /// Tries to get the element with the specific key.
     /// Returns the value if possible.
-    pub(crate) fn get(&self, key: &Key) -> Option<&Value> {
-        self.internal_vector.get(*self.internal_map.get(key)?)
+    pub(crate) fn get(&self, key: &AnnotationKey) -> Option<&dyn Annotation> {
+        self.internal_vector.get(*self.internal_map.get(key)?).map(|(key, val)|val.as_ref())
     }
 
     /// Asks for the internal iterator that returns the elements in the sequence as handed over in
-    /// construction.
-    pub(crate) fn get_iterator(&self) -> impl Iterator<Item = &Value> + '_ {
-        self.internal_vector.iter()
+    /// construction. Gives elements as key value tuples.
+    pub(crate) fn get_iterator(&self) -> impl DoubleEndedIterator<Item = (AnnotationKey,  &dyn Annotation)> {
+        self.internal_vector.iter().map(|(key, val)| (*key, val.as_ref()))
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use slotmap::SlotMap;
-    #[test]
-    fn stable_hash_test() {
-        let mut base = SlotMap::new();
-        let input = ["foo".to_string(), "bar".to_string(), "baz".to_string()];
-        let keys: Vec<_> = input.iter().map(|x| base.insert(x.clone())).collect();
-        let stable = StableHashmap::new(base.into_iter());
-        for (key, value) in keys.iter().zip(input.iter()) {
-            assert_eq!(stable.get(key), Some(value));
-        }
-
-        for (x, y) in stable.get_iterator().zip(input.iter()) {
-            assert_eq!(x, y);
-        }
-    }
-}
