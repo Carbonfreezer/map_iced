@@ -39,8 +39,8 @@ pub(crate) struct MapWidget {
     pub(crate) tile_drawing_cache: Cache,
     /// The copyright text overlay.
     overlay_cache: Cache,
-    /// The drawing cache for the waypoint info.
-    renderpoint_cache: Cache,
+    /// The drawing cache for the annotation info.
+    annotation_cache: Cache,
     /// The drawing cache for the scale bar, it changes with the focal point.
     scale_cache: Cache,
     /// Tiles for the current view, possibly still filling up.
@@ -82,7 +82,7 @@ impl MapWidget {
         Self {
             tile_drawing_cache: Default::default(),
             overlay_cache: Default::default(),
-            renderpoint_cache: Default::default(),
+            annotation_cache: Default::default(),
             scale_cache: Default::default(),
             drawing_tiles: vec![],
             fallback_tiles: vec![],
@@ -193,7 +193,7 @@ impl MapWidget {
     ) {
         self.annotation_info = render_points;
         self.place_arrows(flagged_points);
-        self.renderpoint_cache.clear();
+        self.annotation_cache.clear();
     }
 
     /// Places the direction arrows for the current view.
@@ -320,7 +320,7 @@ impl MapWidget {
         renderer: &Renderer,
         bounds: Rectangle,
     ) -> Geometry<Renderer> {
-        self.renderpoint_cache
+        self.annotation_cache
             .draw(renderer, bounds.size(), |frame| {
                 let Some(converter) = &self.position_converter else {
                     return;
