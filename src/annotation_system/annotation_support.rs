@@ -48,6 +48,12 @@ pub enum AnnotationKey {
     Waypoint(WaypointKey),
 }
 
+impl From<WaypointKey> for AnnotationKey {
+    fn from(key: WaypointKey) -> Self {
+        AnnotationKey::Waypoint(key)
+    }
+}
+
 /// The information needed to render an annotation element.
 pub enum RenderingInformation {
     /// Image with raw image data, from an image file. (used in waypoint)

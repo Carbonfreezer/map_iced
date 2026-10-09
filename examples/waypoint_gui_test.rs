@@ -11,8 +11,9 @@
 use iced::widget::text::Wrapping;
 use iced::widget::{button, checkbox, column, container, row, text};
 use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
+use map_iced::annotation_system::annotation_support::AnnotationKey;
 use map_iced::Bytes;
-use map_iced::annotation_system::waypoint_system::{DirectiontFlag, WaypointKey, WaypointSymbol};
+use map_iced::annotation_system::waypoint_system::{DirectiontFlag, WaypointSymbol};
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
 use map_iced::gui_system::map_widget::map_widget_components::FocalPoint;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
@@ -57,7 +58,7 @@ const CATALOGUE: [(&str, f64, f64, DirectiontFlag); 9] = [
 struct WaypointEntry {
     name: &'static str,
     position: LatitudeLongitude,
-    key: Option<WaypointKey>,
+    key: Option<AnnotationKey>,
     /// The flag this way point gets when flagged.
     flag: DirectiontFlag,
     /// Whether the way point is flagged, i.e. gets a direction arrow while off screen.
@@ -70,7 +71,7 @@ struct WaypointApplication {
     entries: Vec<WaypointEntry>,
     /// The way point last picked on one of the maps. The map system reports a pick
     /// and then forgets about it, so holding on to it is our business.
-    selected: Option<WaypointKey>,
+    selected: Option<AnnotationKey>,
 }
 
 /// The overall message system in this application.
@@ -153,10 +154,10 @@ impl WaypointApplication {
 
                         MapEvent::MapPositionClicked { position, .. } => {
                             let entry = self.entries.last_mut().unwrap();
-                            if let Some(target_key) = entry.key {
+                            if let Some(AnnotationKey::Waypoint(waypoint_key)) = entry.key {
                                 self.widget_system
                                     .get_waypoint_system_as_mut()
-                                    .update_waypoint_position(target_key, position)
+                                    .update_waypoint_position(waypoint_key, position)
                                     .expect("Key should be present");
                                 entry.position = position;
                             }
@@ -181,9 +182,9 @@ impl WaypointApplication {
                                 position,
                                 Some(name.to_string()),
                             );
-                        self.entries[index].key = Some(key);
+                        self.entries[index].key = Some(key.into());
                     }
-                    (false, Some(key)) => {
+                    (false, Some(AnnotationKey::Waypoint( key))) => {
                         self.widget_system
                             .get_waypoint_system_as_mut()
                             .delete_waypoint(key)
@@ -192,7 +193,7 @@ impl WaypointApplication {
                         // The flag lived on the way point and is gone with it.
                         self.entries[index].flagged = false;
                         // The way point is gone, so a pick that pointed at it is stale.
-                        if self.selected == Some(key) {
+                        if self.selected == Some(key.into()) {
                             self.selected = None;
                         }
                     }
@@ -211,7 +212,7 @@ impl WaypointApplication {
             }
 
             Message::Flagged(index, flagged) => {
-                let Some((key, flag)) = self
+                let Some((AnnotationKey::Waypoint(key), flag)) = self
                     .entries
                     .get(index)
                     .and_then(|entry| Some((entry.key?, entry.flag)))
