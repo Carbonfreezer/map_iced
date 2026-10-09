@@ -4,3 +4,4 @@
 pub mod annotation_support;
 pub mod path_system;
 pub mod waypoint_system;
+pub mod annotation_compound;

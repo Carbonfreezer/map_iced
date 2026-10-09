@@ -7,6 +7,7 @@ use bytes::Bytes;
 use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};
+use crate::annotation_system::annotation_support::{Annotation, LabelPosition, MercatorRectangle, RenderingInformation};
 
 // TODO: All indizes have to get into an enum
 new_key_type! {
@@ -29,7 +30,7 @@ pub enum WaypointSymbol {
 #[derive(Debug, Clone, Default)]
 pub struct WaypointSystem {
     /// The collection as a slot map.
-    waypoint_collection: SlotMap<WaypointKey, WaypointInfo>,
+    pub waypoint_collection: SlotMap<WaypointKey, WaypointInfo>,
 }
 
 /// Error type for that case that the waypoint is not contained in the structure.
@@ -242,6 +243,33 @@ pub(crate) struct WaypointInfo {
     /// The direction arrow, if the way point is flagged. Set with
     /// [`WaypointSystem::set_flag`].
     pub(crate) flag: Option<WaypointFlag>,
+}
+
+
+impl Annotation for WaypointInfo {
+    fn description(&self, _cursor: LatitudeLongitude) -> Option<String> {
+        self.description.clone()
+    }
+
+    fn cull_bounds(&self) -> MercatorRectangle {
+        todo!()
+    }
+
+    fn hit_test_specific(&self, position: LatitudeLongitude) -> bool {
+        todo!()
+    }
+
+    fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition {
+        todo!()
+    }
+
+    fn get_flag(&self) -> Option<WaypointFlag> {
+        todo!()
+    }
+
+    fn get_render_information(&self) -> RenderingInformation {
+        todo!()
+    }
 }
 
 /// How the direction arrow of a flagged way point looks.

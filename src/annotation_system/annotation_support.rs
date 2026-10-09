@@ -1,6 +1,7 @@
 //! Contains supporting functionality for annotation.
 
-use bytes::Bytes;
+use std::fmt::Debug;
+use iced::advanced::image::Handle;
 use iced::Color;
 use crate::annotation_system::waypoint_system::{WaypointFlag, WaypointKey};
 use crate::gui_system::latitude_longitude::{
@@ -18,7 +19,7 @@ pub enum LabelPosition {
 }
 
 /// A trait that gets implemented by all annotation features.
-pub(crate) trait Annotation {
+pub(crate) trait Annotation : Debug {
     /// Asks for the annotation description, can process the cursor being handed over in latitude longitude
     /// coordinates, for instance if the annotation should change on cursor position (for instance on a track)
     fn description(&self, cursor: LatitudeLongitude) -> Option<String>;
@@ -37,6 +38,7 @@ pub(crate) trait Annotation {
 }
 
 /// The generalized form of annotation keys. Can be used to query all annotations.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum AnnotationKey {
     /// The key for the way points.
     Waypoint(WaypointKey),
@@ -45,7 +47,7 @@ pub enum AnnotationKey {
 /// The information needed to render an annotation element.
 pub enum RenderingInformation {
     /// Image with raw image data, from an image file. (used in waypoint)
-    Image(Bytes),
+    Image(Handle),
     /// A cross we want to draw with an indicated color. (used in waypoint)
     Cross(Color),
 }
