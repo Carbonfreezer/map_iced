@@ -1,13 +1,13 @@
 //! This module contains various functions related to `map_widget`, that are taken out here
 //! to make the module slimmer. These are the text functions and the annotation interaction functions.
 
+use crate::annotation_system::annotation_support::AnnotationKey;
 use crate::gui_system::map_widget::map_widget_components::MapInteractionCommand;
 use iced::advanced::graphics::geometry::Frame;
 use iced::widget::Action;
 use iced::widget::canvas::Text;
 use iced::{Color, Renderer, Vector};
 use std::time::{Duration, Instant};
-use crate::annotation_system::annotation_support::AnnotationKey;
 // TODO: Add special hover indizes here.
 
 /// The light outline behind the map texts and the scale bar. No single colour reads
@@ -71,7 +71,10 @@ impl AnnotationInteractionState {
     /// The dwell timer only restarts when the target actually changes, so the jitter
     /// of a cursor resting inside one symbol does not keep pushing the description
     /// away.
-    pub(crate) fn aim(&mut self, key: Option<AnnotationKey>) -> Option<Action<MapInteractionCommand>> {
+    pub(crate) fn aim(
+        &mut self,
+        key: Option<AnnotationKey>,
+    ) -> Option<Action<MapInteractionCommand>> {
         if self.hovered.map(|hover| hover.index) == key {
             return None;
         }

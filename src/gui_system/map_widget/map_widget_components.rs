@@ -1,5 +1,6 @@
 //! This contains the map widget components which are mainly the canvasses.
 
+use crate::annotation_system::annotation_support::AnnotationKey;
 use crate::gui_system::internal_math::MAXIMUM_ZOOM_LEVEL;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_core::{MapWidget, STANDARD_RECTANGLE};
@@ -9,7 +10,6 @@ use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::Geometry;
 use iced::widget::{Action, canvas};
 use iced::{Color, Event, Point, Rectangle, Renderer, Theme, mouse, window};
-use crate::annotation_system::annotation_support::AnnotationKey;
 
 /// The velocity we use for mouse scrolling.
 const SCROLLING_SPEED: f32 = 0.05;
@@ -286,7 +286,7 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
                 let command = match self.widget.arrow_at(position) {
                     Some(key) => SpecificInteractionCommand::ArrowClicked(key),
                     None => SpecificInteractionCommand::AnnotationClicked(
-                        self.widget.annotation_at(position)?
+                        self.widget.annotation_at(position)?,
                     ),
                 };
 
@@ -315,8 +315,12 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
     ) -> Vec<Geometry<Renderer>> {
         vec![
             self.widget.draw_annotation_symbols(renderer, bounds),
-            self.widget
-                .draw_annotation_interaction(renderer, bounds, state, cursor.position_in(bounds)),
+            self.widget.draw_annotation_interaction(
+                renderer,
+                bounds,
+                state,
+                cursor.position_in(bounds),
+            ),
             self.widget.draw_copyright(renderer, bounds),
             self.widget.draw_scale(renderer, bounds),
         ]

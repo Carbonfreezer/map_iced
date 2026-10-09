@@ -1,5 +1,9 @@
 //! This module contains the core par of map widget.
 
+use crate::annotation_system::annotation_support::{
+    AnnotationKey, LabelPosition, RenderingInformation,
+};
+use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
     BoundingRectangle, DrawingPositionConverter, RectConversionError, TILE_SIZE_PIXEL,
@@ -22,11 +26,9 @@ use iced::widget::Action;
 use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
 use iced::{Point, Rectangle, Renderer, Vector};
 use std::time::Instant;
-use crate::annotation_system::annotation_support::{AnnotationKey, LabelPosition, RenderingInformation};
-use crate::gui_system::hashmap_stable::HashmapStable;
 
 /// Half the size of the way point we apply.
-pub (crate) const WAYPOINT_HALF_SIZE: f32 = 15.0;
+pub(crate) const WAYPOINT_HALF_SIZE: f32 = 15.0;
 
 /// Horizontal gap between a way point symbol and its hover description.
 const DESCRIPTION_GAP: f32 = 4.0;
@@ -101,10 +103,11 @@ impl MapWidget {
     pub(crate) fn focal_point(&self) -> FocalPoint {
         self.focal_point
     }
-    
-    
+
     /// Asks for the drawing position converter if existing.
-    pub(crate) fn position_converter(&self) -> Option<&DrawingPositionConverter> {self.position_converter.as_ref()}
+    pub(crate) fn position_converter(&self) -> Option<&DrawingPositionConverter> {
+        self.position_converter.as_ref()
+    }
 
     /// The hard focus: jumps to `focal_point` and cancels a running soft focus. The
     /// new view is applied with the next event, the widget needs its bounds for it.
@@ -180,7 +183,6 @@ impl MapWidget {
     pub(crate) fn request_focal_reset(&mut self) {
         self.request_focal_reset = true;
     }
-    
 
     /// Called from outside the map widget system to set the waypoint information:
     /// the way points around the view, and all flagged ones for the arrows.
@@ -296,7 +298,6 @@ impl MapWidget {
             .map(|arrow| arrow.key)
     }
 
-   
     /// Looks if we have an annotation at the indicated position. Returns the annotation information.
     pub(crate) fn annotation_at(&self, position: Point) -> Option<AnnotationKey> {
         let converter = self.position_converter.as_ref()?;
@@ -304,12 +305,13 @@ impl MapWidget {
             .get_iterator()
             .rev()
             .find(|(_, annotation)| {
-                converter.is_pixel_point_in_mercator(position, annotation.cull_bounds()) &&
-                    annotation.hit_test_specific(converter.get_latitude_longitude_for_pixel_point(position))
+                converter.is_pixel_point_in_mercator(position, annotation.cull_bounds())
+                    && annotation.hit_test_specific(
+                        converter.get_latitude_longitude_for_pixel_point(position),
+                    )
             })
             .map(|(index, _)| index)
     }
-    
 
     /// The annotation symbols. Cached, because they only change with the way point
     /// snapshot or the focal point, never with the cursor.
@@ -318,56 +320,57 @@ impl MapWidget {
         renderer: &Renderer,
         bounds: Rectangle,
     ) -> Geometry<Renderer> {
-        self.renderpoint_cache.draw(renderer, bounds.size(), |frame| {
-            let Some(converter) = &self.position_converter else {
-                return;
-            };
-            for (_, annotation) in self.annotation_info.get_iterator() {
-                let draw_pos = converter.get_drawing_position(annotation.get_center()); 
-                let padding = annotation.cull_bounds().pixel_padding();
-                match annotation.get_render_information() {
-                    RenderingInformation::Image(handle) => {
-                        // Centred on the position, with the same extent as the cross.
-                        frame.draw_image(
-                            Rectangle {
-                                x: draw_pos.x - padding,
-                                y: draw_pos.y - padding,
-                                width: padding * 2.0,
-                                height: padding * 2.0,
-                            },
-                            Image::new(handle.clone()),
-                        );
-                    }
-                    RenderingInformation::Cross(color) => {
-                        let line_stroke = Stroke {
-                            width: 2.0,
-                            style: stroke::Style::Solid(color),
-                            ..Stroke::default()
-                        };
+        self.renderpoint_cache
+            .draw(renderer, bounds.size(), |frame| {
+                let Some(converter) = &self.position_converter else {
+                    return;
+                };
+                for (_, annotation) in self.annotation_info.get_iterator() {
+                    let draw_pos = converter.get_drawing_position(annotation.get_center());
+                    let padding = annotation.cull_bounds().pixel_padding();
+                    match annotation.get_render_information() {
+                        RenderingInformation::Image(handle) => {
+                            // Centred on the position, with the same extent as the cross.
+                            frame.draw_image(
+                                Rectangle {
+                                    x: draw_pos.x - padding,
+                                    y: draw_pos.y - padding,
+                                    width: padding * 2.0,
+                                    height: padding * 2.0,
+                                },
+                                Image::new(handle.clone()),
+                            );
+                        }
+                        RenderingInformation::Cross(color) => {
+                            let line_stroke = Stroke {
+                                width: 2.0,
+                                style: stroke::Style::Solid(color),
+                                ..Stroke::default()
+                            };
 
-                        frame.stroke(
-                            &Path::line(
-                                Point::new(-padding, -padding) + draw_pos,
-                                Point::new(padding, padding) + draw_pos,
-                            ),
-                            line_stroke,
-                        );
+                            frame.stroke(
+                                &Path::line(
+                                    Point::new(-padding, -padding) + draw_pos,
+                                    Point::new(padding, padding) + draw_pos,
+                                ),
+                                line_stroke,
+                            );
 
-                        frame.stroke(
-                            &Path::line(
-                                Point::new(-padding, padding) + draw_pos,
-                                Point::new(padding, -padding) + draw_pos,
-                            ),
-                            line_stroke,
-                        );
+                            frame.stroke(
+                                &Path::line(
+                                    Point::new(-padding, padding) + draw_pos,
+                                    Point::new(padding, -padding) + draw_pos,
+                                ),
+                                line_stroke,
+                            );
+                        }
                     }
                 }
-            }
 
-            for arrow in &self.arrows {
-                draw_arrow(frame, arrow.placement, arrow.color);
-            }
-        })
+                for arrow in &self.arrows {
+                    draw_arrow(frame, arrow.placement, arrow.color);
+                }
+            })
     }
 
     /// Everything that depends on the overlay interaction state. Deliberately *not*
@@ -387,9 +390,9 @@ impl MapWidget {
                 .description_index()
                 .and_then(|index| self.annotation_info.get(&index)),
             self.position_converter.as_ref(),
-        ) 
-            && let Some(cursor_pos) = cursor.map(|x| converter.get_latitude_longitude_for_pixel_point(x)) 
-            && let Some(description) = annotation.description(cursor_pos) 
+        ) && let Some(cursor_pos) =
+            cursor.map(|x| converter.get_latitude_longitude_for_pixel_point(x))
+            && let Some(description) = annotation.description(cursor_pos)
         {
             let label_pos = match annotation.label_anchor(cursor_pos) {
                 LabelPosition::NoLabel => None,
@@ -407,9 +410,8 @@ impl MapWidget {
                         size: FONT_SIZE.into(),
                         ..Default::default()
                     },
-                );     
+                );
             }
-           
         }
 
         frame.into_geometry()

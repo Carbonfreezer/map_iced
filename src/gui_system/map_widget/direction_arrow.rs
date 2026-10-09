@@ -4,10 +4,10 @@
 //! During a soft focus an arrow does not vanish when its way point comes into view,
 //! it attaches to the symbol instead and stays until the animation is over.
 
+use crate::annotation_system::annotation_support::AnnotationKey;
 use iced::advanced::graphics::geometry::Frame;
 use iced::widget::canvas::{Path, Stroke, stroke};
 use iced::{Color, Point, Renderer, Size, Vector};
-use crate::annotation_system::annotation_support::AnnotationKey;
 
 /// How far the tip stays inside the edge, so that it is not cut off.
 const EDGE_INSET: f32 = 2.0;

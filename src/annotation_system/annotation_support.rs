@@ -1,12 +1,12 @@
 //! Contains supporting functionality for annotation.
 
-use std::fmt::Debug;
-use iced::advanced::image::Handle;
-use iced::Color;
 use crate::annotation_system::waypoint_system::{DirectiontFlag, WaypointKey};
 use crate::gui_system::latitude_longitude::{
     BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
 };
+use iced::Color;
+use iced::advanced::image::Handle;
+use std::fmt::Debug;
 
 /// Indicates where a  label should be positioned.
 pub enum LabelPosition {
@@ -19,14 +19,16 @@ pub enum LabelPosition {
 }
 
 /// A trait that gets implemented by all annotation features.
-pub(crate) trait Annotation : Debug  {
+pub(crate) trait Annotation: Debug {
     /// Asks for the annotation description, can process the cursor being handed over in latitude longitude
     /// coordinates, for instance if the annotation should change on cursor position (for instance on a track)
     fn description(&self, cursor: LatitudeLongitude) -> Option<String>;
     /// Gets the colling boundaries of the system, should be precomputed.
     fn cull_bounds(&self) -> &MercatorRectangle;
     /// The center is the center of the cull bounds.
-    fn get_center(&self) -> LatitudeLongitude {self.cull_bounds().get_center()}
+    fn get_center(&self) -> LatitudeLongitude {
+        self.cull_bounds().get_center()
+    }
     /// Does a hit test if a position handed over. This has be to combined with a test against the cull bounds
     /// upfront. For a waypoint this is always true. For a region or path that can be used as a filter to
     /// only hit test against specific regions.
@@ -36,8 +38,7 @@ pub(crate) trait Annotation : Debug  {
     /// Gets the waypoint info if existing.
     fn get_flag(&self) -> Option<DirectiontFlag>;
     /// This method returns all information to render the specific object.
-    fn get_render_information(&self)->RenderingInformation;
-    
+    fn get_render_information(&self) -> RenderingInformation;
 }
 
 /// The generalized form of annotation keys. Can be used to query all annotations.
@@ -130,14 +131,15 @@ impl MercatorRectangle {
         }
     }
 
-
     /// Asks for the center position of the region, that gets used to get the pointers of the
     /// annotation elements.
     pub fn get_center(&self) -> LatitudeLongitude {
-        LatitudeLongitude::new((self.min_max_lat.0 + self.min_max_lat.1) * 0.5 ,
-                               (self.min_max_long.0 + self.min_max_long.1) * 0.5)
+        LatitudeLongitude::new(
+            (self.min_max_lat.0 + self.min_max_lat.1) * 0.5,
+            (self.min_max_long.0 + self.min_max_long.1) * 0.5,
+        )
     }
-    
+
     /// Asks specifically for the pixel padding.
     pub fn pixel_padding(&self) -> f32 {
         self.pixel_padding as f32

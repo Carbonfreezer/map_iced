@@ -1,13 +1,15 @@
 //! This module administrates the way points, A way point is a single isolated location on the map.
 //! This differentiates from the paths, where several points are interconnected with each other.
 
+use crate::annotation_system::annotation_support::{
+    Annotation, LabelPosition, MercatorRectangle, RenderingInformation,
+};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
+use crate::gui_system::map_widget::map_widget_core::WAYPOINT_HALF_SIZE;
 use bytes::Bytes;
 use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};
-use crate::annotation_system::annotation_support::{Annotation, LabelPosition, MercatorRectangle, RenderingInformation};
-use crate::gui_system::map_widget::map_widget_core::WAYPOINT_HALF_SIZE;
 
 // TODO: All indizes have to get into an enum
 new_key_type! {
@@ -59,13 +61,15 @@ impl WaypointSystem {
             WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color),
         };
 
-        self.waypoint_collection
-            .insert( WaypointInfo {
-                image,
-                mercator_rectangle: MercatorRectangle::create_from_position(position, WAYPOINT_HALF_SIZE as f64),
-                description,
-                flag: None,
-            })
+        self.waypoint_collection.insert(WaypointInfo {
+            image,
+            mercator_rectangle: MercatorRectangle::create_from_position(
+                position,
+                WAYPOINT_HALF_SIZE as f64,
+            ),
+            description,
+            flag: None,
+        })
     }
 
     /// Sets the position of an existing way point.
@@ -87,7 +91,8 @@ impl WaypointSystem {
         self.waypoint_collection
             .get_mut(key)
             .ok_or(WaypointKeyNotContained)?
-            .mercator_rectangle = MercatorRectangle::create_from_position(position, WAYPOINT_HALF_SIZE as f64);
+            .mercator_rectangle =
+            MercatorRectangle::create_from_position(position, WAYPOINT_HALF_SIZE as f64);
         Ok(())
     }
 
@@ -184,7 +189,6 @@ impl WaypointSystem {
             Err(WaypointKeyNotContained)
         }
     }
-    
 }
 
 /// The internal way point image we have as a way point.
@@ -209,9 +213,8 @@ pub(crate) struct WaypointInfo {
     /// [`WaypointSystem::set_flag`].
     pub(crate) flag: Option<DirectiontFlag>,
     /// The mercator rectangle for the waypoint.
-    pub(crate) mercator_rectangle: MercatorRectangle
+    pub(crate) mercator_rectangle: MercatorRectangle,
 }
-
 
 impl Annotation for WaypointInfo {
     fn description(&self, _cursor: LatitudeLongitude) -> Option<String> {

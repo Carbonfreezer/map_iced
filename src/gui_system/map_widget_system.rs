@@ -1,7 +1,10 @@
 //! This module contains a structure that administrates all the different map widgets and
 //! the internal cache.
 
+use crate::annotation_system::annotation_compound::AnnotationSystem;
+use crate::annotation_system::annotation_support::AnnotationKey;
 use crate::annotation_system::waypoint_system::WaypointSystem;
+use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::{
@@ -12,9 +15,6 @@ use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
-use crate::annotation_system::annotation_compound::AnnotationSystem;
-use crate::annotation_system::annotation_support::AnnotationKey;
-use crate::gui_system::hashmap_stable::HashmapStable;
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
@@ -95,7 +95,6 @@ impl MapWidgetSystem {
         )
     }
 
-  
     /// Gets a mutable access for the way point system to modify things.
     pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
         for widget in &mut self.widget_collection {
@@ -128,24 +127,46 @@ impl MapWidgetSystem {
         let result = self.widget_collection[client_id as usize].apply_focal_point(point, rectangle);
         let Some(bounding) = result else {
             self.tile_cache.completely_unsubscribe(client_id);
-            return 
+            return;
         };
         self.tile_cache
             .register_new_interest_area(client_id, bounding);
         // We have to reset the tiles here, because they may already exist from one of the other clients.
         let tiles = self.tile_cache.get_all_images_for_client(client_id);
         self.widget_collection[client_id as usize].set_drawing_tiles(tiles);
-        
-        let converter = self.widget_collection[client_id as usize].position_converter().expect("Just applied focal point, position converted should exist.");
-        let render_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
-            .filter(|(_, annotation)| converter.is_mercator_visible(annotation.cull_bounds()))
-            .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
-        let flagged_points = HashmapStable::new(self.annotation_system.get_complete_render_list()
-            .filter(|(_, annotation)| annotation.get_flag().is_some())
-            .map(|(key, _)| (key, self.annotation_system.get_specific_element(key).expect("Key should be present"))));
-        
-        self.widget_collection[client_id as usize].set_annotation_info(render_points, flagged_points);
-        
+
+        let converter = self.widget_collection[client_id as usize]
+            .position_converter()
+            .expect("Just applied focal point, position converted should exist.");
+        let render_points = HashmapStable::new(
+            self.annotation_system
+                .get_complete_render_list()
+                .filter(|(_, annotation)| converter.is_mercator_visible(annotation.cull_bounds()))
+                .map(|(key, _)| {
+                    (
+                        key,
+                        self.annotation_system
+                            .get_specific_element(key)
+                            .expect("Key should be present"),
+                    )
+                }),
+        );
+        let flagged_points = HashmapStable::new(
+            self.annotation_system
+                .get_complete_render_list()
+                .filter(|(_, annotation)| annotation.get_flag().is_some())
+                .map(|(key, _)| {
+                    (
+                        key,
+                        self.annotation_system
+                            .get_specific_element(key)
+                            .expect("Key should be present"),
+                    )
+                }),
+        );
+
+        self.widget_collection[client_id as usize]
+            .set_annotation_info(render_points, flagged_points);
     }
 
     /// Processes the messsage and eventually returns a map event for further processing.
@@ -188,7 +209,9 @@ impl MapWidgetSystem {
                 // The widget reports what the click hit, the meaning is decided here.
                 // A way point that is gone by now must not reach the application, the
                 // snapshot in the widget can be older than the collection.
-                self.annotation_system.get_specific_element(key).map(|_| MapEvent::AnnotationSelected { client_id, key })
+                self.annotation_system
+                    .get_specific_element(key)
+                    .map(|_| MapEvent::AnnotationSelected { client_id, key })
             }
 
             // In this case we have simply clicked somewhere on the map.

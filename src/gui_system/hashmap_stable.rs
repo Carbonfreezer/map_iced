@@ -1,19 +1,17 @@
 //! This module consists of an encapsulation of FxHashmap, that can directly give an iterator to
 //! iterate over the elements in the sequence they are handed over.
 
-use fxhash::FxHashMap;
 use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
+use fxhash::FxHashMap;
 
 /// The stable hashmap.
 #[derive(Default, Debug)]
-pub(crate) struct HashmapStable
-{
+pub(crate) struct HashmapStable {
     internal_map: FxHashMap<AnnotationKey, usize>,
     internal_vector: Vec<(AnnotationKey, Box<dyn Annotation>)>,
 }
 
-impl HashmapStable
-{
+impl HashmapStable {
     /// Creates the hashmap from a key value pair iterator stream.-
     pub(crate) fn new(input: impl Iterator<Item = (AnnotationKey, Box<dyn Annotation>)>) -> Self {
         let mut internal_map = FxHashMap::default();
@@ -33,13 +31,18 @@ impl HashmapStable
     /// Tries to get the element with the specific key.
     /// Returns the value if possible.
     pub(crate) fn get(&self, key: &AnnotationKey) -> Option<&dyn Annotation> {
-        self.internal_vector.get(*self.internal_map.get(key)?).map(|(_, val)|val.as_ref())
+        self.internal_vector
+            .get(*self.internal_map.get(key)?)
+            .map(|(_, val)| val.as_ref())
     }
 
     /// Asks for the internal iterator that returns the elements in the sequence as handed over in
     /// construction. Gives elements as key value tuples.
-    pub(crate) fn get_iterator(&self) -> impl DoubleEndedIterator<Item = (AnnotationKey,  &dyn Annotation)> {
-        self.internal_vector.iter().map(|(key, val)| (*key, val.as_ref()))
+    pub(crate) fn get_iterator(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (AnnotationKey, &dyn Annotation)> {
+        self.internal_vector
+            .iter()
+            .map(|(key, val)| (*key, val.as_ref()))
     }
 }
-

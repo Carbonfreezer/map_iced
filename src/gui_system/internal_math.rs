@@ -370,7 +370,7 @@ impl DrawingPositionConverter {
     /// Test for visibility is already done upfront when changing the focus for the culling bounds.
     pub fn get_drawing_position(&self, pos: LatitudeLongitude) -> Vector {
         let Vector { x, y } = self.get_unclipped_drawing_position(pos);
-        
+
         Vector::new(x as f32, y as f32)
     }
 
