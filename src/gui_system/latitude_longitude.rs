@@ -109,7 +109,8 @@ impl LatitudeLongitude {
         let d_long = (other_point.longitude - self.longitude).to_radians();
         let h =
             (d_lat * 0.5).sin().powi(2) + lat_a.cos() * lat_b.cos() * (d_long * 0.5).sin().powi(2);
-        2.0 * EARTH_RADIUS * h.sqrt().asin()
+        // Rounding can push h just above 1 for near-antipodal points, where asin gives NaN.
+        2.0 * EARTH_RADIUS * h.sqrt().min(1.0).asin()
     }
 }
 
@@ -135,5 +136,16 @@ mod tests {
             let (first, last) = (ring[0], ring[ring.len() - 1]);
             prop_assert!(first.get_distance_to(last)< 1e-6, "ring not closed");
         }
+    }
+
+    #[test]
+    fn east_west_distance_shrinks_with_latitude() {
+        // One degree along the 60th parallel is R * cos(60°) * 1° long; the great circle
+        // between its ends is shorter only by about 2e-5 of that. Squaring the cosine
+        // factor in the haversine would halve the result here, while the equator hides it.
+        let distance = LatitudeLongitude::new(60.0, 0.0).get_distance_to(LatitudeLongitude::new(60.0, 1.0));
+        let parallel_arc = EARTH_RADIUS * 60f64.to_radians().cos() * 1f64.to_radians();
+        assert!(distance <= parallel_arc, "{distance} vs {parallel_arc}");
+        assert!(distance > parallel_arc * (1.0 - 1e-4), "{distance} vs {parallel_arc}");
     }
 }
