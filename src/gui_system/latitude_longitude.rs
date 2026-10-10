@@ -136,6 +136,17 @@ mod tests {
             let (first, last) = (ring[0], ring[ring.len() - 1]);
             prop_assert!(first.get_distance_to(last)< 1e-6, "ring not closed");
         }
+
+        #[test]
+        fn antipodal_distance_is_half_the_circumference(latitude in -BOUNDARY_LATITUDE..BOUNDARY_LATITUDE, longitude in -BOUNDARY_LONGITUDE..0.0) {
+            // The longitude range keeps the antipode inside -180 .. 180, where new would clamp it.
+            // Near h = 1 the haversine is ill-conditioned: asin(1 - e) is about pi/2 - sqrt(2e),
+            // so rounding noise in h costs tenths of a metre here.
+            let point = LatitudeLongitude::new(latitude, longitude);
+            let antipode = LatitudeLongitude::new(-latitude, longitude + 180.0);
+            let distance = point.get_distance_to(antipode);
+            prop_assert!((distance - PI * EARTH_RADIUS).abs() < 1.0, "{latitude}, {longitude}: {distance}");
+        }
     }
 
     #[test]
@@ -147,5 +158,15 @@ mod tests {
         let parallel_arc = EARTH_RADIUS * 60f64.to_radians().cos() * 1f64.to_radians();
         assert!(distance <= parallel_arc, "{distance} vs {parallel_arc}");
         assert!(distance > parallel_arc * (1.0 - 1e-4), "{distance} vs {parallel_arc}");
+    }
+
+    #[test]
+    fn near_antipodal_rounding_does_not_give_nan() {
+        // Found by random search, about one pair in 15 million: h rounds two ULP above 1,
+        // so its square root lands above 1 as well and asin would give NaN without the clamp.
+        let point = LatitudeLongitude::new(57.36396000882365, -64.65731757479259);
+        let antipode = LatitudeLongitude::new(-57.36396001600441, 115.34268263197147);
+        let distance = point.get_distance_to(antipode);
+        assert!((distance - PI * EARTH_RADIUS).abs() < 1.0, "{distance}");
     }
 }
