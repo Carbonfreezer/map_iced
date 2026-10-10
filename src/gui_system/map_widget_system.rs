@@ -48,6 +48,7 @@ impl From<CachingResultMessage> for MapWidgetMessage {
 pub enum MapEvent {
     /// Something went wrong, with a text meant for the user.
     Error(String),
+    // TODO: For the regions and pathes it may make sense to also hand over the longitude latitude position of the click point.
     /// The user picked this annotation element. `client_id` says in which widget that
     /// happened, it does not make that widget an owner of anything.
     AnnotationSelected { client_id: u32, key: AnnotationKey },
