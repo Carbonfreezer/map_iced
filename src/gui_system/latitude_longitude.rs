@@ -100,22 +100,24 @@ impl LatitudeLongitude {
             })
             .collect()
     }
+    
+    
+    /// Uses the harvesine formula to get the distance to another point in meters.
+    pub(crate) fn get_distance_to(&self, other_point:Self) -> f64 {
+        let (lat_a, lat_b) = (self.latitude.to_radians(), other_point.latitude.to_radians());
+        let d_lat = lat_b - lat_a;
+        let d_long = (other_point.longitude - self.longitude).to_radians();
+        let h =
+            (d_lat * 0.5).sin().powi(2) + lat_a.cos() * lat_b.cos() * (d_long * 0.5).sin().powi(2);
+        2.0 * EARTH_RADIUS * h.sqrt().asin()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use proptest::{prop_assert, proptest};
-
-    /// Great circle distance in metres, as an independent check.
-    fn haversine(a: LatitudeLongitude, b: LatitudeLongitude) -> f64 {
-        let (lat_a, lat_b) = (a.latitude.to_radians(), b.latitude.to_radians());
-        let d_lat = lat_b - lat_a;
-        let d_long = (b.longitude - a.longitude).to_radians();
-        let h =
-            (d_lat * 0.5).sin().powi(2) + lat_a.cos() * lat_b.cos() * (d_long * 0.5).sin().powi(2);
-        2.0 * EARTH_RADIUS * h.sqrt().asin()
-    }
+    
 
     proptest! {
         #[test]
@@ -126,12 +128,12 @@ mod tests {
             let ring = centre.create_circle_around(radius, 32);
             for point in &ring {
                 prop_assert!(point.latitude.is_finite() && point.longitude.is_finite());
-                let distance = haversine(centre, *point);
+                let distance = centre.get_distance_to(*point);
                 // The absolute micrometre covers rounding noise for a zero radius.
                 prop_assert!((distance - radius).abs() < radius * 1e-6 + 1e-6, "{latitude}: {distance} vs {radius}");
             }
             let (first, last) = (ring[0], ring[ring.len() - 1]);
-            prop_assert!(haversine(first, last) < 1e-6, "ring not closed");
+            prop_assert!(first.get_distance_to(last)< 1e-6, "ring not closed");
         }
     }
 }
