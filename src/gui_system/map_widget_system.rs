@@ -48,10 +48,10 @@ impl From<CachingResultMessage> for MapWidgetMessage {
 pub enum MapEvent {
     /// Something went wrong, with a text meant for the user.
     Error(String),
-    // TODO: For the regions and pathes it may make sense to also hand over the longitude latitude position of the click point.
     /// The user picked this annotation element. `client_id` says in which widget that
-    /// happened, it does not make that widget an owner of anything.
-    AnnotationSelected { client_id: u32, key: AnnotationKey },
+    /// happened, it does not make that widget an owner of anything. The click point is also added to be eventually
+    /// interpreted by the specific annotation component
+    AnnotationSelected { client_id: u32, key: AnnotationKey, click_point : LatitudeLongitude },
     /// A soft focus started with [`MapWidgetSystem::animate_to`] has arrived. Not
     /// sent for an animation that was cancelled or replaced on the way.
     FocusReached { client_id: u32 },
@@ -192,13 +192,13 @@ impl MapWidgetSystem {
                 }
             }
 
-            SpecificInteractionCommand::AnnotationClicked(key) => {
+            SpecificInteractionCommand::AnnotationClicked(key, click_point) => {
                 // The widget reports what the click hit, the meaning is decided here.
                 // A way point that is gone by now must not reach the application, the
                 // snapshot in the widget can be older than the collection.
                 self.annotation_system
                     .get_specific_element(key)
-                    .map(|_| MapEvent::AnnotationSelected { client_id, key })
+                    .map(|_| MapEvent::AnnotationSelected { client_id, key, click_point })
             }
 
             // In this case we have simply clicked somewhere on the map.

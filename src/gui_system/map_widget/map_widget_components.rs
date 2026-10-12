@@ -47,8 +47,8 @@ pub struct FocalPoint {
 pub enum SpecificInteractionCommand {
     /// We want to set the focal point as latitude longitude and the zoom level.
     SetFocalPoint(FocalPoint, Rectangle),
-    /// A left click landed on the given annotation element.
-    AnnotationClicked(AnnotationKey),
+    /// A left click landed on the given annotation element with the click point handed over as latitude, longitude.
+    AnnotationClicked(AnnotationKey, LatitudeLongitude),
     /// A left click landed on the direction arrow of the given way point.
     ArrowClicked(AnnotationKey),
     /// One frame of the soft focus started under `generation`. `finished` marks the
@@ -287,6 +287,7 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
                     Some(key) => SpecificInteractionCommand::ArrowClicked(key),
                     None => SpecificInteractionCommand::AnnotationClicked(
                         self.widget.annotation_at(position)?,
+                        self.widget.position_converter()?.get_latitude_longitude_for_pixel_point(position),
                     ),
                 };
 
