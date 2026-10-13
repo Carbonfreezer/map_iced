@@ -2,13 +2,14 @@
 //! the internal cache.
 
 use crate::annotation_system::annotation_compound::AnnotationSystem;
-use crate::annotation_system::annotation_support::AnnotationKey;
+use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
+use crate::annotation_system::region_system::RegionKey;
 use crate::annotation_system::waypoint_system::WaypointSystem;
 use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::{
-    AnnotationOverlay, FocalPoint, MapInteractionCommand, SpecificInteractionCommand,
+    AnnotationOverlay, FocalPoint, FocusTarget, MapInteractionCommand, SpecificInteractionCommand,
 };
 use crate::gui_system::map_widget::map_widget_core::MapWidget;
 use crate::tile_cache::cache_core::CachingResultMessage;
@@ -269,12 +270,33 @@ impl MapWidgetSystem {
         self.widget_collection[id as usize].set_focal_point(focal_point);
     }
 
-    /// The soft focus: the widget animates to `target` and ends at the zoom level it
-    /// started with. Close targets are reached by a pan, far ones by zooming out,
-    /// panning and zooming back in. User panning and zooming is suspended meanwhile,
-    /// and [`MapEvent::FocusReached`] reports the arrival.
-    pub fn animate_to(&mut self, id: u32, target: LatitudeLongitude) {
-        self.widget_collection[id as usize].animate_to(target);
+    /// The hard focus on a [`FocusTarget`]: a position keeps the zoom level, an area
+    /// is fitted into the widget. A soft focus still running on that widget is
+    /// cancelled.
+    pub fn jump_to(&mut self, id: u32, target: impl Into<FocusTarget>) {
+        self.widget_collection[id as usize].jump_to(&target.into());
+    }
+
+    /// The soft focus: the widget animates to `target`. A position ends at the zoom
+    /// level the widget started with, an area at the level that fits it. Close
+    /// targets are reached by a pan, far ones by zooming out, panning and zooming in.
+    /// User panning and zooming is suspended meanwhile, and
+    /// [`MapEvent::FocusReached`] reports the arrival.
+    pub fn animate_to(&mut self, id: u32, target: impl Into<FocusTarget>) {
+        self.widget_collection[id as usize].animate_to(&target.into());
+    }
+
+    /// The focus target for the region `key`: its bounds, covering the share `fill`
+    /// of the widget's width or height. `None` if there is no such region.
+    pub fn region_focus_target(&self, key: RegionKey, fill: f32) -> Option<FocusTarget> {
+        self.annotation_system
+            .region_system
+            .region_collection
+            .get(key)
+            .map(|region| FocusTarget::Area {
+                bounds: region.cull_bounds().clone(),
+                fill,
+            })
     }
 
     /// The canvas stack for one widget. Returns an `Element`, because the map tiles

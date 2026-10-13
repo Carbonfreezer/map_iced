@@ -1,6 +1,6 @@
 //! This contains the map widget components which are mainly the canvasses.
 
-use crate::annotation_system::annotation_support::AnnotationKey;
+use crate::annotation_system::annotation_support::{AnnotationKey, MercatorRectangle};
 use crate::gui_system::internal_math::MAXIMUM_ZOOM_LEVEL;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_core::{MapWidget, STANDARD_RECTANGLE};
@@ -54,6 +54,24 @@ pub struct MapInteractionCommand {
 pub struct FocalPoint {
     pub position: LatitudeLongitude,
     pub continuous_zoom_level: f32,
+}
+
+/// What a focus aims at. Turned into a [`FocalPoint`] by the widget itself, since
+/// only the widget knows its size at that moment.
+#[derive(Debug, Clone)]
+pub enum FocusTarget {
+    /// A single position, the zoom level stays as it is.
+    Position(LatitudeLongitude),
+    /// An area, typically the bounds of a region. It gets centred and zoomed so that
+    /// it covers the share `fill` (0..=1) of the widget's width or height, whichever
+    /// is binding.
+    Area { bounds: MercatorRectangle, fill: f32 },
+}
+
+impl From<LatitudeLongitude> for FocusTarget {
+    fn from(position: LatitudeLongitude) -> Self {
+        FocusTarget::Position(position)
+    }
 }
 
 /// These are the interaction commands for a specific client widget. The association with the

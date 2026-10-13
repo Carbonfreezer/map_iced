@@ -8,13 +8,13 @@ use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
     BoundingRectangle, DrawingPositionConverter, RectConversionError, TILE_SIZE_PIXEL,
 };
-use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::direction_arrow::{
     PlacedArrow, arrow_hit, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
 };
-use crate::gui_system::map_widget::focus_animation::FocusAnimation;
+use crate::gui_system::map_widget::focus_animation::{FocusAnimation, resolve_target};
 use crate::gui_system::map_widget::map_widget_components::{
-    FONT_SIZE, FocalPoint, MapInteractionCommand, SpecificInteractionCommand, TEXT_COLOR,
+    FONT_SIZE, FocalPoint, FocusTarget, MapInteractionCommand, SpecificInteractionCommand,
+    TEXT_COLOR,
 };
 use crate::gui_system::map_widget::map_widget_support::{
     AnnotationInteractionState, fill_text_with_halo,
@@ -24,7 +24,7 @@ use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::widget::Action;
 use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
-use iced::{Point, Rectangle, Renderer, Vector};
+use iced::{Point, Rectangle, Renderer, Size, Vector};
 use std::time::Instant;
 
 /// Horizontal gap between a way point symbol and its hover description.
@@ -114,20 +114,28 @@ impl MapWidget {
         self.request_focal_reset = true;
     }
 
+    /// The size the widget was last laid out with, `None` before the first layout.
+    fn view_size(&self) -> Option<Size> {
+        self.position_converter.as_ref().map(|c| c.drawing_size())
+    }
+
+    /// The hard focus on a [`FocusTarget`], resolved with [`resolve_target`].
+    pub(crate) fn jump_to(&mut self, target: &FocusTarget) {
+        self.set_focal_point(resolve_target(target, self.focal_point, self.view_size()));
+    }
+
     /// The soft focus, see [`FocusAnimation`] for the path it takes. A widget that
     /// has never been laid out has no size to plan with, it jumps instead.
-    pub(crate) fn animate_to(&mut self, target: LatitudeLongitude) {
-        let Some(view_size) = self.position_converter.as_ref().map(|c| c.drawing_size()) else {
-            self.set_focal_point(FocalPoint {
-                position: target,
-                ..self.focal_point
-            });
+    pub(crate) fn animate_to(&mut self, target: &FocusTarget) {
+        let Some(view_size) = self.view_size() else {
+            self.jump_to(target);
             return;
         };
+        let end = resolve_target(target, self.focal_point, Some(view_size));
         self.animation_generation += 1;
         self.animation = Some(FocusAnimation::new(
             self.focal_point,
-            target,
+            end,
             view_size,
             Instant::now(),
         ));
