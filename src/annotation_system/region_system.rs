@@ -217,10 +217,45 @@ impl RegionShape {
 }
 
 impl RegionSystem {
-    // TODO: Examples need to get added.-
-
     /// Adds a region of the given shape and returns the key. A shape that spans no area
     /// gives [`RegionError::DegenerateShape`], see the variants of [`RegionShape`].
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionError, RegionShape, RegionStyle, RegionSystem};
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let mut system = RegionSystem::default();
+    /// let style = RegionStyle { fill: Color::from_rgba(1.0, 0.0, 0.0, 0.3), border: Color::from_rgb(1.0, 0.0, 0.0) };
+    ///
+    /// // A circle of 2 km around Trier.
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let circle_key = system.add_region(circle, style, Some("Circle".to_string()));
+    /// assert!(circle_key.is_ok());
+    ///
+    /// // The convex hull of four points, the inner one is dropped.
+    /// let points = vec![
+    ///     LatitudeLongitude::new(49.70, 6.60),
+    ///     LatitudeLongitude::new(49.70, 6.70),
+    ///     LatitudeLongitude::new(49.80, 6.65),
+    ///     LatitudeLongitude::new(49.72, 6.65),
+    /// ];
+    /// assert!(system.add_region(RegionShape::ConvexHull { points }, style, None).is_ok());
+    ///
+    /// // A 60 degree fan of 5 km pointing east, e.g. gas carried by a west wind.
+    /// let sector = RegionShape::Sector {
+    ///     apex: LatitudeLongitude::new(49.75, 6.63),
+    ///     radius_meter: 5_000.0,
+    ///     heading_degree: 90.0,
+    ///     opening_degree: 60.0,
+    /// };
+    /// assert!(system.add_region(sector, style, None).is_ok());
+    ///
+    /// // Two points span no area.
+    /// let line = vec![LatitudeLongitude::new(49.70, 6.60), LatitudeLongitude::new(49.80, 6.70)];
+    /// let result = system.add_region(RegionShape::ConvexHull { points: line }, style, None);
+    /// assert_eq!(result.err(), Some(RegionError::DegenerateShape));
+    /// ```
     pub fn add_region(
         &mut self,
         shape: RegionShape,
@@ -246,6 +281,18 @@ impl RegionSystem {
 
     /// The current shape of the region, as handed to [`Self::add_region`] or
     /// [`Self::update_shape`].
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let mut system = RegionSystem::default();
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let key = system.add_region(circle, style, None).expect("a valid circle");
+    /// assert!(matches!(system.shape(key), Ok(RegionShape::Circle { .. })));
+    /// ```
     pub fn shape(&self, key: RegionKey) -> Result<&RegionShape, RegionError> {
         Ok(&self.region_collection.get(key).ok_or(RegionError::KeyNotContained)?.shape)
     }
@@ -256,6 +303,24 @@ impl RegionSystem {
     /// Something that has become a different thing is better deleted and added anew.
     ///
     /// A shape that spans no area leaves the region unchanged.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let mut system = RegionSystem::default();
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let plume = |heading_degree| RegionShape::Sector {
+    ///     apex: LatitudeLongitude::new(49.75, 6.63),
+    ///     radius_meter: 5_000.0,
+    ///     heading_degree,
+    ///     opening_degree: 60.0,
+    /// };
+    /// let key = system.add_region(plume(90.0), style, Some("Gas plume".to_string())).expect("a valid sector");
+    /// // The wind has turned, the plume now spreads south.
+    /// assert!(system.update_shape(key, plume(180.0)).is_ok());
+    /// ```
     pub fn update_shape(&mut self, key: RegionKey, shape: RegionShape) -> Result<(), RegionError> {
         let region = self
             .region_collection
@@ -271,6 +336,19 @@ impl RegionSystem {
     }
 
     /// Changes the colours of the region.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let mut system = RegionSystem::default();
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let key = system.add_region(circle, style, None).expect("a valid circle");
+    /// let warning = RegionStyle { fill: Color::from_rgba(1.0, 0.5, 0.0, 0.3), border: Color::from_rgb(1.0, 0.5, 0.0) };
+    /// let _ = system.update_style(key, warning);
+    /// ```
     pub fn update_style(&mut self, key: RegionKey, style: RegionStyle) -> Result<(), RegionError> {
         let render_info = &mut self.region_collection.get_mut(key).ok_or(RegionError::KeyNotContained)?.rendering_info;
         render_info.core_color = style.fill;
@@ -279,6 +357,18 @@ impl RegionSystem {
     }
 
     /// Sets a new annotation description.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let mut system = RegionSystem::default();
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let key = system.add_region(circle, style, None).expect("a valid circle");
+    /// let _ = system.update_description(key, Some("Annotation".to_string()));
+    /// ```
     pub fn update_description(&mut self, key: RegionKey, description : Option<String>) -> Result<(), RegionError> {
         self.region_collection
             .get_mut(key)
@@ -287,13 +377,41 @@ impl RegionSystem {
         Ok(())
     }
 
-    /// Sets the arrow flag for the region.
+    /// Flags the region, or takes the flag away with `None`. A flagged region gets an
+    /// arrow on the edge of every widget it is off screen in, pointing at its centre.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
+    /// use map_iced::annotation_system::waypoint_system::DirectionFlag;
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let mut system = RegionSystem::default();
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let key = system.add_region(circle, style, None).expect("a valid circle");
+    /// let flag = DirectionFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
+    /// assert!(system.set_flag(key, Some(flag)).is_ok());
+    /// ```
     pub fn set_flag(&mut self, key: RegionKey, flag: Option<DirectionFlag>) -> Result<(), RegionError> {
         self.region_collection.get_mut(key).ok_or(RegionError::KeyNotContained)?.flag = flag;
         Ok(())
     }
 
-    /// Removes the region key from the list.
+    /// Removes the region with the indicated key.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionError, RegionShape, RegionStyle, RegionSystem};
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let mut system = RegionSystem::default();
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let key = system.add_region(circle, style, None).expect("a valid circle");
+    /// assert!(system.delete_region(key).is_ok());
+    /// assert_eq!(system.delete_region(key), Err(RegionError::KeyNotContained));
+    /// ```
     pub fn delete_region(&mut self, key: RegionKey) -> Result<(), RegionError> {
         let deletion = self.region_collection.remove(key);
         if deletion.is_some() {

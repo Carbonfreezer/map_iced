@@ -152,8 +152,7 @@ impl WaypointSystem {
     }
 
     /// Flags the way point, or takes the flag away with `None`. A flagged way point
-    /// gets an arrow on the edge of every widget it is off screen in. Returns
-    /// `false` for an unknown key.
+    /// gets an arrow on the edge of every widget it is off screen in.
     ///
     /// # Example
     /// ```
