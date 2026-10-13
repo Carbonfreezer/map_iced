@@ -279,6 +279,28 @@ impl RegionSystem {
         Ok(self.region_collection.insert(region))
     }
 
+    /// The point the region stands for: the centre of a circle, the apex of a sector,
+    /// the centre of the bounds of a convex hull. Direction arrows point at it.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let mut system = RegionSystem::default();
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let apex = LatitudeLongitude::new(49.75, 6.63);
+    /// let sector = RegionShape::Sector { apex, radius_meter: 5_000.0, heading_degree: 90.0, opening_degree: 60.0 };
+    /// let key = system.add_region(sector, style, None).expect("a valid sector");
+    /// // How far a click lies from the source of the plume.
+    /// let click = LatitudeLongitude::new(49.75, 6.66);
+    /// let distance_meter = system.center(key).expect("present").get_distance_to(click);
+    /// assert!((distance_meter - 2_157.0).abs() < 10.0);
+    /// ```
+    pub fn center(&self, key: RegionKey) -> Result<LatitudeLongitude, RegionError> {
+        Ok(self.region_collection.get(key).ok_or(RegionError::KeyNotContained)?.center)
+    }
+
     /// The current shape of the region, as handed to [`Self::add_region`] or
     /// [`Self::update_shape`].
     ///

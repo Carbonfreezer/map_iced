@@ -111,9 +111,22 @@ impl MapWidgetSystem {
         self.annotation_system.waypoint_system()
     }
 
+    /// Gets a mutable access for the region system to modify things.
     pub fn get_region_system_as_mut(&mut self) -> &mut RegionSystem {
         self.reset_all_widgets();
         self.annotation_system.region_system()
+    }
+
+    /// Gets a read-only access for the way point system, to query things without
+    /// the widget reset that comes with [`Self::get_waypoint_system_as_mut`].
+    pub fn get_waypoint_system(&self) -> &WaypointSystem {
+        &self.annotation_system.waypoint_system
+    }
+
+    /// Gets a read-only access for the region system, to query things without the
+    /// widget reset that comes with [`Self::get_region_system_as_mut`].
+    pub fn get_region_system(&self) -> &RegionSystem {
+        &self.annotation_system.region_system
     }
 
     ///  The messages going into the caching system are processed here.
