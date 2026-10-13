@@ -11,6 +11,9 @@ use crate::gui_system::latitude_longitude::LatitudeLongitude;
 /// [`RegionSystem::add_convex_region`].
 const DEGENERATE_AREA_RATIO: f64 = 1e-9;
 
+/// How many points a full circle gets. A sector gets its share of them on the arc.
+const RING_POINTS: usize = 128;
+
 new_key_type! {
     /// The handle of a way point inside a [`RegionSystem`]. A type of its own, so
     /// that it cannot be confused with the handles of the other annotation kinds.
@@ -24,6 +27,10 @@ new_key_type! {
 pub struct Region {
     /// The mercator rectangle of the region.
     bounds : MercatorRectangle,
+    /// The point the region stands for, reported by [`Annotation::get_center`] and
+    /// targeted by the direction arrow: the apex of a sector, the centre of a circle,
+    /// the centre of the bounds otherwise.
+    center: LatitudeLongitude,
     /// The polygon in geo coordinates.
     geo_polygon : Polygon,
     /// The rendering information.
@@ -46,7 +53,7 @@ impl Annotation for Region {
     }
 
     fn get_center(&self) -> LatitudeLongitude {
-        self.bounds.get_center()
+        self.center
     }
 
     fn hit_test_specific(&self, position: LatitudeLongitude) -> bool {
@@ -80,7 +87,7 @@ pub struct RegionSystem {
 #[derive(Debug, Clone, Copy)]
 pub struct RegionKeyNotContained;
 
-/// Error type for points that span no area: fewer than three, or all on one line.
+/// Error type for a region that would span no area, see the method that returned it.
 #[derive(Debug, Clone, Copy)]
 pub struct DegenerateRegion;
 
@@ -96,7 +103,7 @@ impl RegionSystem {
         border_color : Color,
         description: Option<String>,
     ) -> RegionKey {
-        self.insert_region(position.create_circle_around(radius, 128), inner_color, border_color, description)
+        self.insert_region(position.create_circle_around(radius, RING_POINTS), Some(position), inner_color, border_color, description)
     }
 
     /// Adds the convex hull of `positions` as a region and returns the key.
@@ -133,13 +140,46 @@ impl RegionSystem {
             .iter()
             .map(|coord| LatitudeLongitude::new(coord.y, coord.x))
             .collect();
-        Ok(self.insert_region(positions_ccw, inner_color, border_color, description))
+        Ok(self.insert_region(positions_ccw, None, inner_color, border_color, description))
     }
 
-    /// Builds the region from an open counter-clockwise ring and stores it.
+    /// Adds a circle sector as a region and returns the key: the fan of `radius` meters
+    /// around `apex`, opened by `opening_degree` and centred on `heading_degree`, the
+    /// compass bearing it points to, clockwise from north.
+    ///
+    /// The heading is where the sector points *to*. A wind direction is reported as
+    /// where the wind comes *from*, gas carried by a 270 degree wind spreads towards
+    /// 90 degrees.
+    ///
+    /// The apex is what the region reports as its centre, so a direction arrow points
+    /// at the lighthouse or the leak rather than into the fan. An opening outside
+    /// `0 < opening <= 180`, or a radius that is not positive, gives
+    /// [`DegenerateRegion`]; the limit keeps the sector convex.
+    pub fn add_sector_region(
+        &mut self,
+        apex: LatitudeLongitude,
+        radius: f64,
+        heading_degree: f64,
+        opening_degree: f64,
+        inner_color : Color,
+        border_color : Color,
+        description: Option<String>,
+    ) -> Result<RegionKey, DegenerateRegion> {
+        if !(opening_degree > 0.0 && opening_degree <= 180.0 && radius > 0.0) {
+            return Err(DegenerateRegion);
+        }
+        let arc_points = (RING_POINTS as f64 * opening_degree / 360.0).ceil() as usize + 1;
+        let positions_ccw =
+            apex.create_sector_around(radius, heading_degree, opening_degree, arc_points);
+        Ok(self.insert_region(positions_ccw, Some(apex), inner_color, border_color, description))
+    }
+
+    /// Builds the region from an open counter-clockwise ring and stores it. `center` is
+    /// what the region reports as its centre, the centre of its bounds if `None`.
     fn insert_region(
         &mut self,
         positions_ccw: Vec<LatitudeLongitude>,
+        center: Option<LatitudeLongitude>,
         inner_color : Color,
         border_color : Color,
         description: Option<String>,
@@ -151,9 +191,10 @@ impl RegionSystem {
         };
 
         let geo_polygon = Polygon::new(rendering_info.positions_ccw.iter().map(|pos|(pos.longitude, pos.latitude)).collect() ,vec![]);
-        let bounds = MercatorRectangle::create_from_position_array(rendering_info.positions_ccw.iter().map(|x| *x), 0.0);
+        let bounds = MercatorRectangle::create_from_position_array(rendering_info.positions_ccw.iter().copied(), 0.0);
 
         let region = Region {
+            center: center.unwrap_or_else(|| bounds.get_center()),
             bounds,
             geo_polygon,
             rendering_info,
@@ -247,5 +288,52 @@ mod tests {
         assert!(add(&mut system, &[(49.7, 6.6), (49.75, 6.65), (49.8, 6.7)]).is_err());
         assert!(add(&mut system, &[(49.7, 6.6), (49.7, 6.6), (49.7, 6.6)]).is_err());
         assert!(system.region_collection.is_empty());
+    }
+
+    fn add_sector(system: &mut RegionSystem, radius: f64, opening: f64) -> Result<RegionKey, DegenerateRegion> {
+        system.add_sector_region(
+            LatitudeLongitude::new(49.75, 6.63),
+            radius,
+            90.0,
+            opening,
+            Color::WHITE,
+            Color::BLACK,
+            None,
+        )
+    }
+
+    #[test]
+    fn sector_points_east_and_reports_its_apex() {
+        let mut system = RegionSystem::default();
+        let key = add_sector(&mut system, 10_000.0, 60.0).expect("a valid sector");
+        let region = &system.region_collection[key];
+        assert_eq!(region.get_center().latitude, 49.75);
+        assert_eq!(region.get_center().longitude, 6.63);
+        // 0.07 degrees of longitude are about 5 km at this latitude.
+        assert!(region.hit_test_specific(LatitudeLongitude::new(49.75, 6.70)));
+        assert!(!region.hit_test_specific(LatitudeLongitude::new(49.75, 6.56)));
+        assert!(!region.hit_test_specific(LatitudeLongitude::new(49.80, 6.63)));
+        // The bounds start at the apex and reach east only.
+        assert_eq!(region.bounds.min_max_long.0, 6.63);
+    }
+
+    #[test]
+    fn sector_limits() {
+        let mut system = RegionSystem::default();
+        assert!(add_sector(&mut system, 10_000.0, 180.0).is_ok());
+        assert!(add_sector(&mut system, 10_000.0, 0.0).is_err());
+        assert!(add_sector(&mut system, 10_000.0, 180.5).is_err());
+        assert!(add_sector(&mut system, 10_000.0, f64::NAN).is_err());
+        assert!(add_sector(&mut system, 0.0, 60.0).is_err());
+        assert_eq!(system.region_collection.len(), 1);
+    }
+
+    #[test]
+    fn circle_reports_its_own_centre() {
+        let mut system = RegionSystem::default();
+        let centre = LatitudeLongitude::new(49.75, 6.63);
+        let key = system.add_circular_region(centre, 10_000.0, Color::WHITE, Color::BLACK, None);
+        let reported = system.region_collection[key].get_center();
+        assert_eq!((reported.latitude, reported.longitude), (49.75, 6.63));
     }
 }

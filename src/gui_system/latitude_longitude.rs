@@ -57,15 +57,59 @@ impl LatitudeLongitude {
     /// screen coordinates, where y points down, the same ring has a positive area.
     ///
     /// Every point is the destination of walking `radius_meter` along a great circle in its
-    /// bearing, which stays correct near the poles where a squeezed circle breaks down.
-    /// The map does not wrap around at the date line, so a circle crossing it is clamped
-    /// to the map edge by [`Self::new`], the same as it gets clipped there on screen.
+    /// bearing, see [`Self::destinations`].
     pub(crate) fn create_circle_around(
         &self,
         radius_meter: f64,
         num_points: usize,
     ) -> Vec<LatitudeLongitude> {
         assert!(num_points >= 3, "Needed at least 3 points for a circle.");
+        // A growing bearing turns clockwise, north to east. It is negated so that the
+        // ring runs counter-clockwise, north to west.
+        self.destinations(
+            radius_meter,
+            (0..num_points).map(|i| -(i as f64) / num_points as f64 * 2.0 * PI),
+        )
+        .collect()
+    }
+
+    /// Builds the position points of a circle sector with this position as its apex.
+    /// `heading_degree` is the compass bearing the sector points to, clockwise from
+    /// north, and `opening_degree` the angle of the fan, centred on the heading.
+    ///
+    /// The ring is open and runs counter-clockwise like [`Self::create_circle_around`]:
+    /// the apex first, then `num_arc_points` points on the arc from the clockwise edge
+    /// of the fan to the counter-clockwise one. Every arc point is `radius_meter` away
+    /// from the apex along a great circle.
+    pub(crate) fn create_sector_around(
+        &self,
+        radius_meter: f64,
+        heading_degree: f64,
+        opening_degree: f64,
+        num_arc_points: usize,
+    ) -> Vec<LatitudeLongitude> {
+        assert!(num_arc_points >= 2, "Needed at least 2 points for an arc.");
+        let first = (heading_degree + opening_degree * 0.5).to_radians();
+        let step = opening_degree.to_radians() / (num_arc_points - 1) as f64;
+        std::iter::once(*self)
+            .chain(self.destinations(
+                radius_meter,
+                (0..num_arc_points).map(|i| first - i as f64 * step),
+            ))
+            .collect()
+    }
+
+    /// The points reached by walking `radius_meter` from here along a great circle in
+    /// each of the `bearings`, given in radians clockwise from north. That stays correct
+    /// near the poles, where a squeezed circle breaks down.
+    ///
+    /// The map does not wrap around at the date line, so a point beyond it is clamped
+    /// to the map edge by [`Self::new`], the same as it gets clipped there on screen.
+    fn destinations(
+        &self,
+        radius_meter: f64,
+        bearings: impl Iterator<Item = f64>,
+    ) -> impl Iterator<Item = LatitudeLongitude> {
         let angular_distance = radius_meter / EARTH_RADIUS;
         let (sin_distance, cos_distance) = angular_distance.sin_cos();
         let (sin_latitude, cos_latitude) = self.latitude.to_radians().sin_cos();
@@ -92,20 +136,14 @@ impl LatitudeLongitude {
         // arguments below are scaled by cos φ, which reuses sin(lat) = q_z:
         // cos δ − sin φ · q_z = cos φ · q_x. atan2 ignores a common positive factor,
         // and cos φ > 0 because the latitude stays within BOUNDARY_LATITUDE.
-        //
-        // A growing bearing turns clockwise, north to east. It is negated so that the
-        // ring runs counter-clockwise, north to west.
-        (0..num_points)
-            .map(|i| {
-                let bearing = -(i as f64) / num_points as f64 * 2.0 * PI;
-                let lat = (sin_latitude * cos_distance
-                    + cos_latitude * sin_distance * bearing.cos())
+        let longitude = self.longitude;
+        bearings.map(move |bearing| {
+            let lat = (sin_latitude * cos_distance + cos_latitude * sin_distance * bearing.cos())
                 .asin();
-                let long_diff = (bearing.sin() * sin_distance * cos_latitude)
-                    .atan2(cos_distance - sin_latitude * lat.sin());
-                LatitudeLongitude::new(lat.to_degrees(), self.longitude + long_diff.to_degrees())
-            })
-            .collect()
+            let long_diff = (bearing.sin() * sin_distance * cos_latitude)
+                .atan2(cos_distance - sin_latitude * lat.sin());
+            LatitudeLongitude::new(lat.to_degrees(), longitude + long_diff.to_degrees())
+        })
     }
 
     /// Uses the harvesine formula to get the distance to another point in meters.
@@ -147,6 +185,24 @@ mod tests {
                 // The absolute micrometre covers rounding noise for a zero radius.
                 prop_assert!((distance - radius).abs() < radius * 1e-6 + 1e-6, "{latitude}: {distance} vs {radius}");
             }
+        }
+
+        #[test]
+        fn sector_is_apex_plus_arc_counter_clockwise(latitude in -80.0f64..80.0, longitude in -177.0f64..177.0, radius in 100.0 .. 50_000.0, heading in -360.0f64..720.0, opening in 1.0f64..=180.0) {
+            let apex = LatitudeLongitude::new(latitude, longitude);
+            let ring = apex.create_sector_around(radius, heading, opening, 16);
+            prop_assert!(ring.len() == 17);
+            prop_assert!(ring[0].latitude == apex.latitude && ring[0].longitude == apex.longitude);
+            for point in &ring[1..] {
+                let distance = apex.get_distance_to(*point);
+                prop_assert!((distance - radius).abs() < radius * 1e-6, "{distance} vs {radius}");
+            }
+            let doubled_area: f64 = ring
+                .iter()
+                .zip(ring.iter().cycle().skip(1))
+                .map(|(a, b)| a.longitude * b.latitude - b.longitude * a.latitude)
+                .sum();
+            prop_assert!(doubled_area > 0.0, "{latitude}, {longitude}, {heading}, {opening}: {doubled_area}");
         }
 
         #[test]
