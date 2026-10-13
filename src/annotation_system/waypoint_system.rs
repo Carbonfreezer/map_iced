@@ -37,9 +37,12 @@ pub struct WaypointSystem {
     pub(crate) waypoint_collection: SlotMap<WaypointKey, WaypointInfo>,
 }
 
-/// Error type for that case that the waypoint is not contained in the structure.
-#[derive(Debug, Clone, Copy)]
-pub struct WaypointKeyNotContained;
+/// The errors of the [`WaypointSystem`]. A method that fails changes nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WaypointError {
+    /// There is no way point with this key, or not any more.
+    KeyNotContained,
+}
 
 impl WaypointSystem {
     /// Adds a new waypoint to the system.
@@ -89,10 +92,10 @@ impl WaypointSystem {
         &mut self,
         key: WaypointKey,
         position: LatitudeLongitude,
-    ) -> Result<(), WaypointKeyNotContained> {
+    ) -> Result<(), WaypointError> {
         self.waypoint_collection
             .get_mut(key)
-            .ok_or(WaypointKeyNotContained)?
+            .ok_or(WaypointError::KeyNotContained)?
             .mercator_rectangle =
             MercatorRectangle::create_from_position(position, WAYPOINT_HALF_SIZE);
         Ok(())
@@ -113,14 +116,14 @@ impl WaypointSystem {
         &mut self,
         key: WaypointKey,
         symbol: WaypointSymbol,
-    ) -> Result<(), WaypointKeyNotContained> {
+    ) -> Result<(), WaypointError> {
         let image = match symbol {
             WaypointSymbol::Image(image) => InternalWaypointImage::Image(Handle::from_bytes(image)),
             WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color),
         };
         self.waypoint_collection
             .get_mut(key)
-            .ok_or(WaypointKeyNotContained)?
+            .ok_or(WaypointError::KeyNotContained)?
             .image = image;
         Ok(())
     }
@@ -140,10 +143,10 @@ impl WaypointSystem {
         &mut self,
         key: WaypointKey,
         description: Option<String>,
-    ) -> Result<(), WaypointKeyNotContained> {
+    ) -> Result<(), WaypointError> {
         self.waypoint_collection
             .get_mut(key)
-            .ok_or(WaypointKeyNotContained)?
+            .ok_or(WaypointError::KeyNotContained)?
             .description = description;
         Ok(())
     }
@@ -162,8 +165,8 @@ impl WaypointSystem {
     /// let flag = DirectionFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
     /// assert!(system.set_flag(key, Some(flag)).is_ok());
     /// ```
-    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<DirectionFlag>) -> Result<(), WaypointKeyNotContained> {
-        self.waypoint_collection.get_mut(key).ok_or(WaypointKeyNotContained)?.flag = flag;
+    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<DirectionFlag>) -> Result<(), WaypointError> {
+        self.waypoint_collection.get_mut(key).ok_or(WaypointError::KeyNotContained)?.flag = flag;
         Ok(())
     }
 
@@ -178,12 +181,12 @@ impl WaypointSystem {
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let _ = system.delete_waypoint(key);
     /// ```
-    pub fn delete_waypoint(&mut self, key: WaypointKey) -> Result<(), WaypointKeyNotContained> {
+    pub fn delete_waypoint(&mut self, key: WaypointKey) -> Result<(), WaypointError> {
         let deletion = self.waypoint_collection.remove(key);
         if deletion.is_some() {
             Ok(())
         } else {
-            Err(WaypointKeyNotContained)
+            Err(WaypointError::KeyNotContained)
         }
     }
 }
