@@ -24,6 +24,24 @@ pub(crate) const TEXT_COLOR: Color = Color::BLACK;
 /// commands contain the information of a specific client widget.
 /// Made public because it is needed for mapping in the view construction,
 /// as these are the highest level commands originating from the widget system.
+///
+/// # Example
+/// ```
+/// use map_iced::gui_system::map_widget_system::{MapWidgetSystem, MapWidgetMessage};
+/// use iced::Element;
+///
+/// #[derive(Debug, Clone)]
+/// enum Message {
+///     WidgetMessage(MapWidgetMessage),
+///     InternalMessage(usize, bool),
+/// }
+///
+/// fn get_map_element(widget_id: u32,  widget_system: &MapWidgetSystem) -> Element<'_, Message> {
+///    widget_system
+///             .canvas(widget_id)
+///             .map(|cmd| Message::WidgetMessage(cmd.into()))
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct MapInteractionCommand {
     pub(crate) client_id: u32,

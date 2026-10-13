@@ -239,7 +239,7 @@ impl Annotation for WaypointInfo {
         self.flag
     }
 
-    fn get_render_information(&self) -> RenderingInformation {
+    fn get_render_information(&self) -> RenderingInformation<'_> {
         match self.image.clone() {
             InternalWaypointImage::Image(image) => RenderingInformation::Image(image),
             InternalWaypointImage::Cross(color) => RenderingInformation::Cross(color),

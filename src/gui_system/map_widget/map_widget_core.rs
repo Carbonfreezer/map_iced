@@ -362,6 +362,31 @@ impl MapWidget {
                                 line_stroke,
                             );
                         }
+                        RenderingInformation::Polygon(poly_info) => {
+                            let mut drawing_points = poly_info.positions_ccw.iter().map(|point| {
+                                let pos = converter.get_drawing_position(*point);
+                                Point::new(pos.x, pos.y)
+                            });
+                            let Some(first_point) = drawing_points.next() else {
+                                continue;
+                            };
+                            let outline = Path::new(|builder| {
+                                builder.move_to(first_point);
+                                for point in drawing_points {
+                                    builder.line_to(point);
+                                }
+                                builder.close();
+                            });
+                            frame.fill(&outline, poly_info.core_color);
+                            frame.stroke(
+                                &outline,
+                                Stroke {
+                                    width: 1.5,
+                                    style: stroke::Style::Solid(poly_info.border_color),
+                                    ..Stroke::default()
+                                },
+                            );
+                        }
                     }
                 }
 

@@ -162,6 +162,7 @@ impl WaypointApplication {
                                         .expect("Key should be present");
                                     entry.position = position;
                                 }
+                                Some(AnnotationKey::Region(_)) => {todo!("Implement regions if they appear in the sample.")}
                                 None => {}
                             }
                         }
@@ -200,6 +201,7 @@ impl WaypointApplication {
                             self.selected = None;
                         }
                     }
+                    (false, Some(AnnotationKey::Region(_))) => {todo!("Implement regions if they appear in the sample.")}
                     // Already in the state the checkbox asks for.
                     (true, Some(_)) | (false, None) => {}
                 }
@@ -229,6 +231,7 @@ impl WaypointApplication {
                             .get_waypoint_system_as_mut()
                             .set_flag(key, flagged.then_some(flag));
                     }
+                    AnnotationKey::Region(_) => {todo!("Implement regions if they appear in the sample.")}
                 }
                 self.entries[index].flagged = flagged;
             }

@@ -8,13 +8,13 @@ use std::f64::consts::PI;
 /// because of distortion artifacts in the mercator projection.
 pub const BOUNDARY_LATITUDE: f64 = 85.05112878;
 
-/// The boundary longitude we have.
+/// The absolute minimum and maximum representation of the longitude.
 pub const BOUNDARY_LONGITUDE: f64 = 180.0;
 
 /// The radius of the sphere Web Mercator is defined on, in metres.
 const EARTH_RADIUS: f64 = 6_378_137.0;
 
-/// The circumference of the earth we have.
+/// The circumference of the earth in meters for mercator calculations..
 pub const EARTH_CIRCUMFERENCE: f64 = 2.0 * PI * EARTH_RADIUS;
 
 /// The latitude longitude pair. Both are given in degrees.
@@ -100,10 +100,17 @@ impl LatitudeLongitude {
             })
             .collect()
     }
-    
-    
+
     /// Uses the harvesine formula to get the distance to another point in meters.
-    pub(crate) fn get_distance_to(&self, other_point:Self) -> f64 {
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// let first_point = LatitudeLongitude::new(49.7554, 6.6436);
+    /// let second_point = LatitudeLongitude::new( 49.7540, 6.6100);
+    /// let dist = first_point.get_distance_to(second_point);
+    /// ```
+    pub fn get_distance_to(&self, other_point:Self) -> f64 {
         let (lat_a, lat_b) = (self.latitude.to_radians(), other_point.latitude.to_radians());
         let d_lat = lat_b - lat_a;
         let d_long = (other_point.longitude - self.longitude).to_radians();

@@ -7,6 +7,7 @@ use crate::gui_system::latitude_longitude::{
 use iced::Color;
 use iced::advanced::image::Handle;
 use std::fmt::Debug;
+use crate::annotation_system::region_system::RegionKey;
 
 /// Indicates where a  label should be positioned.
 pub enum LabelPosition {
@@ -38,7 +39,7 @@ pub(crate) trait Annotation: Debug {
     /// Gets the waypoint info if existing.
     fn get_flag(&self) -> Option<DirectionFlag>;
     /// This method returns all information to render the specific object.
-    fn get_render_information(&self) -> RenderingInformation;
+    fn get_render_information(&self) -> RenderingInformation<'_>;
     /// Clones the annotation into a box, so the widgets can take a snapshot of it.
     fn clone_box(&self) -> Box<dyn Annotation>;
 }
@@ -48,6 +49,8 @@ pub(crate) trait Annotation: Debug {
 pub enum AnnotationKey {
     /// The key for the way points.
     Waypoint(WaypointKey),
+    /// The key for regions.
+    Region(RegionKey),
 }
 
 impl From<WaypointKey> for AnnotationKey {
@@ -56,12 +59,34 @@ impl From<WaypointKey> for AnnotationKey {
     }
 }
 
+impl From<RegionKey> for AnnotationKey {
+    fn from(key: RegionKey) -> Self {
+        AnnotationKey::Region(key)
+    }
+}
+
+
+/// Contains the information for rendering a closed shaped, with positons handed over in CCW.
+#[derive(Debug, Clone)]
+pub struct RenderingClosedShape {
+    /// The positions in latitude longitude handed over in CCW, that last point will be
+    /// connected to the first one.
+    pub positions_ccw: Vec<LatitudeLongitude>,
+    /// The color we use to fill the core.
+    pub core_color: Color,
+    /// The color we use for the border Color.
+    pub border_color: Color,
+
+}
+
 /// The information needed to render an annotation element.
-pub enum RenderingInformation {
+pub enum RenderingInformation<'a> {
     /// Image with raw image data, from an image file. (used in waypoint)
     Image(Handle),
     /// A cross we want to draw with an indicated color. (used in waypoint)
     Cross(Color),
+    /// This is a closed shape as a polygon.
+    Polygon(&'a RenderingClosedShape)
 }
 
 /// The mercator rectangle an annotation feature covers on the map
