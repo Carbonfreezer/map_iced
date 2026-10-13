@@ -8,7 +8,7 @@ use crate::annotation_system::waypoint_system::{DirectionFlag};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 
 /// Below this ratio of area to squared size a convex hull counts as a line, see
-/// [`RegionSystem::add_convex_region`].
+/// [`RegionShape::ConvexHull`].
 const DEGENERATE_AREA_RATIO: f64 = 1e-9;
 
 /// How many points a full circle gets. A sector gets its share of them on the arc.
@@ -31,6 +31,8 @@ pub struct Region {
     /// targeted by the direction arrow: the apex of a sector, the centre of a circle,
     /// the centre of the bounds otherwise.
     center: LatitudeLongitude,
+    /// The shape the region was built from, everything else here is derived from it.
+    shape: RegionShape,
     /// The polygon in geo coordinates.
     geo_polygon : Polygon,
     /// The rendering information.
@@ -91,103 +93,118 @@ pub struct RegionKeyNotContained;
 #[derive(Debug, Clone, Copy)]
 pub struct DegenerateRegion;
 
-impl RegionSystem {
-    // TODO: Examples need to get added.-
+/// The colours a region is drawn with.
+#[derive(Debug, Clone, Copy)]
+pub struct RegionStyle {
+    /// The colour the inside is filled with, usually translucent.
+    pub fill: Color,
+    /// The colour of the outline.
+    pub border: Color,
+}
 
-    /// Adds a circular region to the system and returns the key.
-    pub fn add_circular_region(
-        &mut self,
-        position: LatitudeLongitude,
-        radius: f64,
-        inner_color : Color,
-        border_color : Color,
-        description: Option<String>,
-    ) -> RegionKey {
-        self.insert_region(position.create_circle_around(radius, RING_POINTS), Some(position), inner_color, border_color, description)
-    }
-
-    /// Adds the convex hull of `positions` as a region and returns the key.
-    ///
-    /// The hull is computed with longitude as x and latitude as y, the same plane the
-    /// hit test works in. Points inside the hull are dropped, so the order they come
-    /// in does not matter. Fewer than three points, or points on a single line, span
-    /// no area and give [`DegenerateRegion`].
-    pub fn add_convex_region(
-        &mut self,
-        positions: impl Iterator<Item = LatitudeLongitude>,
-        inner_color : Color,
-        border_color : Color,
-        description: Option<String>,
-    ) -> Result<RegionKey, DegenerateRegion> {
-        let points: MultiPoint = positions
-            .map(|pos| (pos.longitude, pos.latitude))
-            .collect::<Vec<_>>()
-            .into();
-        let hull = points.convex_hull();
-        // Points on one line still leave an area from rounding, so the area is taken
-        // relative to the squared size of the hull. Even a thin corridor, ten metres
-        // wide over ten kilometres, stays orders of magnitude above the threshold.
-        let size_squared = hull
-            .bounding_rect()
-            .map_or(0.0, |rect| rect.width().powi(2) + rect.height().powi(2));
-        if hull.unsigned_area() <= size_squared * DEGENERATE_AREA_RATIO {
-            return Err(DegenerateRegion);
-        }
-        // geo hands the exterior over counter-clockwise, but closed: the first point
-        // is repeated at the end, our rings are open.
-        let ring = hull.exterior().0.as_slice();
-        let positions_ccw = ring[..ring.len() - 1]
-            .iter()
-            .map(|coord| LatitudeLongitude::new(coord.y, coord.x))
-            .collect();
-        Ok(self.insert_region(positions_ccw, None, inner_color, border_color, description))
-    }
-
-    /// Adds a circle sector as a region and returns the key: the fan of `radius` meters
-    /// around `apex`, opened by `opening_degree` and centred on `heading_degree`, the
-    /// compass bearing it points to, clockwise from north.
+/// The shape of a region, as it was handed to [`RegionSystem::add_region`]. The region
+/// keeps it, so it can be asked for later with [`RegionSystem::shape`].
+///
+/// All rings built from it run counter-clockwise with longitude as x and latitude as
+/// y, see [`RenderingClosedShape`].
+#[derive(Debug, Clone)]
+pub enum RegionShape {
+    /// A circle of `radius_meter` around `center`, measured along great circles. The
+    /// region reports `center` as its centre.
+    Circle {
+        center: LatitudeLongitude,
+        radius_meter: f64,
+    },
+    /// The convex hull of `points`, computed with longitude as x and latitude as y, the
+    /// same plane the hit test works in. Points inside the hull are dropped, so their
+    /// order does not matter. Fewer than three points, or points on a single line, span
+    /// no area. The region reports the centre of its bounds as its centre.
+    ConvexHull { points: Vec<LatitudeLongitude> },
+    /// The fan of `radius_meter` around `apex`, opened by `opening_degree` and centred
+    /// on `heading_degree`, the compass bearing it points to, clockwise from north.
     ///
     /// The heading is where the sector points *to*. A wind direction is reported as
     /// where the wind comes *from*, gas carried by a 270 degree wind spreads towards
-    /// 90 degrees.
+    /// 90 degrees. The opening has to lie in `0 < opening <= 180`, which keeps the
+    /// sector convex.
     ///
-    /// The apex is what the region reports as its centre, so a direction arrow points
-    /// at the lighthouse or the leak rather than into the fan. An opening outside
-    /// `0 < opening <= 180`, or a radius that is not positive, gives
-    /// [`DegenerateRegion`]; the limit keeps the sector convex.
-    pub fn add_sector_region(
-        &mut self,
+    /// The region reports the apex as its centre, so a direction arrow points at the
+    /// lighthouse or the leak rather than into the fan.
+    Sector {
         apex: LatitudeLongitude,
-        radius: f64,
+        radius_meter: f64,
         heading_degree: f64,
         opening_degree: f64,
-        inner_color : Color,
-        border_color : Color,
+    },
+}
+
+impl RegionShape {
+    /// The open counter-clockwise ring of the shape and the point the region reports
+    /// as its centre, `None` for the centre of the bounds. A shape that spans no area
+    /// gives [`DegenerateRegion`]; a radius that is not positive counts as such.
+    fn ring(&self) -> Result<(Vec<LatitudeLongitude>, Option<LatitudeLongitude>), DegenerateRegion> {
+        match self {
+            RegionShape::Circle { center, radius_meter } => {
+                if radius_meter.is_nan() || *radius_meter <= 0.0 {
+                    return Err(DegenerateRegion);
+                }
+                Ok((center.create_circle_around(*radius_meter, RING_POINTS), Some(*center)))
+            }
+            RegionShape::ConvexHull { points } => {
+                let points: MultiPoint = points
+                    .iter()
+                    .map(|pos| (pos.longitude, pos.latitude))
+                    .collect::<Vec<_>>()
+                    .into();
+                let hull = points.convex_hull();
+                // Points on one line still leave an area from rounding, so the area is
+                // taken relative to the squared size of the hull. Even a thin corridor,
+                // ten metres wide over ten kilometres, stays orders of magnitude above
+                // the threshold.
+                let size_squared = hull
+                    .bounding_rect()
+                    .map_or(0.0, |rect| rect.width().powi(2) + rect.height().powi(2));
+                if hull.unsigned_area() <= size_squared * DEGENERATE_AREA_RATIO {
+                    return Err(DegenerateRegion);
+                }
+                // geo hands the exterior over counter-clockwise, but closed: the first
+                // point is repeated at the end, our rings are open.
+                let ring = hull.exterior().0.as_slice();
+                let positions = ring[..ring.len() - 1]
+                    .iter()
+                    .map(|coord| LatitudeLongitude::new(coord.y, coord.x))
+                    .collect();
+                Ok((positions, None))
+            }
+            RegionShape::Sector { apex, radius_meter, heading_degree, opening_degree } => {
+                if !(*opening_degree > 0.0 && *opening_degree <= 180.0 && *radius_meter > 0.0) {
+                    return Err(DegenerateRegion);
+                }
+                let arc_points = (RING_POINTS as f64 * opening_degree / 360.0).ceil() as usize + 1;
+                let positions =
+                    apex.create_sector_around(*radius_meter, *heading_degree, *opening_degree, arc_points);
+                Ok((positions, Some(*apex)))
+            }
+        }
+    }
+}
+
+impl RegionSystem {
+    // TODO: Examples need to get added.-
+
+    /// Adds a region of the given shape and returns the key. A shape that spans no area
+    /// gives [`DegenerateRegion`], see the variants of [`RegionShape`].
+    pub fn add_region(
+        &mut self,
+        shape: RegionShape,
+        style: RegionStyle,
         description: Option<String>,
     ) -> Result<RegionKey, DegenerateRegion> {
-        if !(opening_degree > 0.0 && opening_degree <= 180.0 && radius > 0.0) {
-            return Err(DegenerateRegion);
-        }
-        let arc_points = (RING_POINTS as f64 * opening_degree / 360.0).ceil() as usize + 1;
-        let positions_ccw =
-            apex.create_sector_around(radius, heading_degree, opening_degree, arc_points);
-        Ok(self.insert_region(positions_ccw, Some(apex), inner_color, border_color, description))
-    }
-
-    /// Builds the region from an open counter-clockwise ring and stores it. `center` is
-    /// what the region reports as its centre, the centre of its bounds if `None`.
-    fn insert_region(
-        &mut self,
-        positions_ccw: Vec<LatitudeLongitude>,
-        center: Option<LatitudeLongitude>,
-        inner_color : Color,
-        border_color : Color,
-        description: Option<String>,
-    ) -> RegionKey {
+        let (positions_ccw, center) = shape.ring()?;
         let rendering_info = RenderingClosedShape {
             positions_ccw,
-            core_color: inner_color,
-            border_color,
+            core_color: style.fill,
+            border_color: style.border,
         };
 
         let geo_polygon = Polygon::new(rendering_info.positions_ccw.iter().map(|pos|(pos.longitude, pos.latitude)).collect() ,vec![]);
@@ -196,19 +213,25 @@ impl RegionSystem {
         let region = Region {
             center: center.unwrap_or_else(|| bounds.get_center()),
             bounds,
+            shape,
             geo_polygon,
             rendering_info,
             description,
             flag: None
         };
-        self.region_collection.insert(region)
+        Ok(self.region_collection.insert(region))
     }
 
-    /// Changes the coloring of the region.
-    pub fn update_color(&mut self, key: RegionKey, inner_color : Color, border_color : Color) -> Result<(), RegionKeyNotContained> {
+    /// The shape the region was created with.
+    pub fn shape(&self, key: RegionKey) -> Result<&RegionShape, RegionKeyNotContained> {
+        Ok(&self.region_collection.get(key).ok_or(RegionKeyNotContained)?.shape)
+    }
+
+    /// Changes the colours of the region.
+    pub fn update_style(&mut self, key: RegionKey, style: RegionStyle) -> Result<(), RegionKeyNotContained> {
         let render_info = &mut self.region_collection.get_mut(key).ok_or(RegionKeyNotContained)?.rendering_info;
-        render_info.core_color = inner_color;
-        render_info.border_color = border_color;
+        render_info.core_color = style.fill;
+        render_info.border_color = style.border;
         Ok(())
     }
 
@@ -244,13 +267,14 @@ impl RegionSystem {
 mod tests {
     use super::*;
 
+    const STYLE: RegionStyle = RegionStyle {
+        fill: Color::WHITE,
+        border: Color::BLACK,
+    };
+
     fn add(system: &mut RegionSystem, points: &[(f64, f64)]) -> Result<RegionKey, DegenerateRegion> {
-        system.add_convex_region(
-            points.iter().map(|&(lat, long)| LatitudeLongitude::new(lat, long)),
-            Color::WHITE,
-            Color::BLACK,
-            None,
-        )
+        let points = points.iter().map(|&(lat, long)| LatitudeLongitude::new(lat, long)).collect();
+        system.add_region(RegionShape::ConvexHull { points }, STYLE, None)
     }
 
     #[test]
@@ -291,15 +315,13 @@ mod tests {
     }
 
     fn add_sector(system: &mut RegionSystem, radius: f64, opening: f64) -> Result<RegionKey, DegenerateRegion> {
-        system.add_sector_region(
-            LatitudeLongitude::new(49.75, 6.63),
-            radius,
-            90.0,
-            opening,
-            Color::WHITE,
-            Color::BLACK,
-            None,
-        )
+        let shape = RegionShape::Sector {
+            apex: LatitudeLongitude::new(49.75, 6.63),
+            radius_meter: radius,
+            heading_degree: 90.0,
+            opening_degree: opening,
+        };
+        system.add_region(shape, STYLE, None)
     }
 
     #[test]
@@ -329,11 +351,30 @@ mod tests {
     }
 
     #[test]
-    fn circle_reports_its_own_centre() {
+    fn circle_reports_its_own_centre_and_shape() {
         let mut system = RegionSystem::default();
-        let centre = LatitudeLongitude::new(49.75, 6.63);
-        let key = system.add_circular_region(centre, 10_000.0, Color::WHITE, Color::BLACK, None);
+        let center = LatitudeLongitude::new(49.75, 6.63);
+        let shape = RegionShape::Circle { center, radius_meter: 10_000.0 };
+        let key = system.add_region(shape, STYLE, None).expect("a valid circle");
         let reported = system.region_collection[key].get_center();
         assert_eq!((reported.latitude, reported.longitude), (49.75, 6.63));
+        assert!(matches!(
+            system.shape(key),
+            Ok(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0
+        ));
+
+        system.delete_region(key).expect("present");
+        assert!(system.shape(key).is_err());
+    }
+
+    #[test]
+    fn circle_needs_a_positive_radius() {
+        let mut system = RegionSystem::default();
+        let center = LatitudeLongitude::new(49.75, 6.63);
+        for radius_meter in [0.0, -5.0, f64::NAN] {
+            let shape = RegionShape::Circle { center, radius_meter };
+            assert!(system.add_region(shape, STYLE, None).is_err());
+        }
+        assert!(system.region_collection.is_empty());
     }
 }
