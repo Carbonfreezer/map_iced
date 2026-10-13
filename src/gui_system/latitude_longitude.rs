@@ -49,8 +49,12 @@ impl LatitudeLongitude {
     }
 
     /// Builds the position points of a circle around the position with the radius indicated in meters.
-    /// The ring is closed,  so it has `num_points` entries.
-    /// Fewer than three points make no ring.
+    /// The ring is open: it has `num_points` entries, the closing edge from the last
+    /// point back to the first is implied. Fewer than three points make no ring.
+    ///
+    /// The points run counter-clockwise with longitude as x and latitude as y, north,
+    /// west, south, east, the usual orientation of an outer ring (GeoJSON, `geo`). In
+    /// screen coordinates, where y points down, the same ring has a positive area.
     ///
     /// Every point is the destination of walking `radius_meter` along a great circle in its
     /// bearing, which stays correct near the poles where a squeezed circle breaks down.
@@ -61,7 +65,7 @@ impl LatitudeLongitude {
         radius_meter: f64,
         num_points: usize,
     ) -> Vec<LatitudeLongitude> {
-        assert!(num_points >= 3, "Needed at least 2 points for a circle.");
+        assert!(num_points >= 3, "Needed at least 3 points for a circle.");
         let angular_distance = radius_meter / EARTH_RADIUS;
         let (sin_distance, cos_distance) = angular_distance.sin_cos();
         let (sin_latitude, cos_latitude) = self.latitude.to_radians().sin_cos();
@@ -88,9 +92,12 @@ impl LatitudeLongitude {
         // arguments below are scaled by cos φ, which reuses sin(lat) = q_z:
         // cos δ − sin φ · q_z = cos φ · q_x. atan2 ignores a common positive factor,
         // and cos φ > 0 because the latitude stays within BOUNDARY_LATITUDE.
+        //
+        // A growing bearing turns clockwise, north to east. It is negated so that the
+        // ring runs counter-clockwise, north to west.
         (0..num_points)
             .map(|i| {
-                let bearing = i as f64 / num_points as f64 * 2.0 * PI;
+                let bearing = -(i as f64) / num_points as f64 * 2.0 * PI;
                 let lat = (sin_latitude * cos_distance
                     + cos_latitude * sin_distance * bearing.cos())
                 .asin();
@@ -140,6 +147,20 @@ mod tests {
                 // The absolute micrometre covers rounding noise for a zero radius.
                 prop_assert!((distance - radius).abs() < radius * 1e-6 + 1e-6, "{latitude}: {distance} vs {radius}");
             }
+        }
+
+        #[test]
+        fn circle_runs_counter_clockwise(latitude in -80.0f64..80.0, longitude in -177.0f64..177.0, radius in 100.0 .. 50_000.0) {
+            let ring = LatitudeLongitude::new(latitude, longitude).create_circle_around(radius, 32);
+            // Twice the signed area by the shoelace formula, longitude as x, latitude as y.
+            let doubled_area: f64 = ring
+                .iter()
+                .zip(ring.iter().cycle().skip(1))
+                .map(|(a, b)| a.longitude * b.latitude - b.longitude * a.latitude)
+                .sum();
+            prop_assert!(doubled_area > 0.0, "{latitude}, {longitude}: {doubled_area}");
+            // The second point lies west of the first, which is due north.
+            prop_assert!(ring[1].longitude < ring[0].longitude);
         }
 
         #[test]

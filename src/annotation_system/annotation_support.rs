@@ -66,11 +66,11 @@ impl From<RegionKey> for AnnotationKey {
 }
 
 
-/// Contains the information for rendering a closed shaped, with positons handed over in CCW.
+/// Contains the information for rendering a closed shape, with positions handed over in CCW.
 #[derive(Debug, Clone)]
 pub struct RenderingClosedShape {
-    /// The positions in latitude longitude handed over in CCW, that last point will be
-    /// connected to the first one.
+    /// The positions in latitude longitude, counter-clockwise with longitude as x and
+    /// latitude as y. The ring is open, the last point gets connected to the first one.
     pub positions_ccw: Vec<LatitudeLongitude>,
     /// The color we use to fill the core.
     pub core_color: Color,
