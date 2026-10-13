@@ -125,7 +125,7 @@ impl WaypointSystem {
         Ok(())
     }
 
-    /// Sets the (optional) of an existing way point.
+    /// Sets the (optional) description of an existing way point.
     ///
     /// # Example
     /// ```
@@ -160,16 +160,11 @@ impl WaypointSystem {
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let flag = DirectionFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
-    /// assert!(system.set_flag(key, Some(flag)));
+    /// assert!(system.set_flag(key, Some(flag)).is_ok());
     /// ```
-    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<DirectionFlag>) -> bool {
-        match self.waypoint_collection.get_mut(key) {
-            Some(point) => {
-                point.flag = flag;
-                true
-            }
-            None => false,
-        }
+    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<DirectionFlag>) -> Result<(), WaypointKeyNotContained> {
+        self.waypoint_collection.get_mut(key).ok_or(WaypointKeyNotContained)?.flag = flag;
+        Ok(())
     }
 
     /// Deletes the way point with the indicated key returns as a result if it was possible.

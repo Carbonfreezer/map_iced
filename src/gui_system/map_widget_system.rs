@@ -15,6 +15,7 @@ use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
+use crate::annotation_system::region_system::RegionSystem;
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
@@ -96,12 +97,22 @@ impl MapWidgetSystem {
         )
     }
 
-    /// Gets a mutable access for the way point system to modify things.
-    pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
+    /// Requires a reset for all widgets, because some annotation information may have changed,
+    fn reset_all_widgets(&mut self) {
         for widget in &mut self.widget_collection {
             widget.request_focal_reset();
         }
+    }
+
+    /// Gets a mutable access for the way point system to modify things.
+    pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
+        self.reset_all_widgets();
         self.annotation_system.waypoint_system()
+    }
+
+    pub fn get_region_system_as_mut(&mut self) -> &mut RegionSystem {
+        self.reset_all_widgets();
+        self.annotation_system.region_system()
     }
 
     ///  The messages going into the caching system are processed here.

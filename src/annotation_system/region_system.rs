@@ -1,9 +1,10 @@
 //! This system represents regions that can be selected and annotated and zoomed to.
 
 use geo::{point, Contains, Polygon};
+use iced::Color;
 use slotmap::{new_key_type, SlotMap};
 use crate::annotation_system::annotation_support::{Annotation, LabelPosition, MercatorRectangle, RenderingClosedShape, RenderingInformation};
-use crate::annotation_system::waypoint_system::DirectionFlag;
+use crate::annotation_system::waypoint_system::{DirectionFlag};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 
 new_key_type! {
@@ -76,5 +77,68 @@ pub struct RegionSystem {
 pub struct RegionKeyNotContained;
 
 impl RegionSystem {
-    // TODO: The next big block to be implemented.
+    // TODO: Examples need to get added.-
+
+    /// Adds a circular region to the system and returns the key.
+    pub fn add_circular_region(
+        &mut self,
+        position: LatitudeLongitude,
+        radius: f64,
+        inner_color : Color,
+        border_color : Color,
+        description: Option<String>,
+    ) -> RegionKey {
+        let rendering_info = RenderingClosedShape {
+            positions_ccw : position.create_circle_around(radius, 128),
+            core_color: inner_color,
+            border_color,
+        };
+
+        let geo_polygon = Polygon::new(rendering_info.positions_ccw.iter().map(|pos|(pos.longitude, pos.latitude)).collect() ,vec![]);
+        let bounds = MercatorRectangle::create_from_position_array(rendering_info.positions_ccw.iter().map(|x| *x), 0.0);
+
+        let region = Region {
+            bounds,
+            geo_polygon,
+            rendering_info,
+            description,
+            flag: None
+        };
+        self.region_collection.insert(region)
+    }
+
+    /// Changes the coloring of the region.
+    pub fn update_color(&mut self, key: RegionKey, inner_color : Color, border_color : Color) -> Result<(), RegionKeyNotContained> {
+        let render_info = &mut self.region_collection.get_mut(key).ok_or(RegionKeyNotContained)?.rendering_info;
+        render_info.core_color = inner_color;
+        render_info.border_color = border_color;
+        Ok(())
+    }
+
+    /// Sets a new annotation description.
+    pub fn update_description(&mut self, key: RegionKey, description : Option<String>) -> Result<(), RegionKeyNotContained> {
+        self.region_collection
+            .get_mut(key)
+            .ok_or(RegionKeyNotContained)?
+            .description = description;
+        Ok(())
+    }
+
+    /// Sets the arrow flag for the region.
+    pub fn set_flag(&mut self, key: RegionKey, flag: Option<DirectionFlag>) -> Result<(), RegionKeyNotContained> {
+        self.region_collection.get_mut(key).ok_or(RegionKeyNotContained)?.flag = flag;
+        Ok(())
+    }
+
+    /// Removes the region key from the list.
+    pub fn delete_region(&mut self, key: RegionKey) -> Result<(), RegionKeyNotContained> {
+        let deletion = self.region_collection.remove(key);
+        if deletion.is_some() {
+            Ok(())
+        } else {
+            Err(RegionKeyNotContained)
+        }
+    }
+
+
 }

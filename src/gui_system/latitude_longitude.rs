@@ -49,7 +49,7 @@ impl LatitudeLongitude {
     }
 
     /// Builds the position points of a circle around the position with the radius indicated in meters.
-    /// The ring is closed, the last point repeats the first, so it has `num_points + 1` entries.
+    /// The ring is closed,  so it has `num_points` entries.
     /// Fewer than three points make no ring.
     ///
     /// Every point is the destination of walking `radius_meter` along a great circle in its
@@ -61,7 +61,7 @@ impl LatitudeLongitude {
         radius_meter: f64,
         num_points: usize,
     ) -> Vec<LatitudeLongitude> {
-        assert!(num_points >= 3, "Needed at least 3 points for a circle.");
+        assert!(num_points >= 3, "Needed at least 2 points for a circle.");
         let angular_distance = radius_meter / EARTH_RADIUS;
         let (sin_distance, cos_distance) = angular_distance.sin_cos();
         let (sin_latitude, cos_latitude) = self.latitude.to_radians().sin_cos();
@@ -88,7 +88,7 @@ impl LatitudeLongitude {
         // arguments below are scaled by cos φ, which reuses sin(lat) = q_z:
         // cos δ − sin φ · q_z = cos φ · q_x. atan2 ignores a common positive factor,
         // and cos φ > 0 because the latitude stays within BOUNDARY_LATITUDE.
-        (0..=num_points)
+        (0..num_points)
             .map(|i| {
                 let bearing = i as f64 / num_points as f64 * 2.0 * PI;
                 let lat = (sin_latitude * cos_distance
@@ -140,8 +140,6 @@ mod tests {
                 // The absolute micrometre covers rounding noise for a zero radius.
                 prop_assert!((distance - radius).abs() < radius * 1e-6 + 1e-6, "{latitude}: {distance} vs {radius}");
             }
-            let (first, last) = (ring[0], ring[ring.len() - 1]);
-            prop_assert!(first.get_distance_to(last)< 1e-6, "ring not closed");
         }
 
         #[test]

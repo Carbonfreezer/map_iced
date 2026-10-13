@@ -229,7 +229,7 @@ impl WaypointApplication {
                     AnnotationKey::Waypoint(key) => {
                         self.widget_system
                             .get_waypoint_system_as_mut()
-                            .set_flag(key, flagged.then_some(flag));
+                            .set_flag(key, flagged.then_some(flag)).expect("Should be present");
                     }
                     AnnotationKey::Region(_) => {todo!("Implement regions if they appear in the sample.")}
                 }
