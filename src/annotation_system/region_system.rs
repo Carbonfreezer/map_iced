@@ -181,7 +181,8 @@ impl RegionShape {
             vec![],
         );
         let bounds =
-            MercatorRectangle::create_from_position_array(positions_ccw.iter().copied(), 0.0);
+            MercatorRectangle::create_from_position_array(positions_ccw.iter().copied(), 0.0)
+                .expect("a ring that spans an area has positions");
         Ok(Outline {
             center: center.unwrap_or_else(|| bounds.get_center()),
             positions_ccw,
@@ -461,7 +462,7 @@ impl RegionSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::annotation_system::waypoint_system::DirectionFlag;
+    /// use map_iced::annotation_system::annotation_support::DirectionFlag;
     /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };

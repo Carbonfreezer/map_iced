@@ -105,7 +105,8 @@ impl PathGeometry {
         let bounds = MercatorRectangle::create_from_position_array(
             dense_positions.iter().copied(),
             PATH_HOVER_PADDING,
-        );
+        )
+        .expect("a path has at least two positions");
         let mut geometry = Self {
             positions,
             dense_positions,
@@ -423,7 +424,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::PathSystem;
-    /// use map_iced::annotation_system::waypoint_system::DirectionFlag;
+    /// use map_iced::annotation_system::annotation_support::DirectionFlag;
     /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];

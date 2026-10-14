@@ -462,10 +462,6 @@ impl DrawingPositionConverter {
 
     /// Checks of a mercator rectangle handed over is actually visible by the inner drawing rectangle.
     pub fn is_mercator_visible(&self, mercator_rect: &MercatorRectangle) -> bool {
-        // If there is no real rectangle it may never become visible.
-        if !mercator_rect.is_valid {
-            return false;
-        };
         let boundary = TopLeftBottomRight::from(mercator_rect);
         let top_left = self.get_unclipped_drawing_position(boundary.top_left);
         let bottom_right = self.get_unclipped_drawing_position(boundary.bottom_right);
@@ -487,9 +483,6 @@ impl DrawingPositionConverter {
         point: Point,
         mercator_rect: &MercatorRectangle,
     ) -> bool {
-        if !mercator_rect.is_valid {
-            return false;
-        };
         let boundary = TopLeftBottomRight::from(mercator_rect);
         let top_left = self.get_unclipped_drawing_position(boundary.top_left);
         let bottom_right = self.get_unclipped_drawing_position(boundary.bottom_right);
@@ -527,7 +520,7 @@ mod tests {
             let rect = MercatorRectangle::create_from_position_array(
                 corners.iter().map(|p| converter.get_latitude_longitude_for_pixel_point(*p)),
                 padding,
-            );
+            ).unwrap();
             let point = Point { x: point.0 * width, y: point.1 * height };
 
             let (x, y) = (point.x as f64, point.y as f64);
@@ -542,8 +535,7 @@ mod tests {
         }
     }
 
-    /// A single position as used by the way points: the padding alone spans the hit area,
-    /// and an invalid rectangle never gets hit.
+    /// A single position as used by the way points: the padding alone spans the hit area.
     #[test]
     fn pixel_point_in_waypoint_rectangle() {
         let bounds = Rectangle::new(Point { x: 800.0, y: 600.0 }, Size::new(400.0, 300.0));
@@ -564,9 +556,6 @@ mod tests {
             },
             &waypoint
         ));
-
-        let empty = MercatorRectangle::create_from_position_array(std::iter::empty(), 1e9);
-        assert!(!converter.is_pixel_point_in_mercator(center, &empty));
     }
 
     proptest! {
@@ -634,12 +623,14 @@ mod tests {
         let track = MercatorRectangle::create_from_position_array(
             [at_pixel(-1e6, 150.0), at_pixel(1e6, 160.0)].into_iter(),
             0.0,
-        );
+        )
+        .unwrap();
         assert!(converter.is_mercator_visible(&track));
         let below = MercatorRectangle::create_from_position_array(
             [at_pixel(-1e6, 400.0), at_pixel(1e6, 420.0)].into_iter(),
             0.0,
-        );
+        )
+        .unwrap();
         assert!(!converter.is_mercator_visible(&below));
     }
 

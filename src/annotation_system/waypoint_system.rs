@@ -160,7 +160,8 @@ impl WaypointSystem {
     /// # Example
     /// ```
     /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol, WaypointSystem};
+    /// use map_iced::annotation_system::annotation_support::DirectionFlag;
+    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
     /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);

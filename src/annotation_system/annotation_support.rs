@@ -4,9 +4,7 @@ use crate::annotation_system::path_system::PathKey;
 use crate::annotation_system::region_system::RegionKey;
 use crate::annotation_system::waypoint_system::WaypointKey;
 use crate::gui_system::internal_math::MercatorPoint;
-use crate::gui_system::latitude_longitude::{
-    BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
-};
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::FocusTarget;
 use iced::Color;
 use iced::advanced::image::Handle;
@@ -137,17 +135,16 @@ pub(crate) enum RenderingInformation<'a> {
 }
 
 /// The mercator rectangle an annotation feature covers on the map
-/// with extra pixel padding.
-#[derive(Debug, Clone, Default)]
+/// with extra pixel padding. It always covers at least one position, the
+/// constructors keep the minimum below or at the maximum.
+#[derive(Debug, Clone)]
 pub struct MercatorRectangle {
     /// The minimum and maximum latitude we cover.
-    pub min_max_lat: (f64, f64),
+    pub(crate) min_max_lat: (f64, f64),
     /// The minimum and maximum longitude we cover.
-    pub min_max_long: (f64, f64),
+    pub(crate) min_max_long: (f64, f64),
     /// The extra pixel padding in every dimension.
-    pub pixel_padding: f64,
-    /// Indicates if the rectangle is valid, may become invalid if constructed from an empty set.
-    pub is_valid: bool,
+    pub(crate) pixel_padding: f64,
 }
 
 /// The top left bottom right position to be able to check with the Rectangle of the viewport later on.
@@ -177,38 +174,30 @@ impl MercatorRectangle {
             min_max_lat: (position.latitude, position.latitude),
             min_max_long: (position.longitude, position.longitude),
             pixel_padding,
-            is_valid: true,
         }
     }
 
     /// Crates the mercator rectangle from a position array as it may be used by a way path or region marked by gps points.
-    /// An empty array gives a rectangle marked as invalid, there is nothing to cover then.
+    /// An empty array gives `None`, there is nothing to cover then.
     pub fn create_from_position_array(
-        position_array: impl Iterator<Item = LatitudeLongitude>,
+        mut position_array: impl Iterator<Item = LatitudeLongitude>,
         pixel_padding: f64,
-    ) -> MercatorRectangle {
-        let (min_lat, max_lat, min_long, max_long) = position_array.fold(
-            (
-                BOUNDARY_LATITUDE,
-                -BOUNDARY_LATITUDE,
-                BOUNDARY_LONGITUDE,
-                -BOUNDARY_LONGITUDE,
-            ),
-            |(min_lat, max_lat, min_long, max_long), position| {
-                (
-                    min_lat.min(position.latitude),
-                    max_lat.max(position.latitude),
-                    min_long.min(position.longitude),
-                    max_long.max(position.longitude),
-                )
+    ) -> Option<MercatorRectangle> {
+        let first = position_array.next()?;
+        Some(position_array.fold(
+            Self::create_from_position(first, pixel_padding),
+            |rect, position| Self {
+                min_max_lat: (
+                    rect.min_max_lat.0.min(position.latitude),
+                    rect.min_max_lat.1.max(position.latitude),
+                ),
+                min_max_long: (
+                    rect.min_max_long.0.min(position.longitude),
+                    rect.min_max_long.1.max(position.longitude),
+                ),
+                ..rect
             },
-        );
-        Self {
-            min_max_lat: (min_lat, max_lat),
-            min_max_long: (min_long, max_long),
-            pixel_padding,
-            is_valid: max_lat >= min_lat && max_long >= min_long,
-        }
+        ))
     }
 
     /// Asks for the center position of the region, that gets used to get the pointers of the
@@ -243,7 +232,7 @@ mod tests {
 
     #[test]
     fn empty_position_array_has_no_rectangle() {
-        assert!(!MercatorRectangle::create_from_position_array(std::iter::empty(), 0.0).is_valid);
+        assert!(MercatorRectangle::create_from_position_array(std::iter::empty(), 0.0).is_none());
     }
 
     #[test]
@@ -256,7 +245,8 @@ mod tests {
             ]
             .into_iter(),
             3.0,
-        );
+        )
+        .unwrap();
         assert_eq!(rect.min_max_lat, (48.0, 52.0));
         assert_eq!(rect.min_max_long, (8.0, 11.0));
     }

@@ -198,7 +198,6 @@ pub(crate) fn resolve_target(
                 ..current
             };
         }
-        FocusTarget::Area { bounds, .. } if !bounds.is_valid => return current,
         FocusTarget::Area { bounds, fill } => (bounds, *fill as f64),
     };
 
@@ -310,7 +309,6 @@ mod tests {
                 min_max_lat: (49.75 - half_lat, 49.75 + half_lat),
                 min_max_long: (6.63 - half_long, 6.63 + half_long),
                 pixel_padding: 0.0,
-                is_valid: true,
             },
             fill,
         }
@@ -360,17 +358,9 @@ mod tests {
     }
 
     #[test]
-    fn tiny_and_invalid_areas() {
+    fn tiny_area() {
         let point = resolve_target(&area(0.0, 0.0, 0.8), trier(), Some(VIEW));
         assert_eq!(point.continuous_zoom_level, MAXIMUM_AREA_ZOOM_LEVEL);
-
-        let invalid = FocusTarget::Area {
-            bounds: MercatorRectangle::default(),
-            fill: 0.8,
-        };
-        let unchanged = resolve_target(&invalid, trier(), Some(VIEW));
-        assert_eq!(unchanged.continuous_zoom_level, 12.0);
-        assert_eq!(unchanged.position.latitude, 49.75);
     }
 
     #[test]
