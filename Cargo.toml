@@ -21,6 +21,7 @@ geo = "0.33.1"
 [dev-dependencies]
 tempfile = "3.27.0"
 proptest = "1.11.0"
+gpx = "0.10.0"
 
 [profile.profiling]
 inherits = "release"

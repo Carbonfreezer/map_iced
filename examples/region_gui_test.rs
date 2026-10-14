@@ -1,20 +1,25 @@
-//! Region example. Two way points and one region of each shape sit around Trier, all
-//! registered from the start. The middle column lists them with a focus button each;
-//! the left map jumps to the element, the right one animates. A region is fitted into
-//! the map, a way point keeps the zoom level.
+//! Region example. Two way points, one region of each shape and two bicycle tracks
+//! sit around Trier, all registered from the start. The tracks are GPX files of a
+//! Garmin cycling computer, read with the `gpx` crate. The middle column lists the
+//! elements with a focus button each; the left map jumps to the element, the right
+//! one animates. A region or track is fitted into the map, a way point keeps the
+//! zoom level.
 //!
 //! Clicking an element on a map writes its name into the report box below the list,
 //! for a region together with the distance from the click point to the region's
-//! centre. The way point "Trier Dom" lies inside the cordon circle and is reported
-//! as the way point, since way points are drawn and hit on top of regions.
+//! centre, for a track with the distance ridden from its start to the point on it
+//! nearest to the click. The way point "Trier Dom" lies inside the cordon circle and
+//! is reported as the way point, since way points are drawn and hit on top of
+//! regions, with the tracks in between.
 //!
 //! The cordon circle is flagged, so it gets a direction arrow while off screen, e.g.
 //! after focusing the harbour of Mertert. Clicking the arrow focuses all maps on it.
 
 use iced::widget::text::Wrapping;
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::annotation_system::annotation_support::AnnotationKey;
+use map_iced::annotation_system::path_system::PathError;
 use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
 use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol};
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
@@ -23,6 +28,18 @@ use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_
 
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
+
+/// The two bicycle tracks, each with the colour of its line.
+const TRACKS: [(&[u8], Color); 2] = [
+    (
+        include_bytes!("../assets/Longuich.gpx"),
+        Color::from_rgb(0.65, 0.2, 0.9),
+    ),
+    (
+        include_bytes!("../assets/Ferschweiler.gpx"),
+        Color::from_rgb(0.0, 0.65, 0.75),
+    ),
+];
 
 /// The share of the map a focused region covers.
 const REGION_FILL: f32 = 0.8;
@@ -44,7 +61,7 @@ const DOME_POSITION: LatitudeLongitude = LatitudeLongitude::new(49.7554, 6.6436)
 
 /// One row of the list.
 struct Entry {
-    name: &'static str,
+    name: String,
     key: AnnotationKey,
 }
 
@@ -93,8 +110,8 @@ impl RegionApplication {
         )
     }
 
-    /// Registers the two way points and the three regions with the map system and
-    /// returns the list rows for them.
+    /// Registers the two way points, the three regions and the two tracks with the
+    /// map system and returns the list rows for them.
     fn register_elements(widget_system: &mut MapWidgetSystem) -> Vec<Entry> {
         let mut entries = Vec::new();
 
@@ -113,7 +130,7 @@ impl RegionApplication {
                 Some(name.to_string()),
             );
             entries.push(Entry {
-                name,
+                name: name.to_string(),
                 key: key.into(),
             });
         }
@@ -172,7 +189,7 @@ impl RegionApplication {
                 .add_region(shape, style, Some(name.to_string()))
                 .expect("The example shapes span an area");
             entries.push(Entry {
-                name,
+                name: name.to_string(),
                 key: key.into(),
             });
         }
@@ -183,6 +200,18 @@ impl RegionApplication {
         regions
             .set_flag(circle_key, Some(FLAG))
             .expect("The circle was just added");
+
+        let paths = widget_system.get_path_system_as_mut();
+        for (data, color) in TRACKS {
+            let (name, positions) = read_track(data);
+            let key = paths
+                .add_path(positions, color, Some(name.clone()))
+                .expect("The example tracks have many positions");
+            entries.push(Entry {
+                name,
+                key: key.into(),
+            });
+        }
 
         entries
     }
@@ -213,23 +242,35 @@ impl RegionApplication {
         }
     }
 
-    /// The report text for a pick of `key` at `click_point`: the name, and for a
-    /// region the distance from the click point to its centre.
+    /// The report text for a pick of `key` at `click_point`: the name, for a region
+    /// the distance from the click point to its centre, and for a track the distance
+    /// ridden from its start to the point on it nearest to the click.
     fn describe_pick(&self, key: AnnotationKey, click_point: LatitudeLongitude) -> String {
         let name = self
             .entries
             .iter()
             .find(|entry| entry.key == key)
-            .map_or("Unknown element", |entry| entry.name);
-        match (key, self.widget_system.center(key)) {
-            (AnnotationKey::Region(_), Some(center)) => format!(
-                "{name}\nDistance to centre: {}",
-                format_distance(center.get_distance_to(click_point))
-            ),
-            // This example registers no paths.
-            (AnnotationKey::Region(_), None)
-            | (AnnotationKey::Waypoint(_), _)
-            | (AnnotationKey::Path(_), _) => name.to_string(),
+            .map_or("Unknown element", |entry| &entry.name);
+        match key {
+            AnnotationKey::Region(_) => match self.widget_system.center(key) {
+                Some(center) => format!(
+                    "{name}\nDistance to centre: {}",
+                    format_distance(center.get_distance_to(click_point))
+                ),
+                None => name.to_string(),
+            },
+            AnnotationKey::Path(path_key) => match self
+                .widget_system
+                .get_path_system()
+                .closest_point_on_path(path_key, click_point)
+            {
+                Ok(location) => format!(
+                    "{name}\nDistance from start: {}",
+                    format_distance(location.distance_from_start_meter)
+                ),
+                Err(PathError::KeyNotContained | PathError::TooFewPositions) => name.to_string(),
+            },
+            AnnotationKey::Waypoint(_) => name.to_string(),
         }
     }
 
@@ -268,8 +309,10 @@ impl RegionApplication {
     }
 
     /// One row of the list: the name and the focus button.
-    fn entry_row(&self, entry: &Entry) -> Element<'_, Message> {
-        let label = text(entry.name).width(Fill).wrapping(Wrapping::WordOrGlyph);
+    fn entry_row<'a>(&'a self, entry: &'a Entry) -> Element<'a, Message> {
+        let label = text(&entry.name)
+            .width(Fill)
+            .wrapping(Wrapping::WordOrGlyph);
 
         let focus = button(text("Fokus")).on_press(Message::Focus(entry.key));
 
@@ -301,8 +344,9 @@ impl RegionApplication {
 
         column![
             head_container,
-            container(list).height(FillPortion(3)),
-            container(report).height(FillPortion(2))
+            // The list scrolls rather than run into the report box on a small window.
+            scrollable(list).height(FillPortion(7)),
+            container(report).height(FillPortion(3))
         ]
         .padding(10)
         .spacing(10)
@@ -319,6 +363,27 @@ impl RegionApplication {
         ]
         .into()
     }
+}
+
+/// Reads the first track of a GPX file: its name and the positions of all its
+/// segments, joined into one line.
+fn read_track(data: &[u8]) -> (String, Vec<LatitudeLongitude>) {
+    let gpx = gpx::read(data).expect("The example tracks are valid GPX");
+    let track = gpx
+        .tracks
+        .into_iter()
+        .next()
+        .expect("The example files hold a track");
+    let positions = track
+        .segments
+        .iter()
+        .flat_map(|segment| &segment.points)
+        .map(|point| {
+            let point = point.point();
+            LatitudeLongitude::new(point.y(), point.x())
+        })
+        .collect();
+    (track.name.unwrap_or_else(|| "Track".to_string()), positions)
 }
 
 /// A distance in metres as text, in kilometres from one kilometre on.
@@ -343,4 +408,17 @@ pub fn main() -> iced::Result {
         height: 512.0,
     })
     .run()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Garmin writes its own extensions into every track point, heart rate and
+    /// temperature; the parser has to get past them.
+    #[test]
+    fn example_tracks_parse() {
+        let counts = TRACKS.map(|(data, _)| read_track(data).1.len());
+        assert_eq!(counts, [2237, 18103]);
+    }
 }
