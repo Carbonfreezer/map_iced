@@ -13,9 +13,7 @@ use iced::advanced::image::Handle;
 use std::fmt::Debug;
 
 /// Indicates where a  label should be positioned.
-pub enum LabelPosition {
-    /// No label at all.
-    NoLabel,
+pub(crate) enum LabelPosition {
     /// Show it at mouse position.
     AtMousePosition,
     /// Show it at a fix geolocation.
@@ -67,7 +65,7 @@ pub(crate) trait Annotation: Debug {
 
 /// The answer of [`Annotation::closest_point`].
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ClosestPoint {
+pub(crate) enum ClosestPoint {
     /// The position lies on or inside the annotation, it is hit whatever the padding.
     Inside,
     /// The point of the annotation nearest to the position, in Mercator space.
@@ -113,18 +111,18 @@ impl From<PathKey> for AnnotationKey {
 
 /// Contains the information for rendering a closed shape, with positions handed over in CCW.
 #[derive(Debug, Clone)]
-pub struct RenderingClosedShape {
+pub(crate) struct RenderingClosedShape {
     /// The positions in latitude longitude, counter-clockwise with longitude as x and
     /// latitude as y. The ring is open, the last point gets connected to the first one.
-    pub positions_ccw: Vec<LatitudeLongitude>,
+    pub(crate) positions_ccw: Vec<LatitudeLongitude>,
     /// The color we use to fill the core.
-    pub core_color: Color,
+    pub(crate) core_color: Color,
     /// The color we use for the border Color.
-    pub border_color: Color,
+    pub(crate) border_color: Color,
 }
 
 /// The information needed to render an annotation element.
-pub enum RenderingInformation<'a> {
+pub(crate) enum RenderingInformation<'a> {
     /// Image with raw image data, from an image file. (used in waypoint)
     Image(Handle),
     /// A cross we want to draw with an indicated color. (used in waypoint)
@@ -154,9 +152,9 @@ pub struct MercatorRectangle {
 
 /// The top left bottom right position to be able to check with the Rectangle of the viewport later on.
 #[derive(Debug, Clone)]
-pub struct TopLeftBottomRight {
-    pub top_left: LatitudeLongitude,
-    pub bottom_right: LatitudeLongitude,
+pub(crate) struct TopLeftBottomRight {
+    pub(crate) top_left: LatitudeLongitude,
+    pub(crate) bottom_right: LatitudeLongitude,
 }
 
 /// Converts the extensions of the meractor rectangle

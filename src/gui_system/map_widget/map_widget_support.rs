@@ -52,12 +52,12 @@ pub(crate) struct HoverTarget {
     /// the snapshot, the key stays valid when the snapshot is replaced.
     pub(crate) key: AnnotationKey,
     /// Where the description goes, resolved from [`Annotation::label_anchor`] when the
-    /// cursor came to rest. `None` if the annotation shows no label.
+    /// cursor came to rest.
     ///
     /// Part of the target on purpose: a fixed anchor, as for a way point, stays the
     /// same while the cursor moves over the symbol, one that follows the cursor, as
     /// for a region, changes with every move and so restarts the dwell timer.
-    pub(crate) anchor: Option<LatitudeLongitude>,
+    pub(crate) anchor: LatitudeLongitude,
 }
 
 /// A [`HoverTarget`] together with the moment its description is due.

@@ -350,9 +350,8 @@ impl MapWidget {
         let converter = self.position_converter.as_ref()?;
         let cursor_pos = converter.get_latitude_longitude_for_pixel_point(position);
         let anchor = match annotation.label_anchor(cursor_pos) {
-            LabelPosition::NoLabel => None,
-            LabelPosition::AtMousePosition => Some(cursor_pos),
-            LabelPosition::FixGeoLocation(position) => Some(position),
+            LabelPosition::AtMousePosition => cursor_pos,
+            LabelPosition::FixGeoLocation(position) => position,
         };
         Some(HoverTarget { key, anchor })
     }
@@ -482,12 +481,11 @@ impl MapWidget {
         if let Some(target) = state.description_target()
             && let Some(annotation) = self.annotation_info.get(&target.key)
             && let Some(converter) = self.position_converter.as_ref()
-            && let Some(label_pos) = target.anchor
             && let Some(cursor_pos) =
                 cursor.map(|x| converter.get_latitude_longitude_for_pixel_point(x))
             && let Some(description) = annotation.description(cursor_pos)
         {
-            let label_pos = converter.get_drawing_position(label_pos);
+            let label_pos = converter.get_drawing_position(target.anchor);
             let padding = annotation.cull_bounds().pixel_padding();
             fill_text_with_halo(
                 &mut frame,
