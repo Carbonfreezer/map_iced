@@ -11,15 +11,6 @@
 /// [`WaypointSymbol::Image`]: annotation_system::waypoint_system::WaypointSymbol::Image
 pub use bytes::Bytes;
 
-/// Re-exported for the same reason, and because way point keys only work with the
-/// `slotmap` version they were generated against. Side tables keyed by a
-/// [`WaypointKey`] therefore belong to this `slotmap`, not to one a caller picked.
-///
-/// [`WaypointKey`]: annotation_system::waypoint_system::WaypointKey
-pub mod slotmap {
-    pub use ::slotmap::*;
-}
-
 pub mod annotation_system;
 pub mod gui_system;
 pub(crate) mod tile_cache;

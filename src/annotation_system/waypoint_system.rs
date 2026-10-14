@@ -19,6 +19,9 @@ const WAYPOINT_HALF_SIZE: f64 = 15.0;
 new_key_type! {
     /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so
     /// that it cannot be confused with the handles of the other annotation kinds.
+    ///
+    /// It is `Copy`, `Eq`, `Hash` and `Ord`, so data of your own about a way point
+    /// can live in a `HashMap` or `BTreeMap` keyed by it.
     pub struct WaypointKey;
 }
 

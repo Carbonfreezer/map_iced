@@ -15,8 +15,11 @@ const DEGENERATE_AREA_RATIO: f64 = 1e-9;
 const RING_POINTS: usize = 128;
 
 new_key_type! {
-    /// The handle of a way point inside a [`RegionSystem`]. A type of its own, so
+    /// The handle of a region inside a [`RegionSystem`]. A type of its own, so
     /// that it cannot be confused with the handles of the other annotation kinds.
+    ///
+    /// It is `Copy`, `Eq`, `Hash` and `Ord`, so data of your own about a region
+    /// can live in a `HashMap` or `BTreeMap` keyed by it.
     pub struct RegionKey;
 }
 
