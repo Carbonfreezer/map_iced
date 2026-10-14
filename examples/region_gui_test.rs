@@ -21,6 +21,7 @@ use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
+use std::sync::LazyLock;
 
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
@@ -36,6 +37,10 @@ const FLAG: DirectionFlag = DirectionFlag {
     color: Color::from_rgb(0.9, 0.15, 0.15),
     priority: 0,
 };
+
+/// The position of the dome.
+static DOME_POSITION: LazyLock<LatitudeLongitude> =
+    LazyLock::new(|| LatitudeLongitude::new(49.7554, 6.6436));
 
 /// One row of the list.
 struct Entry {
@@ -95,7 +100,7 @@ impl RegionApplication {
 
         let waypoints = widget_system.get_waypoint_system_as_mut();
         for (name, position) in [
-            ("Trier Dom", LatitudeLongitude::new(49.7554, 6.6436)),
+            ("Trier Dom", DOME_POSITION.clone()),
             (
                 "Rettungswache Konz",
                 LatitudeLongitude::new(49.7020, 6.5800),
@@ -131,7 +136,7 @@ impl RegionApplication {
             (
                 "Absperrkreis Dom",
                 RegionShape::Circle {
-                    center: LatitudeLongitude::new(49.7560, 6.6410),
+                    center: DOME_POSITION.clone(),
                     radius_meter: 1_200.0,
                 },
                 red,
