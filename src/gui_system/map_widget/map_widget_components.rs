@@ -65,7 +65,10 @@ pub enum FocusTarget {
     /// An area, typically the bounds of a region. It gets centred and zoomed so that
     /// it covers the share `fill` (0..=1) of the widget's width or height, whichever
     /// is binding.
-    Area { bounds: MercatorRectangle, fill: f32 },
+    Area {
+        bounds: MercatorRectangle,
+        fill: f32,
+    },
 }
 
 impl From<LatitudeLongitude> for FocusTarget {
@@ -323,7 +326,9 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
                     Some(key) => SpecificInteractionCommand::ArrowClicked(key),
                     None => SpecificInteractionCommand::AnnotationClicked(
                         self.widget.annotation_at(position)?,
-                        self.widget.position_converter()?.get_latitude_longitude_for_pixel_point(position),
+                        self.widget
+                            .position_converter()?
+                            .get_latitude_longitude_for_pixel_point(position),
                     ),
                 };
 

@@ -274,7 +274,7 @@ impl TileCache {
         }
     }
 
-    /// Flushes all pending requests used at the end of the 
+    /// Flushes all pending requests used at the end of the
     /// initialization process.
     fn flush_pending_requests(&mut self) {
         for p in take(&mut self.pending_requests) {

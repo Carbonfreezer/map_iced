@@ -3,6 +3,7 @@
 
 use crate::annotation_system::annotation_compound::AnnotationSystem;
 use crate::annotation_system::annotation_support::AnnotationKey;
+use crate::annotation_system::region_system::RegionSystem;
 use crate::annotation_system::waypoint_system::WaypointSystem;
 use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
@@ -15,7 +16,6 @@ use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
-use crate::annotation_system::region_system::RegionSystem;
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
@@ -52,7 +52,11 @@ pub enum MapEvent {
     /// The user picked this annotation element. `client_id` says in which widget that
     /// happened, it does not make that widget an owner of anything. The click point is also added to be eventually
     /// interpreted by the specific annotation component
-    AnnotationSelected { client_id: u32, key: AnnotationKey, click_point : LatitudeLongitude },
+    AnnotationSelected {
+        client_id: u32,
+        key: AnnotationKey,
+        click_point: LatitudeLongitude,
+    },
     /// A soft focus started with [`MapWidgetSystem::animate_to`] has arrived. Not
     /// sent for an animation that was cancelled or replaced on the way.
     FocusReached { client_id: u32 },
@@ -225,9 +229,13 @@ impl MapWidgetSystem {
                 // The widget reports what the click hit, the meaning is decided here.
                 // A way point that is gone by now must not reach the application, the
                 // snapshot in the widget can be older than the collection.
-                self.annotation_system
-                    .get_specific_element(key)
-                    .map(|_| MapEvent::AnnotationSelected { client_id, key, click_point })
+                self.annotation_system.get_specific_element(key).map(|_| {
+                    MapEvent::AnnotationSelected {
+                        client_id,
+                        key,
+                        click_point,
+                    }
+                })
             }
 
             // In this case we have simply clicked somewhere on the map.

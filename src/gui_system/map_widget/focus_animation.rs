@@ -84,11 +84,14 @@ impl FocusAnimation {
     /// still if the target is too far for a direct pan. A zoom phase before and after
     /// it brings the view there and on to the target's level; phases that would not
     /// change anything are left out.
-    pub(crate) fn new(from: FocalPoint, target: FocalPoint, view_size: Size, start: Instant) -> Self {
+    pub(crate) fn new(
+        from: FocalPoint,
+        target: FocalPoint,
+        view_size: Size,
+        start: Instant,
+    ) -> Self {
         let lower = FocalPoint {
-            continuous_zoom_level: from
-                .continuous_zoom_level
-                .min(target.continuous_zoom_level),
+            continuous_zoom_level: from.continuous_zoom_level.min(target.continuous_zoom_level),
             ..from
         };
         let pan_level = zoom_out_level(&lower, &target.position, view_size)
@@ -199,10 +202,10 @@ pub(crate) fn resolve_target(
         FocusTarget::Area { bounds, fill } => (bounds, *fill as f64),
     };
 
-    let top_left = LatitudeLongitude::new(bounds.min_max_lat.1, bounds.min_max_long.0)
-        .get_tile_coordinates(0);
-    let bottom_right = LatitudeLongitude::new(bounds.min_max_lat.0, bounds.min_max_long.1)
-        .get_tile_coordinates(0);
+    let top_left =
+        LatitudeLongitude::new(bounds.min_max_lat.1, bounds.min_max_long.0).get_tile_coordinates(0);
+    let bottom_right =
+        LatitudeLongitude::new(bounds.min_max_lat.0, bounds.min_max_long.1).get_tile_coordinates(0);
     let position = TileCoordinates {
         x: (top_left.x + bottom_right.x) * 0.5,
         y: (top_left.y + bottom_right.y) * 0.5,
@@ -323,7 +326,10 @@ mod tests {
             position: corner(bounds.min_max_lat.1, bounds.min_max_long.0),
             ..*view
         };
-        let (dx, dy) = pixel_offset(&at_view, &corner(bounds.min_max_lat.0, bounds.min_max_long.1));
+        let (dx, dy) = pixel_offset(
+            &at_view,
+            &corner(bounds.min_max_lat.0, bounds.min_max_long.1),
+        );
         (dx.abs(), dy.abs())
     }
 
@@ -332,7 +338,10 @@ mod tests {
         let target = area(0.01, 1.0, 0.8);
         let end = resolve_target(&target, trier(), Some(VIEW));
         let (width, height) = extent_in_pixels(&target, &end);
-        assert!((width - VIEW.width as f64 * 0.8).abs() < 0.5, "width {width}");
+        assert!(
+            (width - VIEW.width as f64 * 0.8).abs() < 0.5,
+            "width {width}"
+        );
         assert!(height < VIEW.height as f64 * 0.8);
     }
 
@@ -341,7 +350,10 @@ mod tests {
         let target = area(1.0, 0.01, 0.8);
         let end = resolve_target(&target, trier(), Some(VIEW));
         let (width, height) = extent_in_pixels(&target, &end);
-        assert!((height - VIEW.height as f64 * 0.8).abs() < 0.5, "height {height}");
+        assert!(
+            (height - VIEW.height as f64 * 0.8).abs() < 0.5,
+            "height {height}"
+        );
         assert!(width < VIEW.width as f64 * 0.8);
         // The centre is the mercator centre, which lies north of the mean latitude.
         assert!(end.position.latitude > 49.75);

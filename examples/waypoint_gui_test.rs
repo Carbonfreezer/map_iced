@@ -225,7 +225,8 @@ impl WaypointApplication {
                     AnnotationKey::Waypoint(key) => {
                         self.widget_system
                             .get_waypoint_system_as_mut()
-                            .set_flag(key, flagged.then_some(flag)).expect("Should be present");
+                            .set_flag(key, flagged.then_some(flag))
+                            .expect("Should be present");
                     }
                     // This example registers no regions.
                     AnnotationKey::Region(_) => {}
@@ -238,7 +239,8 @@ impl WaypointApplication {
     /// Moves all maps to `target`: the left map jumps, the right one animates. For a
     /// position the hard focus keeps the zoom level, just like the soft one ends on it.
     fn focus_all(&mut self, target: FocusTarget) {
-        self.widget_system.jump_to(self.widget_ids[0], target.clone());
+        self.widget_system
+            .jump_to(self.widget_ids[0], target.clone());
         self.widget_system.animate_to(self.widget_ids[1], target);
     }
 

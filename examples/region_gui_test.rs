@@ -96,7 +96,10 @@ impl RegionApplication {
         let waypoints = widget_system.get_waypoint_system_as_mut();
         for (name, position) in [
             ("Trier Dom", LatitudeLongitude::new(49.7554, 6.6436)),
-            ("Rettungswache Konz", LatitudeLongitude::new(49.7020, 6.5800)),
+            (
+                "Rettungswache Konz",
+                LatitudeLongitude::new(49.7020, 6.5800),
+            ),
         ] {
             let key = waypoints.add_way_point(
                 WaypointSymbol::Image(Bytes::from_static(ICON_DATA)),
@@ -217,9 +220,7 @@ impl RegionApplication {
                 "{name}\nDistance to centre: {}",
                 format_distance(center.get_distance_to(click_point))
             ),
-            (AnnotationKey::Region(_), None) | (AnnotationKey::Waypoint(_), _) => {
-                name.to_string()
-            }
+            (AnnotationKey::Region(_), None) | (AnnotationKey::Waypoint(_), _) => name.to_string(),
         }
     }
 
@@ -229,7 +230,8 @@ impl RegionApplication {
         let Some(target) = self.widget_system.focus_target(key, Some(REGION_FILL)) else {
             return;
         };
-        self.widget_system.jump_to(self.widget_ids[0], target.clone());
+        self.widget_system
+            .jump_to(self.widget_ids[0], target.clone());
         self.widget_system.animate_to(self.widget_ids[1], target);
     }
 
@@ -258,9 +260,7 @@ impl RegionApplication {
 
     /// One row of the list: the name and the focus button.
     fn entry_row(&self, entry: &Entry) -> Element<'_, Message> {
-        let label = text(entry.name)
-            .width(Fill)
-            .wrapping(Wrapping::WordOrGlyph);
+        let label = text(entry.name).width(Fill).wrapping(Wrapping::WordOrGlyph);
 
         let focus = button(text("Fokus")).on_press(Message::Focus(entry.key));
 

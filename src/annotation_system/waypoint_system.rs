@@ -168,8 +168,15 @@ impl WaypointSystem {
     /// let flag = DirectionFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
     /// assert!(system.set_flag(key, Some(flag)).is_ok());
     /// ```
-    pub fn set_flag(&mut self, key: WaypointKey, flag: Option<DirectionFlag>) -> Result<(), WaypointError> {
-        self.waypoint_collection.get_mut(key).ok_or(WaypointError::KeyNotContained)?.flag = flag;
+    pub fn set_flag(
+        &mut self,
+        key: WaypointKey,
+        flag: Option<DirectionFlag>,
+    ) -> Result<(), WaypointError> {
+        self.waypoint_collection
+            .get_mut(key)
+            .ok_or(WaypointError::KeyNotContained)?
+            .flag = flag;
         Ok(())
     }
 

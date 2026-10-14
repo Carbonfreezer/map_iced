@@ -1,11 +1,13 @@
 //! This system represents regions that can be selected and annotated and zoomed to.
 
-use geo::{point, Area, BoundingRect, Contains, ConvexHull, MultiPoint, Polygon};
-use iced::Color;
-use slotmap::{new_key_type, SlotMap};
-use crate::annotation_system::annotation_support::{Annotation, LabelPosition, MercatorRectangle, RenderingClosedShape, RenderingInformation};
-use crate::annotation_system::waypoint_system::{DirectionFlag};
+use crate::annotation_system::annotation_support::{
+    Annotation, LabelPosition, MercatorRectangle, RenderingClosedShape, RenderingInformation,
+};
+use crate::annotation_system::waypoint_system::DirectionFlag;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
+use geo::{Area, BoundingRect, Contains, ConvexHull, MultiPoint, Polygon, point};
+use iced::Color;
+use slotmap::{SlotMap, new_key_type};
 
 /// Below this ratio of area to squared size a convex hull counts as a line, see
 /// [`RegionShape::ConvexHull`].
@@ -23,13 +25,11 @@ new_key_type! {
     pub struct RegionKey;
 }
 
-
-
 /// A region that may represent different shapes.
 #[derive(Debug, Clone)]
 pub struct Region {
     /// The mercator rectangle of the region.
-    bounds : MercatorRectangle,
+    bounds: MercatorRectangle,
     /// The point the region stands for, reported by [`Annotation::get_center`] and
     /// targeted by the direction arrow: the apex of a sector, the centre of a circle,
     /// the centre of the bounds otherwise.
@@ -37,7 +37,7 @@ pub struct Region {
     /// The shape the region was built from, everything else here is derived from it.
     shape: RegionShape,
     /// The polygon in geo coordinates.
-    geo_polygon : Polygon,
+    geo_polygon: Polygon,
     /// The rendering information.
     rendering_info: RenderingClosedShape,
     /// The annotation text of the region.
@@ -62,7 +62,8 @@ impl Annotation for Region {
     }
 
     fn hit_test_specific(&self, position: LatitudeLongitude) -> bool {
-        self.geo_polygon.contains(&point!(x: position.longitude, y: position.latitude))
+        self.geo_polygon
+            .contains(&point!(x: position.longitude, y: position.latitude))
     }
 
     fn label_anchor(&self, _cursor: LatitudeLongitude) -> LabelPosition {
@@ -159,8 +160,15 @@ impl RegionShape {
     /// fails.
     fn outline(&self) -> Result<Outline, RegionError> {
         let (positions_ccw, center) = self.ring()?;
-        let geo_polygon = Polygon::new(positions_ccw.iter().map(|pos|(pos.longitude, pos.latitude)).collect() ,vec![]);
-        let bounds = MercatorRectangle::create_from_position_array(positions_ccw.iter().copied(), 0.0);
+        let geo_polygon = Polygon::new(
+            positions_ccw
+                .iter()
+                .map(|pos| (pos.longitude, pos.latitude))
+                .collect(),
+            vec![],
+        );
+        let bounds =
+            MercatorRectangle::create_from_position_array(positions_ccw.iter().copied(), 0.0);
         Ok(Outline {
             center: center.unwrap_or_else(|| bounds.get_center()),
             positions_ccw,
@@ -174,11 +182,17 @@ impl RegionShape {
     /// gives [`RegionError::DegenerateShape`]; a radius that is not positive counts as such.
     fn ring(&self) -> Result<(Vec<LatitudeLongitude>, Option<LatitudeLongitude>), RegionError> {
         match self {
-            RegionShape::Circle { center, radius_meter } => {
+            RegionShape::Circle {
+                center,
+                radius_meter,
+            } => {
                 if radius_meter.is_nan() || *radius_meter <= 0.0 {
                     return Err(RegionError::DegenerateShape);
                 }
-                Ok((center.create_circle_around(*radius_meter, RING_POINTS), Some(*center)))
+                Ok((
+                    center.create_circle_around(*radius_meter, RING_POINTS),
+                    Some(*center),
+                ))
             }
             RegionShape::ConvexHull { points } => {
                 let points: MultiPoint = points
@@ -206,13 +220,22 @@ impl RegionShape {
                     .collect();
                 Ok((positions, None))
             }
-            RegionShape::Sector { apex, radius_meter, heading_degree, opening_degree } => {
+            RegionShape::Sector {
+                apex,
+                radius_meter,
+                heading_degree,
+                opening_degree,
+            } => {
                 if !(*opening_degree > 0.0 && *opening_degree <= 180.0 && *radius_meter > 0.0) {
                     return Err(RegionError::DegenerateShape);
                 }
                 let arc_points = (RING_POINTS as f64 * opening_degree / 360.0).ceil() as usize + 1;
-                let positions =
-                    apex.create_sector_around(*radius_meter, *heading_degree, *opening_degree, arc_points);
+                let positions = apex.create_sector_around(
+                    *radius_meter,
+                    *heading_degree,
+                    *opening_degree,
+                    arc_points,
+                );
                 Ok((positions, Some(*apex)))
             }
         }
@@ -277,7 +300,7 @@ impl RegionSystem {
                 border_color: style.border,
             },
             description,
-            flag: None
+            flag: None,
         };
         Ok(self.region_collection.insert(region))
     }
@@ -301,7 +324,11 @@ impl RegionSystem {
     /// assert!((distance_meter - 2_157.0).abs() < 10.0);
     /// ```
     pub fn center(&self, key: RegionKey) -> Result<LatitudeLongitude, RegionError> {
-        Ok(self.region_collection.get(key).ok_or(RegionError::KeyNotContained)?.center)
+        Ok(self
+            .region_collection
+            .get(key)
+            .ok_or(RegionError::KeyNotContained)?
+            .center)
     }
 
     /// The current shape of the region, as handed to [`Self::add_region`] or
@@ -319,7 +346,11 @@ impl RegionSystem {
     /// assert!(matches!(system.shape(key), Ok(RegionShape::Circle { .. })));
     /// ```
     pub fn shape(&self, key: RegionKey) -> Result<&RegionShape, RegionError> {
-        Ok(&self.region_collection.get(key).ok_or(RegionError::KeyNotContained)?.shape)
+        Ok(&self
+            .region_collection
+            .get(key)
+            .ok_or(RegionError::KeyNotContained)?
+            .shape)
     }
 
     /// Gives the region a new shape, of any kind. Key, style, description and flag stay,
@@ -375,7 +406,11 @@ impl RegionSystem {
     /// let _ = system.update_style(key, warning);
     /// ```
     pub fn update_style(&mut self, key: RegionKey, style: RegionStyle) -> Result<(), RegionError> {
-        let render_info = &mut self.region_collection.get_mut(key).ok_or(RegionError::KeyNotContained)?.rendering_info;
+        let render_info = &mut self
+            .region_collection
+            .get_mut(key)
+            .ok_or(RegionError::KeyNotContained)?
+            .rendering_info;
         render_info.core_color = style.fill;
         render_info.border_color = style.border;
         Ok(())
@@ -394,7 +429,11 @@ impl RegionSystem {
     /// let key = system.add_region(circle, style, None).expect("a valid circle");
     /// let _ = system.update_description(key, Some("Annotation".to_string()));
     /// ```
-    pub fn update_description(&mut self, key: RegionKey, description : Option<String>) -> Result<(), RegionError> {
+    pub fn update_description(
+        &mut self,
+        key: RegionKey,
+        description: Option<String>,
+    ) -> Result<(), RegionError> {
         self.region_collection
             .get_mut(key)
             .ok_or(RegionError::KeyNotContained)?
@@ -418,8 +457,15 @@ impl RegionSystem {
     /// let flag = DirectionFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
     /// assert!(system.set_flag(key, Some(flag)).is_ok());
     /// ```
-    pub fn set_flag(&mut self, key: RegionKey, flag: Option<DirectionFlag>) -> Result<(), RegionError> {
-        self.region_collection.get_mut(key).ok_or(RegionError::KeyNotContained)?.flag = flag;
+    pub fn set_flag(
+        &mut self,
+        key: RegionKey,
+        flag: Option<DirectionFlag>,
+    ) -> Result<(), RegionError> {
+        self.region_collection
+            .get_mut(key)
+            .ok_or(RegionError::KeyNotContained)?
+            .flag = flag;
         Ok(())
     }
 
@@ -445,8 +491,6 @@ impl RegionSystem {
             Err(RegionError::KeyNotContained)
         }
     }
-
-
 }
 
 #[cfg(test)]
@@ -459,7 +503,10 @@ mod tests {
     };
 
     fn add(system: &mut RegionSystem, points: &[(f64, f64)]) -> Result<RegionKey, RegionError> {
-        let points = points.iter().map(|&(lat, long)| LatitudeLongitude::new(lat, long)).collect();
+        let points = points
+            .iter()
+            .map(|&(lat, long)| LatitudeLongitude::new(lat, long))
+            .collect();
         system.add_region(RegionShape::ConvexHull { points }, STYLE, None)
     }
 
@@ -469,12 +516,22 @@ mod tests {
         // A square around Trier with one point inside, in no particular order.
         let key = add(
             &mut system,
-            &[(49.8, 6.7), (49.7, 6.6), (49.75, 6.65), (49.7, 6.7), (49.8, 6.6)],
+            &[
+                (49.8, 6.7),
+                (49.7, 6.6),
+                (49.75, 6.65),
+                (49.7, 6.7),
+                (49.8, 6.6),
+            ],
         )
         .expect("the square spans an area");
         let region = &system.region_collection[key];
         let ring = &region.rendering_info.positions_ccw;
-        assert_eq!(ring.len(), 4, "inner point dropped, no repeated closing point");
+        assert_eq!(
+            ring.len(),
+            4,
+            "inner point dropped, no repeated closing point"
+        );
 
         // Twice the signed area, longitude as x and latitude as y.
         let doubled_area: f64 = ring
@@ -500,7 +557,11 @@ mod tests {
         assert!(system.region_collection.is_empty());
     }
 
-    fn add_sector(system: &mut RegionSystem, radius: f64, opening: f64) -> Result<RegionKey, RegionError> {
+    fn add_sector(
+        system: &mut RegionSystem,
+        radius: f64,
+        opening: f64,
+    ) -> Result<RegionKey, RegionError> {
         let shape = RegionShape::Sector {
             apex: LatitudeLongitude::new(49.75, 6.63),
             radius_meter: radius,
@@ -540,8 +601,13 @@ mod tests {
     fn circle_reports_its_own_centre_and_shape() {
         let mut system = RegionSystem::default();
         let center = LatitudeLongitude::new(49.75, 6.63);
-        let shape = RegionShape::Circle { center, radius_meter: 10_000.0 };
-        let key = system.add_region(shape, STYLE, None).expect("a valid circle");
+        let shape = RegionShape::Circle {
+            center,
+            radius_meter: 10_000.0,
+        };
+        let key = system
+            .add_region(shape, STYLE, None)
+            .expect("a valid circle");
         let reported = system.region_collection[key].get_center();
         assert_eq!((reported.latitude, reported.longitude), (49.75, 6.63));
         assert!(matches!(
@@ -571,7 +637,9 @@ mod tests {
         assert!(system.region_collection[key].hit_test_specific(east));
 
         // The wind turns, the plume now spreads west.
-        system.update_shape(key, sector(270.0)).expect("a valid sector");
+        system
+            .update_shape(key, sector(270.0))
+            .expect("a valid sector");
         let region = &system.region_collection[key];
         assert!(region.hit_test_specific(west));
         assert!(!region.hit_test_specific(east));
@@ -600,18 +668,48 @@ mod tests {
         let mut system = RegionSystem::default();
         let center = LatitudeLongitude::new(49.75, 6.63);
         let key = system
-            .add_region(RegionShape::Circle { center, radius_meter: 10_000.0 }, STYLE, None)
+            .add_region(
+                RegionShape::Circle {
+                    center,
+                    radius_meter: 10_000.0,
+                },
+                STYLE,
+                None,
+            )
             .expect("a valid circle");
-        let ring_before = system.region_collection[key].rendering_info.positions_ccw.len();
+        let ring_before = system.region_collection[key]
+            .rendering_info
+            .positions_ccw
+            .len();
 
-        let flat = RegionShape::Circle { center, radius_meter: 0.0 };
-        assert_eq!(system.update_shape(key, flat), Err(RegionError::DegenerateShape));
-        assert_eq!(system.region_collection[key].rendering_info.positions_ccw.len(), ring_before);
-        assert!(matches!(system.shape(key), Ok(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0));
+        let flat = RegionShape::Circle {
+            center,
+            radius_meter: 0.0,
+        };
+        assert_eq!(
+            system.update_shape(key, flat),
+            Err(RegionError::DegenerateShape)
+        );
+        assert_eq!(
+            system.region_collection[key]
+                .rendering_info
+                .positions_ccw
+                .len(),
+            ring_before
+        );
+        assert!(
+            matches!(system.shape(key), Ok(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0)
+        );
 
         system.delete_region(key).expect("present");
-        let valid = RegionShape::Circle { center, radius_meter: 10_000.0 };
-        assert_eq!(system.update_shape(key, valid), Err(RegionError::KeyNotContained));
+        let valid = RegionShape::Circle {
+            center,
+            radius_meter: 10_000.0,
+        };
+        assert_eq!(
+            system.update_shape(key, valid),
+            Err(RegionError::KeyNotContained)
+        );
     }
 
     #[test]
@@ -619,7 +717,10 @@ mod tests {
         let mut system = RegionSystem::default();
         let center = LatitudeLongitude::new(49.75, 6.63);
         for radius_meter in [0.0, -5.0, f64::NAN] {
-            let shape = RegionShape::Circle { center, radius_meter };
+            let shape = RegionShape::Circle {
+                center,
+                radius_meter,
+            };
             assert!(system.add_region(shape, STYLE, None).is_err());
         }
         assert!(system.region_collection.is_empty());

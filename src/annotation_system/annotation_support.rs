@@ -1,14 +1,14 @@
 //! Contains supporting functionality for annotation.
 
+use crate::annotation_system::region_system::RegionKey;
 use crate::annotation_system::waypoint_system::{DirectionFlag, WaypointKey};
 use crate::gui_system::latitude_longitude::{
     BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
 };
+use crate::gui_system::map_widget::map_widget_components::FocusTarget;
 use iced::Color;
 use iced::advanced::image::Handle;
 use std::fmt::Debug;
-use crate::annotation_system::region_system::RegionKey;
-use crate::gui_system::map_widget::map_widget_components::FocusTarget;
 
 /// Indicates where a  label should be positioned.
 pub enum LabelPosition {
@@ -79,7 +79,6 @@ impl From<RegionKey> for AnnotationKey {
     }
 }
 
-
 /// Contains the information for rendering a closed shape, with positions handed over in CCW.
 #[derive(Debug, Clone)]
 pub struct RenderingClosedShape {
@@ -90,7 +89,6 @@ pub struct RenderingClosedShape {
     pub core_color: Color,
     /// The color we use for the border Color.
     pub border_color: Color,
-
 }
 
 /// The information needed to render an annotation element.
@@ -100,7 +98,7 @@ pub enum RenderingInformation<'a> {
     /// A cross we want to draw with an indicated color. (used in waypoint)
     Cross(Color),
     /// This is a closed shape as a polygon.
-    Polygon(&'a RenderingClosedShape)
+    Polygon(&'a RenderingClosedShape),
 }
 
 /// The mercator rectangle an annotation feature covers on the map

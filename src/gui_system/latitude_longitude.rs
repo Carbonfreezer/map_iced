@@ -138,8 +138,8 @@ impl LatitudeLongitude {
         // and cos φ > 0 because the latitude stays within BOUNDARY_LATITUDE.
         let longitude = self.longitude;
         bearings.map(move |bearing| {
-            let lat = (sin_latitude * cos_distance + cos_latitude * sin_distance * bearing.cos())
-                .asin();
+            let lat =
+                (sin_latitude * cos_distance + cos_latitude * sin_distance * bearing.cos()).asin();
             let long_diff = (bearing.sin() * sin_distance * cos_latitude)
                 .atan2(cos_distance - sin_latitude * lat.sin());
             LatitudeLongitude::new(lat.to_degrees(), longitude + long_diff.to_degrees())
@@ -155,8 +155,11 @@ impl LatitudeLongitude {
     /// let second_point = LatitudeLongitude::new( 49.7540, 6.6100);
     /// let dist = first_point.get_distance_to(second_point);
     /// ```
-    pub fn get_distance_to(&self, other_point:Self) -> f64 {
-        let (lat_a, lat_b) = (self.latitude.to_radians(), other_point.latitude.to_radians());
+    pub fn get_distance_to(&self, other_point: Self) -> f64 {
+        let (lat_a, lat_b) = (
+            self.latitude.to_radians(),
+            other_point.latitude.to_radians(),
+        );
         let d_lat = lat_b - lat_a;
         let d_long = (other_point.longitude - self.longitude).to_radians();
         let h =
@@ -170,7 +173,6 @@ impl LatitudeLongitude {
 mod tests {
     use super::*;
     use proptest::{prop_assert, proptest};
-    
 
     proptest! {
         #[test]
@@ -236,10 +238,14 @@ mod tests {
         // One degree along the 60th parallel is R * cos(60°) * 1° long; the great circle
         // between its ends is shorter only by about 2e-5 of that. Squaring the cosine
         // factor in the haversine would halve the result here, while the equator hides it.
-        let distance = LatitudeLongitude::new(60.0, 0.0).get_distance_to(LatitudeLongitude::new(60.0, 1.0));
+        let distance =
+            LatitudeLongitude::new(60.0, 0.0).get_distance_to(LatitudeLongitude::new(60.0, 1.0));
         let parallel_arc = EARTH_RADIUS * 60f64.to_radians().cos() * 1f64.to_radians();
         assert!(distance <= parallel_arc, "{distance} vs {parallel_arc}");
-        assert!(distance > parallel_arc * (1.0 - 1e-4), "{distance} vs {parallel_arc}");
+        assert!(
+            distance > parallel_arc * (1.0 - 1e-4),
+            "{distance} vs {parallel_arc}"
+        );
     }
 
     #[test]
