@@ -145,8 +145,9 @@ impl TryFrom<&RequestRectangle> for BoundingRectangle {
 
 impl BoundingRectangle {
     /// Gets the bounding rectangle from a bunch of tile coordinates.
-    // TODO: Currently not used check for usage later on.
-    pub fn new(positions: &[TilePosition]) -> Self {
+    /// Currently only used in tests.
+    #[allow(dead_code)]
+    pub(crate) fn new(positions: &[TilePosition]) -> Self {
         assert!(!positions.is_empty(), "We must contain some data");
         debug_assert!(
             positions.windows(2).all(|w| w[0].zoom == w[1].zoom),
