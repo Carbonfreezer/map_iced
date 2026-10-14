@@ -86,9 +86,13 @@ impl AnnotationInteractionState {
     /// description away. A description that follows the cursor changes its target
     /// with every move, so it hides while the cursor moves and shows up again where
     /// the cursor comes to rest.
+    ///
+    /// A new target gets announced with the command `announce` builds for it, so the
+    /// application can adapt the description during the dwell time.
     pub(crate) fn aim(
         &mut self,
         target: Option<HoverTarget>,
+        announce: impl FnOnce(&HoverTarget) -> Option<MapInteractionCommand>,
     ) -> Option<Action<MapInteractionCommand>> {
         if self.hovered.map(|hover| hover.target) == target {
             return None;
@@ -99,6 +103,15 @@ impl AnnotationInteractionState {
             target,
             visible_at: Instant::now() + HOVER_DELAY,
         });
+
+        // An action either publishes or asks for a frame, not both. Publishing is
+        // enough: iced redraws after the message, which takes a visible description
+        // away, and that frame reaches settle, which asks for the frame at visible_at.
+        if let Some(hover) = self.hovered
+            && let Some(command) = announce(&hover.target)
+        {
+            return Some(Action::publish(command));
+        }
 
         match self.hovered {
             // Ask to be woken up when the dwell time is over, and drop a description

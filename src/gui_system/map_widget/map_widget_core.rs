@@ -1,7 +1,7 @@
 //! This module contains the core par of map widget.
 
 use crate::annotation_system::annotation_support::{
-    AnnotationKey, ClosestPoint, LabelPosition, RenderingInformation,
+    Annotation, AnnotationKey, ClosestPoint, LabelPosition, RenderingInformation,
 };
 use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
@@ -202,6 +202,18 @@ impl MapWidget {
         self.annotation_info = render_points;
         self.place_arrows(flagged_points);
         self.annotation_cache.clear();
+    }
+
+    /// Swaps the snapshot of one annotation for a newer one that differs only in
+    /// what is not drawn into the cached geometry, like its description. The caches
+    /// stay, the label is drawn uncached anyway. An annotation outside this widget's
+    /// view has no snapshot here and is left alone.
+    pub(crate) fn refresh_annotation(
+        &mut self,
+        key: AnnotationKey,
+        annotation: Box<dyn Annotation>,
+    ) {
+        self.annotation_info.replace(&key, annotation);
     }
 
     /// Places the direction arrows for the current view.

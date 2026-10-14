@@ -130,7 +130,8 @@ impl WaypointApplication {
                 if let Some(event) = self.widget_system.process_message(m) {
                     match event {
                         MapEvent::AnnotationSelected { key, .. } => self.selected = Some(key),
-                        MapEvent::FocusReached { .. } => {}
+                        // The way point descriptions are fixed in this example.
+                        MapEvent::FocusReached { .. } | MapEvent::AnnotationHovered { .. } => {}
                         // An arrow click acts like the focus button: all maps follow.
                         // The fill only matters for annotations with an extent.
                         MapEvent::ArrowClicked { key, .. } => {

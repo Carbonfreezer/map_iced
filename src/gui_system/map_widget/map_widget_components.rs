@@ -88,6 +88,9 @@ pub enum SpecificInteractionCommand {
     SetFocalPoint(FocalPoint, Rectangle),
     /// A left click landed on the given annotation element with the click point handed over as latitude, longitude.
     AnnotationClicked(AnnotationKey, LatitudeLongitude),
+    /// The hover moved onto the given annotation element, with the cursor position
+    /// handed over as latitude, longitude.
+    AnnotationHovered(AnnotationKey, LatitudeLongitude),
     /// A left click landed on the direction arrow of the given way point.
     ArrowClicked(AnnotationKey),
     /// One frame of the soft focus started under `generation`. `finished` marks the
@@ -309,13 +312,27 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
         cursor: Cursor,
     ) -> Option<Action<MapInteractionCommand>> {
         match event {
-            Event::Mouse(mouse::Event::CursorMoved { .. }) => state.aim(
-                cursor
-                    .position_in(bounds)
-                    .and_then(|position| self.widget.hover_target_at(position)),
-            ),
+            Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let position = cursor.position_in(bounds);
+                state.aim(
+                    position.and_then(|position| self.widget.hover_target_at(position)),
+                    |target| {
+                        let hover_point = self
+                            .widget
+                            .position_converter()?
+                            .get_latitude_longitude_for_pixel_point(position?);
+                        Some(MapInteractionCommand {
+                            client_id: self.widget.client_id,
+                            command: SpecificInteractionCommand::AnnotationHovered(
+                                target.key,
+                                hover_point,
+                            ),
+                        })
+                    },
+                )
+            }
 
-            Event::Mouse(mouse::Event::CursorLeft) => state.aim(None),
+            Event::Mouse(mouse::Event::CursorLeft) => state.aim(None, |_| None),
 
             Event::Window(window::Event::RedrawRequested(now)) => state.settle(*now),
 

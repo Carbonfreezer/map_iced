@@ -2,7 +2,7 @@
 //! the internal cache.
 
 use crate::annotation_system::annotation_compound::AnnotationSystem;
-use crate::annotation_system::annotation_support::AnnotationKey;
+use crate::annotation_system::annotation_support::{AnnotationError, AnnotationKey};
 use crate::annotation_system::path_system::PathSystem;
 use crate::annotation_system::region_system::RegionSystem;
 use crate::annotation_system::waypoint_system::WaypointSystem;
@@ -57,6 +57,15 @@ pub enum MapEvent {
         client_id: u32,
         key: AnnotationKey,
         click_point: LatitudeLongitude,
+    },
+    /// The cursor has come onto this annotation element in the widget `client_id`,
+    /// or moved on it where the label follows the cursor, as on a region or a path.
+    /// The description shows up after a short dwell time, so there is time to adapt
+    /// it to `hover_point` with [`MapWidgetSystem::update_description`] first.
+    AnnotationHovered {
+        client_id: u32,
+        key: AnnotationKey,
+        hover_point: LatitudeLongitude,
     },
     /// A soft focus started with [`MapWidgetSystem::animate_to`] has arrived. Not
     /// sent for an animation that was cancelled or replaced on the way.
@@ -130,6 +139,28 @@ impl MapWidgetSystem {
     pub fn get_path_system_as_mut(&mut self) -> &mut PathSystem {
         self.reset_all_widgets();
         self.annotation_system.path_system()
+    }
+
+    /// Sets the description of the annotation `key`, whatever its kind. Unlike the
+    /// update methods behind [`Self::get_waypoint_system_as_mut`] and its siblings,
+    /// this does not reset the widgets: they only swap their copy of the one
+    /// annotation and keep everything drawn. That makes it cheap enough to answer
+    /// every [`MapEvent::AnnotationHovered`], e.g. with the distance along a track.
+    pub fn update_description(
+        &mut self,
+        key: AnnotationKey,
+        description: Option<String>,
+    ) -> Result<(), AnnotationError> {
+        self.annotation_system
+            .update_description(key, description)?;
+        let annotation = self
+            .annotation_system
+            .get_specific_element(key)
+            .expect("The description was just set");
+        for widget in &mut self.widget_collection {
+            widget.refresh_annotation(key, annotation.clone_box());
+        }
+        Ok(())
     }
 
     /// Gets a read-only access for the way point system, to query things without
@@ -250,6 +281,16 @@ impl MapWidgetSystem {
                     }
                 })
             }
+
+            // Same reasoning as for the click.
+            SpecificInteractionCommand::AnnotationHovered(key, hover_point) => self
+                .annotation_system
+                .get_specific_element(key)
+                .map(|_| MapEvent::AnnotationHovered {
+                    client_id,
+                    key,
+                    hover_point,
+                }),
 
             // In this case we have simply clicked somewhere on the map.
             SpecificInteractionCommand::MapPointClicked(position) => {

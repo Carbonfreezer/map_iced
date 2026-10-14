@@ -8,7 +8,9 @@
 //! Clicking an element on a map writes its name into the report box below the list,
 //! for a region together with the distance from the click point to the region's
 //! centre, for a track with the distance ridden from its start to the point on it
-//! nearest to the click. The way point "Trier Dom" lies inside the cordon circle and
+//! nearest to the click. Hovering a track shows the same text in its label: the
+//! example answers every `AnnotationHovered` on a track with a new description.
+//! The way point "Trier Dom" lies inside the cordon circle and
 //! is reported as the way point, since way points are drawn and hit on top of
 //! regions, with the tracks in between.
 //!
@@ -224,7 +226,19 @@ impl RegionApplication {
                         MapEvent::AnnotationSelected {
                             key, click_point, ..
                         } => self.report = self.describe_pick(key, click_point),
-                        MapEvent::FocusReached { .. } => {}
+                        // A track's label shows the distance ridden up to the point
+                        // under the cursor, the same text as the report of a click.
+                        MapEvent::AnnotationHovered {
+                            key: key @ AnnotationKey::Path(_),
+                            hover_point,
+                            ..
+                        } => {
+                            let description = self.describe_pick(key, hover_point);
+                            self.widget_system
+                                .update_description(key, Some(description))
+                                .expect("Hover events only come for present elements");
+                        }
+                        MapEvent::AnnotationHovered { .. } | MapEvent::FocusReached { .. } => {}
                         // An arrow click acts like the focus button: all maps follow.
                         MapEvent::ArrowClicked { key, .. } => self.focus_all(key),
                         MapEvent::Error(text) => {

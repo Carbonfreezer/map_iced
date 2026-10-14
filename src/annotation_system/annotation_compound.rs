@@ -1,6 +1,6 @@
 //! Contains the compounded subsystems for way points, paths and regions.
 
-use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
+use crate::annotation_system::annotation_support::{Annotation, AnnotationError, AnnotationKey};
 use crate::annotation_system::path_system::PathSystem;
 use crate::annotation_system::region_system::RegionSystem;
 use crate::annotation_system::waypoint_system::WaypointSystem;
@@ -53,6 +53,32 @@ impl AnnotationSystem {
             .iter()
             .map(|(key, value)| (AnnotationKey::Path(key), value as &dyn Annotation));
         region.chain(path).chain(waypoint)
+    }
+
+    /// Sets the description of the annotation `key`, whatever its kind.
+    pub(crate) fn update_description(
+        &mut self,
+        key: AnnotationKey,
+        description: Option<String>,
+    ) -> Result<(), AnnotationError> {
+        // The only way the kinds fail here is a missing key.
+        let updated = match key {
+            AnnotationKey::Waypoint(key) => self
+                .waypoint_system
+                .update_waypoint_description(key, description)
+                .is_ok(),
+            AnnotationKey::Region(key) => self
+                .region_system
+                .update_description(key, description)
+                .is_ok(),
+            AnnotationKey::Path(key) => self
+                .path_system
+                .update_description(key, description)
+                .is_ok(),
+        };
+        updated
+            .then_some(())
+            .ok_or(AnnotationError::KeyNotContained)
     }
 
     pub(crate) fn get_specific_element(&self, key: AnnotationKey) -> Option<&dyn Annotation> {

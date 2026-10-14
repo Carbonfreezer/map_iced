@@ -36,6 +36,16 @@ impl HashmapStable {
             .map(|(_, val)| val.as_ref())
     }
 
+    /// Replaces the element with the specific key, keeping its place in the sequence.
+    /// Returns `false` and changes nothing if the key is not contained.
+    pub(crate) fn replace(&mut self, key: &AnnotationKey, value: Box<dyn Annotation>) -> bool {
+        let Some(&index) = self.internal_map.get(key) else {
+            return false;
+        };
+        self.internal_vector[index].1 = value;
+        true
+    }
+
     /// Asks for the internal iterator that returns the elements in the sequence as handed over in
     /// construction. Gives elements as key value tuples.
     pub(crate) fn get_iterator(
@@ -101,5 +111,25 @@ mod tests {
             None,
         );
         assert!(stable.get(&missing.into()).is_none());
+
+        // Replacing keeps the place in the sequence, a missing key changes nothing.
+        let mut stable = stable;
+        let mut renamed = system.waypoint_collection[missing].clone();
+        renamed.description = Some("renamed".to_string());
+        let AnnotationKey::Waypoint(middle) = keys[1] else {
+            unreachable!("way point keys only");
+        };
+        let mut middle_renamed = system.waypoint_collection[middle].clone();
+        middle_renamed.description = Some("qux".to_string());
+        assert!(stable.replace(&keys[1], Box::new(middle_renamed)));
+        assert!(!stable.replace(&missing.into(), Box::new(renamed)));
+        let descriptions: Vec<_> = stable
+            .get_iterator()
+            .map(|(_, annotation)| annotation.description(cursor))
+            .collect();
+        assert_eq!(
+            descriptions,
+            ["foo", "qux", "baz"].map(|name| Some(name.to_string()))
+        );
     }
 }

@@ -85,6 +85,14 @@ pub enum AnnotationKey {
     Path(PathKey),
 }
 
+/// The errors of the methods that take an [`AnnotationKey`] of any kind. A method
+/// that fails changes nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnnotationError {
+    /// There is no annotation with this key, or not any more.
+    KeyNotContained,
+}
+
 impl From<WaypointKey> for AnnotationKey {
     fn from(key: WaypointKey) -> Self {
         AnnotationKey::Waypoint(key)
