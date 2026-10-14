@@ -30,7 +30,7 @@ pub struct LatitudeLongitude {
 impl LatitudeLongitude {
     /// Constructs the object and makes sure, that both coordinates are in the valid range
     /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
-    pub fn new(latitude: f64, longitude: f64) -> Self {
+    pub const fn new(latitude: f64, longitude: f64) -> Self {
         Self {
             latitude: latitude.clamp(-BOUNDARY_LATITUDE, BOUNDARY_LATITUDE),
             longitude: longitude.clamp(-BOUNDARY_LONGITUDE, BOUNDARY_LONGITUDE),

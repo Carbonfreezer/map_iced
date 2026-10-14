@@ -21,7 +21,6 @@ use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
-use std::sync::LazyLock;
 
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
@@ -39,8 +38,7 @@ const FLAG: DirectionFlag = DirectionFlag {
 };
 
 /// The position of the dome.
-static DOME_POSITION: LazyLock<LatitudeLongitude> =
-    LazyLock::new(|| LatitudeLongitude::new(49.7554, 6.6436));
+const DOME_POSITION: LatitudeLongitude = LatitudeLongitude::new(49.7554, 6.6436);
 
 /// One row of the list.
 struct Entry {
