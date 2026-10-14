@@ -22,7 +22,7 @@ new_key_type! {
 
 
 
-/// A that may represent different shapes.
+/// A region that may represent different shapes.
 #[derive(Debug, Clone)]
 pub struct Region {
     /// The mercator rectangle of the region.
