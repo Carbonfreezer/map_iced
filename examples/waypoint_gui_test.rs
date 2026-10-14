@@ -127,38 +127,39 @@ impl WaypointApplication {
     fn update(&mut self, message: Message) {
         match message {
             Message::Widget(m) => {
-                if let Some(event) = self.widget_system.process_message(m) {
-                    match event {
-                        MapEvent::AnnotationSelected { key, .. } => self.selected = Some(key),
-                        // The way point descriptions are fixed in this example.
-                        MapEvent::FocusReached { .. } | MapEvent::AnnotationHovered { .. } => {}
-                        // An arrow click acts like the focus button: all maps follow.
-                        // The fill only matters for annotations with an extent.
-                        MapEvent::ArrowClicked { key, .. } => {
-                            if let Some(target) = self.widget_system.focus_target(key, None) {
-                                self.focus_all(target);
-                            }
+                let Some(event) = self.widget_system.process_message(m) else {
+                    return;
+                };
+                match event {
+                    MapEvent::AnnotationSelected { key, .. } => self.selected = Some(key),
+                    // The way point descriptions are fixed in this example.
+                    MapEvent::FocusReached { .. } | MapEvent::AnnotationHovered { .. } => {}
+                    // An arrow click acts like the focus button: all maps follow.
+                    // The fill only matters for annotations with an extent.
+                    MapEvent::ArrowClicked { key, .. } => {
+                        if let Some(target) = self.widget_system.focus_target(key, None) {
+                            self.focus_all(target);
                         }
-                        // Error display is the subject of the other example, but
-                        // swallowing them without a word would hide a broken setup.
-                        MapEvent::Error(text) => {
-                            // The question mark starts the beginning of API tokens.
-                            eprintln!("Map error: {}", text.split("?").next().unwrap_or_default());
-                        }
+                    }
+                    // Error display is the subject of the other example, but
+                    // swallowing them without a word would hide a broken setup.
+                    MapEvent::Error(text) => {
+                        // The question mark starts the beginning of API tokens.
+                        eprintln!("Map error: {}", text.split("?").next().unwrap_or_default());
+                    }
 
-                        MapEvent::MapPositionClicked { position, .. } => {
-                            let entry = self.entries.last_mut().unwrap();
-                            match entry.key {
-                                Some(AnnotationKey::Waypoint(waypoint_key)) => {
-                                    self.widget_system
-                                        .get_waypoint_system_as_mut()
-                                        .update_waypoint_position(waypoint_key, position)
-                                        .expect("Key should be present");
-                                    entry.position = position;
-                                }
-                                // This example registers no regions or paths.
-                                Some(AnnotationKey::Region(_) | AnnotationKey::Path(_)) | None => {}
+                    MapEvent::MapPositionClicked { position, .. } => {
+                        let entry = self.entries.last_mut().unwrap();
+                        match entry.key {
+                            Some(AnnotationKey::Waypoint(waypoint_key)) => {
+                                self.widget_system
+                                    .get_waypoint_system_as_mut()
+                                    .update_waypoint_position(waypoint_key, position)
+                                    .expect("Key should be present");
+                                entry.position = position;
                             }
+                            // This example registers no regions or paths.
+                            Some(AnnotationKey::Region(_) | AnnotationKey::Path(_)) | None => {}
                         }
                     }
                 }

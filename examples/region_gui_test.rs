@@ -221,32 +221,33 @@ impl RegionApplication {
     fn update(&mut self, message: Message) {
         match message {
             Message::Widget(m) => {
-                if let Some(event) = self.widget_system.process_message(m) {
-                    match event {
-                        MapEvent::AnnotationSelected {
-                            key, click_point, ..
-                        } => self.report = self.describe_pick(key, click_point),
-                        // A track's label shows the distance ridden up to the point
-                        // under the cursor, the same text as the report of a click.
-                        MapEvent::AnnotationHovered {
-                            key: key @ AnnotationKey::Path(_),
-                            hover_point,
-                            ..
-                        } => {
-                            let description = self.describe_pick(key, hover_point);
-                            self.widget_system
-                                .update_description(key, Some(description))
-                                .expect("Hover events only come for present elements");
-                        }
-                        MapEvent::AnnotationHovered { .. } | MapEvent::FocusReached { .. } => {}
-                        // An arrow click acts like the focus button: all maps follow.
-                        MapEvent::ArrowClicked { key, .. } => self.focus_all(key),
-                        MapEvent::Error(text) => {
-                            // The question mark starts the beginning of API tokens.
-                            eprintln!("Map error: {}", text.split("?").next().unwrap_or_default());
-                        }
-                        MapEvent::MapPositionClicked { .. } => {}
+                let Some(event) = self.widget_system.process_message(m) else {
+                    return;
+                };
+                match event {
+                    MapEvent::AnnotationSelected {
+                        key, click_point, ..
+                    } => self.report = self.describe_pick(key, click_point),
+                    // A track's label shows the distance ridden up to the point
+                    // under the cursor, the same text as the report of a click.
+                    MapEvent::AnnotationHovered {
+                        key: key @ AnnotationKey::Path(_),
+                        hover_point,
+                        ..
+                    } => {
+                        let description = self.describe_pick(key, hover_point);
+                        self.widget_system
+                            .update_description(key, Some(description))
+                            .expect("Hover events only come for present elements");
                     }
+                    MapEvent::AnnotationHovered { .. } | MapEvent::FocusReached { .. } => {}
+                    // An arrow click acts like the focus button: all maps follow.
+                    MapEvent::ArrowClicked { key, .. } => self.focus_all(key),
+                    MapEvent::Error(text) => {
+                        // The question mark starts the beginning of API tokens.
+                        eprintln!("Map error: {}", text.split("?").next().unwrap_or_default());
+                    }
+                    MapEvent::MapPositionClicked { .. } => {}
                 }
             }
             Message::Focus(key) => self.focus_all(key),
