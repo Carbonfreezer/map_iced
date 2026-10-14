@@ -1,5 +1,6 @@
 //! Contains supporting functionality for annotation.
 
+use crate::annotation_system::path_system::PathKey;
 use crate::annotation_system::region_system::RegionKey;
 use crate::annotation_system::waypoint_system::{DirectionFlag, WaypointKey};
 use crate::gui_system::internal_math::MercatorPoint;
@@ -80,6 +81,8 @@ pub enum AnnotationKey {
     Waypoint(WaypointKey),
     /// The key for regions.
     Region(RegionKey),
+    /// The key for paths.
+    Path(PathKey),
 }
 
 impl From<WaypointKey> for AnnotationKey {
@@ -91,6 +94,12 @@ impl From<WaypointKey> for AnnotationKey {
 impl From<RegionKey> for AnnotationKey {
     fn from(key: RegionKey) -> Self {
         AnnotationKey::Region(key)
+    }
+}
+
+impl From<PathKey> for AnnotationKey {
+    fn from(key: PathKey) -> Self {
+        AnnotationKey::Path(key)
     }
 }
 
@@ -114,6 +123,11 @@ pub enum RenderingInformation<'a> {
     Cross(Color),
     /// This is a closed shape as a polygon.
     Polygon(&'a RenderingClosedShape),
+    /// An open line through the positions, in one colour. (used in path)
+    Line {
+        positions: &'a [LatitudeLongitude],
+        color: Color,
+    },
 }
 
 /// The mercator rectangle an annotation feature covers on the map

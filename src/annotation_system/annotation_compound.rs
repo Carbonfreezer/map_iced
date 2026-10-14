@@ -1,17 +1,19 @@
-//! Contains the compounded subsystems for  waypoints and later pathes and regions.
+//! Contains the compounded subsystems for way points, paths and regions.
 
 use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
+use crate::annotation_system::path_system::PathSystem;
 use crate::annotation_system::region_system::RegionSystem;
 use crate::annotation_system::waypoint_system::WaypointSystem;
 
 /// The annotation system as a compound of one separate subsystem per annotation kind:
-/// way points now, paths and regions later. Each kind keeps its own storage, unifying
+/// way points, paths and regions. Each kind keeps its own storage, unifying
 /// the storage over an enum is not worth the hassle. Only the keys are unified, in
 /// [`AnnotationKey`], and the widgets see all kinds through the [`Annotation`] trait.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct AnnotationSystem {
     pub(crate) waypoint_system: WaypointSystem,
     pub(crate) region_system: RegionSystem,
+    pub(crate) path_system: PathSystem,
 }
 
 impl AnnotationSystem {
@@ -25,6 +27,13 @@ impl AnnotationSystem {
         &mut self.region_system
     }
 
+    /// Asks for the path system.
+    pub fn path_system(&mut self) -> &mut PathSystem {
+        &mut self.path_system
+    }
+
+    /// All annotations in render order: regions at the bottom, then paths, then way
+    /// points on top. The hit test runs through it backwards, so the topmost wins.
     pub(crate) fn get_complete_render_list(
         &self,
     ) -> impl Iterator<Item = (AnnotationKey, &dyn Annotation)> {
@@ -38,8 +47,12 @@ impl AnnotationSystem {
             .region_collection
             .iter()
             .map(|(key, value)| (AnnotationKey::Region(key), value as &dyn Annotation));
-        // TODO: Has to be chained with the other elements in render order.
-        region.chain(waypoint)
+        let path = self
+            .path_system
+            .path_collection
+            .iter()
+            .map(|(key, value)| (AnnotationKey::Path(key), value as &dyn Annotation));
+        region.chain(path).chain(waypoint)
     }
 
     pub(crate) fn get_specific_element(&self, key: AnnotationKey) -> Option<&dyn Annotation> {
@@ -52,6 +65,11 @@ impl AnnotationSystem {
             AnnotationKey::Region(key) => self
                 .region_system
                 .region_collection
+                .get(key)
+                .map(|value| value as &dyn Annotation),
+            AnnotationKey::Path(key) => self
+                .path_system
+                .path_collection
                 .get(key)
                 .map(|value| value as &dyn Annotation),
         }

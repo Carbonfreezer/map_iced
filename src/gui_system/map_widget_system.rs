@@ -3,6 +3,7 @@
 
 use crate::annotation_system::annotation_compound::AnnotationSystem;
 use crate::annotation_system::annotation_support::AnnotationKey;
+use crate::annotation_system::path_system::PathSystem;
 use crate::annotation_system::region_system::RegionSystem;
 use crate::annotation_system::waypoint_system::WaypointSystem;
 use crate::gui_system::hashmap_stable::HashmapStable;
@@ -125,6 +126,12 @@ impl MapWidgetSystem {
         self.annotation_system.region_system()
     }
 
+    /// Gets a mutable access for the path system to modify things.
+    pub fn get_path_system_as_mut(&mut self) -> &mut PathSystem {
+        self.reset_all_widgets();
+        self.annotation_system.path_system()
+    }
+
     /// Gets a read-only access for the way point system, to query things without
     /// the widget reset that comes with [`Self::get_waypoint_system_as_mut`].
     pub fn get_waypoint_system(&self) -> &WaypointSystem {
@@ -135,6 +142,12 @@ impl MapWidgetSystem {
     /// widget reset that comes with [`Self::get_region_system_as_mut`].
     pub fn get_region_system(&self) -> &RegionSystem {
         &self.annotation_system.region_system
+    }
+
+    /// Gets a read-only access for the path system, to query things without the
+    /// widget reset that comes with [`Self::get_path_system_as_mut`].
+    pub fn get_path_system(&self) -> &PathSystem {
+        &self.annotation_system.path_system
     }
 
     ///  The messages going into the caching system are processed here.

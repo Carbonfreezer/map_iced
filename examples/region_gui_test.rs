@@ -226,7 +226,10 @@ impl RegionApplication {
                 "{name}\nDistance to centre: {}",
                 format_distance(center.get_distance_to(click_point))
             ),
-            (AnnotationKey::Region(_), None) | (AnnotationKey::Waypoint(_), _) => name.to_string(),
+            // This example registers no paths.
+            (AnnotationKey::Region(_), None)
+            | (AnnotationKey::Waypoint(_), _)
+            | (AnnotationKey::Path(_), _) => name.to_string(),
         }
     }
 

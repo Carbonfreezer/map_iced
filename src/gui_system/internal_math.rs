@@ -43,6 +43,17 @@ impl From<LatitudeLongitude> for MercatorPoint {
     }
 }
 
+impl From<MercatorPoint> for LatitudeLongitude {
+    fn from(point: MercatorPoint) -> Self {
+        TileCoordinates {
+            x: point.x,
+            y: point.y,
+            zoom: 0,
+        }
+        .into()
+    }
+}
+
 /// A position of the tile in rounded coordinates.
 /// These are the coordinates that go into the slippy
 /// tile system.

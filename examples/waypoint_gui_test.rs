@@ -158,8 +158,8 @@ impl WaypointApplication {
                                         .expect("Key should be present");
                                     entry.position = position;
                                 }
-                                // This example registers no regions.
-                                Some(AnnotationKey::Region(_)) | None => {}
+                                // This example registers no regions or paths.
+                                Some(AnnotationKey::Region(_) | AnnotationKey::Path(_)) | None => {}
                             }
                         }
                     }
@@ -197,8 +197,8 @@ impl WaypointApplication {
                             self.selected = None;
                         }
                     }
-                    // This example registers no regions.
-                    (false, Some(AnnotationKey::Region(_))) => {}
+                    // This example registers no regions or paths.
+                    (false, Some(AnnotationKey::Region(_) | AnnotationKey::Path(_))) => {}
                     // Already in the state the checkbox asks for.
                     (true, Some(_)) | (false, None) => {}
                 }
@@ -228,8 +228,8 @@ impl WaypointApplication {
                             .set_flag(key, flagged.then_some(flag))
                             .expect("Should be present");
                     }
-                    // This example registers no regions.
-                    AnnotationKey::Region(_) => {}
+                    // This example registers no regions or paths.
+                    AnnotationKey::Region(_) | AnnotationKey::Path(_) => {}
                 }
                 self.entries[index].flagged = flagged;
             }

@@ -23,12 +23,15 @@ use crate::gui_system::map_widget::scale_bar::{draw_scale_bar, scale_bar};
 use iced::advanced::graphics::geometry::Frame;
 use iced::advanced::image::Image;
 use iced::widget::Action;
-use iced::widget::canvas::{Cache, Geometry, Path, Stroke, Text, stroke};
+use iced::widget::canvas::{Cache, Geometry, LineCap, LineJoin, Path, Stroke, Text, stroke};
 use iced::{Point, Rectangle, Renderer, Size, Vector};
 use std::time::Instant;
 
 /// Horizontal gap between a way point symbol and its hover description.
 const DESCRIPTION_GAP: f32 = 4.0;
+
+/// The stroke width of a path in pixels.
+const PATH_WIDTH: f32 = 3.0;
 
 /// The widget used for rendering a tile.
 pub(crate) struct MapWidget {
@@ -414,6 +417,31 @@ impl MapWidget {
                                 Stroke {
                                     width: 1.5,
                                     style: stroke::Style::Solid(poly_info.border_color),
+                                    ..Stroke::default()
+                                },
+                            );
+                        }
+                        RenderingInformation::Line { positions, color } => {
+                            let mut drawing_points = positions.iter().map(|point| {
+                                let pos = converter.get_drawing_position(*point);
+                                Point::new(pos.x, pos.y)
+                            });
+                            let Some(first_point) = drawing_points.next() else {
+                                continue;
+                            };
+                            let line = Path::new(|builder| {
+                                builder.move_to(first_point);
+                                for point in drawing_points {
+                                    builder.line_to(point);
+                                }
+                            });
+                            frame.stroke(
+                                &line,
+                                Stroke {
+                                    width: PATH_WIDTH,
+                                    style: stroke::Style::Solid(color),
+                                    line_cap: LineCap::Round,
+                                    line_join: LineJoin::Round,
                                     ..Stroke::default()
                                 },
                             );
