@@ -98,6 +98,9 @@ mod tests {
             .get_image_data(TileSpecification::new(0, 0, 0))
             .await
             .unwrap();
-        assert!(data.len() > 0, "We should have gotten some data from OSM.");
+        assert!(
+            !data.is_empty(),
+            "We should have gotten some data from OSM."
+        );
     }
 }

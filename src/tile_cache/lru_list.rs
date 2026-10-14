@@ -288,7 +288,7 @@ mod tests {
     #[test]
     fn filter_test() {
         let raw_data = vec![0, 1, 2, 3, 4, 5];
-        let test_data = vec![5, 2, 3, 22];
+        let test_data = [5, 2, 3, 22];
         let file_data = test_data
             .iter()
             .map(|x| TileData {
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn fill_test() {
         let mut cand = LastRecentlyUsedList::new(20);
-        let total_vec = vec![0, 1, 2, 3, 4];
+        let total_vec = [0, 1, 2, 3, 4];
         let entry_vec = total_vec
             .iter()
             .map(|x| TileData {

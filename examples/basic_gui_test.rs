@@ -13,7 +13,7 @@ struct BasicApplication {
 
 #[derive(Debug, Clone)]
 enum Message {
-    WidgetMessage(MapWidgetMessage),
+    Widget(MapWidgetMessage),
     /// User message, when we want to retry failed tiles.
     RetryFailedTiles,
 }
@@ -42,7 +42,7 @@ impl BasicApplication {
                 widget_ids,
                 error_text: "".to_string(),
             },
-            task.map(Message::WidgetMessage),
+            task.map(Message::Widget),
         )
     }
 
@@ -50,12 +50,11 @@ impl BasicApplication {
         // println!("New message: {:?}", message);
 
         match message {
-            Message::WidgetMessage(m) => {
+            Message::Widget(m) => {
                 let mut errors = String::new();
-                match self.widget_system.process_message(m) {
-                    Some(MapEvent::Error(text)) => errors.push_str(&text),
-                    // This example does not deal with way points or focusing or map selection.
-                    _ => {}
+                // This example does not deal with way points or focusing or map selection.
+                if let Some(MapEvent::Error(text)) = self.widget_system.process_message(m) {
+                    errors.push_str(&text);
                 }
                 // The question mark starts the beginning of API tokens and is very long.
                 let new_message = errors.split("?").collect::<Vec<&str>>()[0].to_string();
@@ -74,7 +73,7 @@ impl BasicApplication {
         let map: Element<'_, Message> = self
             .widget_system
             .canvas(widget_id)
-            .map(|cmd| Message::WidgetMessage(cmd.into()));
+            .map(|cmd| Message::Widget(cmd.into()));
 
         container(map)
             .padding(10)

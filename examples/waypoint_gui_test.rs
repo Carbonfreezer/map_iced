@@ -78,7 +78,7 @@ struct WaypointApplication {
 #[derive(Debug, Clone)]
 enum Message {
     /// An internal message from the widget system.
-    WidgetMessage(MapWidgetMessage),
+    Widget(MapWidgetMessage),
     /// Register or unregister the way point of the given list row.
     Toggled(usize, bool),
     /// Move the maps to the way point of the given list row.
@@ -120,13 +120,13 @@ impl WaypointApplication {
                 entries,
                 selected: None,
             },
-            task.map(Message::WidgetMessage),
+            task.map(Message::Widget),
         )
     }
 
     fn update(&mut self, message: Message) {
         match message {
-            Message::WidgetMessage(m) => {
+            Message::Widget(m) => {
                 if let Some(event) = self.widget_system.process_message(m) {
                     match event {
                         MapEvent::AnnotationSelected { key, .. } => self.selected = Some(key),
@@ -143,10 +143,7 @@ impl WaypointApplication {
                         // swallowing them without a word would hide a broken setup.
                         MapEvent::Error(text) => {
                             // The question mark starts the beginning of API tokens.
-                            eprintln!(
-                                "Map error: {}",
-                                text.split("?").next().unwrap_or_default()
-                            );
+                            eprintln!("Map error: {}", text.split("?").next().unwrap_or_default());
                         }
 
                         MapEvent::MapPositionClicked { position, .. } => {
@@ -251,7 +248,7 @@ impl WaypointApplication {
         let map: Element<'_, Message> = self
             .widget_system
             .canvas(widget_id)
-            .map(|cmd| Message::WidgetMessage(cmd.into()));
+            .map(|cmd| Message::Widget(cmd.into()));
 
         container(map)
             .padding(10)

@@ -79,7 +79,7 @@ struct RegionApplication {
 #[derive(Debug, Clone)]
 enum Message {
     /// An internal message from the widget system.
-    WidgetMessage(MapWidgetMessage),
+    Widget(MapWidgetMessage),
     /// Move the maps to the given element.
     Focus(AnnotationKey),
 }
@@ -108,7 +108,7 @@ impl RegionApplication {
                 entries,
                 report: "Click an element on a map.".to_string(),
             },
-            task.map(Message::WidgetMessage),
+            task.map(Message::Widget),
         )
     }
 
@@ -119,7 +119,7 @@ impl RegionApplication {
 
         let waypoints = widget_system.get_waypoint_system_as_mut();
         for (name, position, color) in [
-            ("Trier Cathedral", DOME_POSITION.clone(), DOME_COLOR),
+            ("Trier Cathedral", DOME_POSITION, DOME_COLOR),
             (
                 "Konz ambulance station",
                 LatitudeLongitude::new(49.7020, 6.5800),
@@ -156,7 +156,7 @@ impl RegionApplication {
             (
                 "Cathedral cordon",
                 RegionShape::Circle {
-                    center: DOME_POSITION.clone(),
+                    center: DOME_POSITION,
                     radius_meter: 1_200.0,
                 },
                 red,
@@ -220,7 +220,7 @@ impl RegionApplication {
 
     fn update(&mut self, message: Message) {
         match message {
-            Message::WidgetMessage(m) => {
+            Message::Widget(m) => {
                 if let Some(event) = self.widget_system.process_message(m) {
                     match event {
                         MapEvent::AnnotationSelected {
@@ -243,10 +243,7 @@ impl RegionApplication {
                         MapEvent::ArrowClicked { key, .. } => self.focus_all(key),
                         MapEvent::Error(text) => {
                             // The question mark starts the beginning of API tokens.
-                            eprintln!(
-                                "Map error: {}",
-                                text.split("?").next().unwrap_or_default()
-                            );
+                            eprintln!("Map error: {}", text.split("?").next().unwrap_or_default());
                         }
                         MapEvent::MapPositionClicked { .. } => {}
                     }
@@ -305,7 +302,7 @@ impl RegionApplication {
         let map: Element<'_, Message> = self
             .widget_system
             .canvas(widget_id)
-            .map(|cmd| Message::WidgetMessage(cmd.into()));
+            .map(|cmd| Message::Widget(cmd.into()));
 
         container(map)
             .padding(10)
