@@ -14,7 +14,6 @@
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
-use map_iced::Bytes;
 use map_iced::annotation_system::annotation_support::AnnotationKey;
 use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
 use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol};
@@ -25,8 +24,6 @@ use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
 
-/// The icon we mark every way point with.
-const ICON_DATA: &[u8] = include_bytes!("../assets/Icon.png");
 
 /// The share of the map a focused region covers.
 const REGION_FILL: f32 = 0.8;
@@ -36,6 +33,13 @@ const FLAG: DirectionFlag = DirectionFlag {
     color: Color::from_rgb(0.9, 0.15, 0.15),
     priority: 0,
 };
+
+
+/// The color for the dome.
+const DOME_COLOR : Color = Color::from_rgb(0.3, 0.8, 0.3);
+
+/// The color for the fire station.
+const FIRE_STATION_COLOR : Color = Color::from_rgb(0.8, 0.3, 0.3);
 
 /// The position of the dome.
 const DOME_POSITION: LatitudeLongitude = LatitudeLongitude::new(49.7554, 6.6436);
@@ -97,15 +101,16 @@ impl RegionApplication {
         let mut entries = Vec::new();
 
         let waypoints = widget_system.get_waypoint_system_as_mut();
-        for (name, position) in [
-            ("Trier Dom", DOME_POSITION.clone()),
+        for (name, position, color) in [
+            ("Trier Dom", DOME_POSITION.clone(), DOME_COLOR),
             (
                 "Rettungswache Konz",
                 LatitudeLongitude::new(49.7020, 6.5800),
+                FIRE_STATION_COLOR,
             ),
         ] {
             let key = waypoints.add_way_point(
-                WaypointSymbol::Image(Bytes::from_static(ICON_DATA)),
+                WaypointSymbol::Cross(color),
                 position,
                 Some(name.to_string()),
             );
