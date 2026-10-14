@@ -19,7 +19,7 @@ pub const EARTH_CIRCUMFERENCE: f64 = 2.0 * PI * EARTH_RADIUS;
 
 /// The latitude longitude pair. Both are given in degrees.
 /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LatitudeLongitude {
     /// Latitude in degrees
     pub latitude: f64,

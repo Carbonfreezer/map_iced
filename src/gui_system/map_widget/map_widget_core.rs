@@ -17,7 +17,7 @@ use crate::gui_system::map_widget::map_widget_components::{
     TEXT_COLOR,
 };
 use crate::gui_system::map_widget::map_widget_support::{
-    AnnotationInteractionState, fill_text_with_halo,
+    AnnotationInteractionState, HoverTarget, fill_text_with_halo,
 };
 use crate::gui_system::map_widget::scale_bar::{draw_scale_bar, scale_bar};
 use iced::advanced::graphics::geometry::Frame;
@@ -319,6 +319,21 @@ impl MapWidget {
             .map(|(index, _)| index)
     }
 
+    /// The hover target at `position` in widget coordinates: the annotation under it,
+    /// with the anchor of its description resolved for this cursor position.
+    pub(crate) fn hover_target_at(&self, position: Point) -> Option<HoverTarget> {
+        let key = self.annotation_at(position)?;
+        let annotation = self.annotation_info.get(&key)?;
+        let converter = self.position_converter.as_ref()?;
+        let cursor_pos = converter.get_latitude_longitude_for_pixel_point(position);
+        let anchor = match annotation.label_anchor(cursor_pos) {
+            LabelPosition::NoLabel => None,
+            LabelPosition::AtMousePosition => Some(cursor_pos),
+            LabelPosition::FixGeoLocation(position) => Some(position),
+        };
+        Some(HoverTarget { key, anchor })
+    }
+
     /// The annotation symbols. Cached, because they only change with the way point
     /// snapshot or the focal point, never with the cursor.
     pub(crate) fn draw_annotation_symbols(
@@ -416,33 +431,26 @@ impl MapWidget {
     ) -> Geometry<Renderer> {
         let mut frame = Frame::new(renderer, bounds.size());
 
-        if let (Some(annotation), Some(converter)) = (
-            state
-                .description_key()
-                .and_then(|key| self.annotation_info.get(&key)),
-            self.position_converter.as_ref(),
-        ) && let Some(cursor_pos) =
-            cursor.map(|x| converter.get_latitude_longitude_for_pixel_point(x))
+        if let Some(target) = state.description_target()
+            && let Some(annotation) = self.annotation_info.get(&target.key)
+            && let Some(converter) = self.position_converter.as_ref()
+            && let Some(label_pos) = target.anchor
+            && let Some(cursor_pos) =
+                cursor.map(|x| converter.get_latitude_longitude_for_pixel_point(x))
             && let Some(description) = annotation.description(cursor_pos)
         {
-            let label_pos = match annotation.label_anchor(cursor_pos) {
-                LabelPosition::NoLabel => None,
-                LabelPosition::AtMousePosition => Some(cursor_pos),
-                LabelPosition::FixGeoLocation(position) => Some(position),
-            };
-            if let Some(label_pos) = label_pos.map(|x| converter.get_drawing_position(x)) {
-                let padding = annotation.cull_bounds().pixel_padding();
-                fill_text_with_halo(
-                    &mut frame,
-                    Text {
-                        content: description,
-                        position: Point::new(label_pos.x + padding + DESCRIPTION_GAP, label_pos.y),
-                        color: TEXT_COLOR,
-                        size: FONT_SIZE.into(),
-                        ..Default::default()
-                    },
-                );
-            }
+            let label_pos = converter.get_drawing_position(label_pos);
+            let padding = annotation.cull_bounds().pixel_padding();
+            fill_text_with_halo(
+                &mut frame,
+                Text {
+                    content: description,
+                    position: Point::new(label_pos.x + padding + DESCRIPTION_GAP, label_pos.y),
+                    color: TEXT_COLOR,
+                    size: FONT_SIZE.into(),
+                    ..Default::default()
+                },
+            );
         }
 
         frame.into_geometry()

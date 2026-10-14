@@ -312,7 +312,7 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
             Event::Mouse(mouse::Event::CursorMoved { .. }) => state.aim(
                 cursor
                     .position_in(bounds)
-                    .and_then(|position| self.widget.annotation_at(position)),
+                    .and_then(|position| self.widget.hover_target_at(position)),
             ),
 
             Event::Mouse(mouse::Event::CursorLeft) => state.aim(None),

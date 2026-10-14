@@ -2,6 +2,7 @@
 //! to make the module slimmer. These are the text functions and the annotation interaction functions.
 
 use crate::annotation_system::annotation_support::AnnotationKey;
+use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::MapInteractionCommand;
 use iced::advanced::graphics::geometry::Frame;
 use iced::widget::Action;
@@ -43,13 +44,27 @@ pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
     frame.fill_text(text);
 }
 
-/// An annotation the cursor currently rests on, together with the moment its
-/// description is due.
-#[derive(Debug, Clone, Copy)]
-struct Hover {
+/// What the cursor points at: an annotation together with the spot its description
+/// is anchored to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct HoverTarget {
     /// The hovered annotation, see [`MapWidget::annotation_at`]. Unlike an index into
     /// the snapshot, the key stays valid when the snapshot is replaced.
-    key: AnnotationKey,
+    pub(crate) key: AnnotationKey,
+    /// Where the description goes, resolved from [`Annotation::label_anchor`] when the
+    /// cursor came to rest. `None` if the annotation shows no label.
+    ///
+    /// Part of the target on purpose: a fixed anchor, as for a way point, stays the
+    /// same while the cursor moves over the symbol, one that follows the cursor, as
+    /// for a region, changes with every move and so restarts the dwell timer.
+    pub(crate) anchor: Option<LatitudeLongitude>,
+}
+
+/// A [`HoverTarget`] together with the moment its description is due.
+#[derive(Debug, Clone, Copy)]
+struct Hover {
+    /// What the cursor rests on.
+    target: HoverTarget,
     /// The instant from which on the description is shown.
     visible_at: Instant,
 }
@@ -64,27 +79,31 @@ pub(crate) struct AnnotationInteractionState {
 }
 
 impl AnnotationInteractionState {
-    /// Points the hover at `key`.
+    /// Points the hover at `target`.
     ///
     /// The dwell timer only restarts when the target actually changes, so the jitter
-    /// of a cursor resting inside one symbol does not keep pushing the description
-    /// away.
+    /// of a cursor resting inside a way point symbol does not keep pushing the
+    /// description away. A description that follows the cursor changes its target
+    /// with every move, so it hides while the cursor moves and shows up again where
+    /// the cursor comes to rest.
     pub(crate) fn aim(
         &mut self,
-        key: Option<AnnotationKey>,
+        target: Option<HoverTarget>,
     ) -> Option<Action<MapInteractionCommand>> {
-        if self.hovered.map(|hover| hover.key) == key {
+        if self.hovered.map(|hover| hover.target) == target {
             return None;
         }
 
-        let was_visible = self.description_key().is_some();
-        self.hovered = key.map(|key| Hover {
-            key,
+        let was_visible = self.description_target().is_some();
+        self.hovered = target.map(|target| Hover {
+            target,
             visible_at: Instant::now() + HOVER_DELAY,
         });
 
         match self.hovered {
-            // Ask to be woken up when the dwell time is over.
+            // Ask to be woken up when the dwell time is over, and drop a description
+            // that is on screen right now.
+            Some(_) if was_visible => Some(Action::request_redraw()),
             Some(hover) => Some(Action::request_redraw_at(hover.visible_at)),
             // Nothing to wait for, but a description that is on screen has to go.
             None if was_visible => Some(Action::request_redraw()),
@@ -99,10 +118,10 @@ impl AnnotationInteractionState {
         (now < hover.visible_at).then(|| Action::request_redraw_at(hover.visible_at))
     }
 
-    /// The annotation whose description is due by now, if any.
-    pub(crate) fn description_key(&self) -> Option<AnnotationKey> {
+    /// The target whose description is due by now, if any.
+    pub(crate) fn description_target(&self) -> Option<HoverTarget> {
         self.hovered
             .filter(|hover| Instant::now() >= hover.visible_at)
-            .map(|hover| hover.key)
+            .map(|hover| hover.target)
     }
 }

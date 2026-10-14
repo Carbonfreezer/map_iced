@@ -24,7 +24,6 @@ use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
 
-
 /// The share of the map a focused region covers.
 const REGION_FILL: f32 = 0.8;
 
@@ -34,12 +33,11 @@ const FLAG: DirectionFlag = DirectionFlag {
     priority: 0,
 };
 
-
 /// The color for the dome.
-const DOME_COLOR : Color = Color::from_rgb(0.3, 0.8, 0.3);
+const DOME_COLOR: Color = Color::from_rgb(0.3, 0.8, 0.3);
 
 /// The color for the fire station.
-const FIRE_STATION_COLOR : Color = Color::from_rgb(0.8, 0.3, 0.3);
+const FIRE_STATION_COLOR: Color = Color::from_rgb(0.8, 0.3, 0.3);
 
 /// The position of the dome.
 const DOME_POSITION: LatitudeLongitude = LatitudeLongitude::new(49.7554, 6.6436);
