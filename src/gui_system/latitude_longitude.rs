@@ -6,10 +6,10 @@ use std::f64::consts::PI;
 
 /// The boundary latitude we do not overshoot. Needed
 /// because of distortion artifacts in the mercator projection.
-pub const BOUNDARY_LATITUDE: f64 = 85.05112878;
+pub(crate) const BOUNDARY_LATITUDE: f64 = 85.05112878;
 
 /// The absolute minimum and maximum representation of the longitude.
-pub const BOUNDARY_LONGITUDE: f64 = 180.0;
+pub(crate) const BOUNDARY_LONGITUDE: f64 = 180.0;
 
 /// The radius of the sphere Web Mercator is defined on, in metres.
 const EARTH_RADIUS: f64 = 6_378_137.0;

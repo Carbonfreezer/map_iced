@@ -162,7 +162,7 @@ impl PathGeometry {
 
 /// A path drawn as a line in one colour.
 #[derive(Debug, Clone)]
-pub struct PathInfo {
+pub(crate) struct PathInfo {
     /// The geometry, shared with the snapshots the widgets take.
     geometry: Arc<PathGeometry>,
     /// The colour of the line.

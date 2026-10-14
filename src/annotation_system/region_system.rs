@@ -25,7 +25,7 @@ new_key_type! {
 
 /// A region that may represent different shapes.
 #[derive(Debug, Clone)]
-pub struct Region {
+pub(crate) struct Region {
     /// The mercator rectangle of the region.
     bounds: MercatorRectangle,
     /// The point the region stands for, reported by [`Annotation::get_center`] and
