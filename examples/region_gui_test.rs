@@ -19,7 +19,6 @@ use map_iced::annotation_system::annotation_support::AnnotationKey;
 use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
 use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol};
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
-use map_iced::gui_system::map_widget::map_widget_components::FocusTarget;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 
@@ -42,9 +41,6 @@ const FLAG: DirectionFlag = DirectionFlag {
 struct Entry {
     name: &'static str,
     key: AnnotationKey,
-    /// The position of a way point, `None` for a region. The map system has no
-    /// position getter for way points, so the application keeps it.
-    waypoint_position: Option<LatitudeLongitude>,
 }
 
 struct RegionApplication {
@@ -60,8 +56,8 @@ struct RegionApplication {
 enum Message {
     /// An internal message from the widget system.
     WidgetMessage(MapWidgetMessage),
-    /// Move the maps to the element of the given list row.
-    Focus(usize),
+    /// Move the maps to the given element.
+    Focus(AnnotationKey),
 }
 
 impl RegionApplication {
@@ -110,7 +106,6 @@ impl RegionApplication {
             entries.push(Entry {
                 name,
                 key: key.into(),
-                waypoint_position: Some(position),
             });
         }
 
@@ -170,7 +165,6 @@ impl RegionApplication {
             entries.push(Entry {
                 name,
                 key: key.into(),
-                waypoint_position: None,
             });
         }
 
@@ -194,13 +188,7 @@ impl RegionApplication {
                         } => self.report = self.describe_pick(key, click_point),
                         MapEvent::FocusReached { .. } => {}
                         // An arrow click acts like the focus button: all maps follow.
-                        MapEvent::ArrowClicked { key, .. } => {
-                            if let Some(index) =
-                                self.entries.iter().position(|entry| entry.key == key)
-                            {
-                                self.focus_all(index);
-                            }
-                        }
+                        MapEvent::ArrowClicked { key, .. } => self.focus_all(key),
                         MapEvent::Error(text) => {
                             // The question mark starts the beginning of API tokens.
                             eprintln!(
@@ -212,7 +200,7 @@ impl RegionApplication {
                     }
                 }
             }
-            Message::Focus(index) => self.focus_all(index),
+            Message::Focus(key) => self.focus_all(key),
         }
     }
 
@@ -224,31 +212,21 @@ impl RegionApplication {
             .iter()
             .find(|entry| entry.key == key)
             .map_or("Unknown element", |entry| entry.name);
-        match key {
-            AnnotationKey::Waypoint(_) => name.to_string(),
-            AnnotationKey::Region(region_key) => {
-                match self.widget_system.get_region_system().center(region_key) {
-                    Ok(center) => format!(
-                        "{name}\nDistance to centre: {}",
-                        format_distance(center.get_distance_to(click_point))
-                    ),
-                    Err(_) => name.to_string(),
-                }
+        match (key, self.widget_system.center(key)) {
+            (AnnotationKey::Region(_), Some(center)) => format!(
+                "{name}\nDistance to centre: {}",
+                format_distance(center.get_distance_to(click_point))
+            ),
+            (AnnotationKey::Region(_), None) | (AnnotationKey::Waypoint(_), _) => {
+                name.to_string()
             }
         }
     }
 
-    /// Moves all maps to the element of list row `index`: the left map jumps, the
-    /// right one animates.
-    fn focus_all(&mut self, index: usize) {
-        let Some(entry) = self.entries.get(index) else {
-            return;
-        };
-        let target: Option<FocusTarget> = match entry.key {
-            AnnotationKey::Waypoint(_) => entry.waypoint_position.map(Into::into),
-            AnnotationKey::Region(key) => self.widget_system.region_focus_target(key, REGION_FILL),
-        };
-        let Some(target) = target else {
+    /// Moves all maps to the element `key`: the left map jumps, the right one
+    /// animates.
+    fn focus_all(&mut self, key: AnnotationKey) {
+        let Some(target) = self.widget_system.focus_target(key, REGION_FILL) else {
             return;
         };
         self.widget_system.jump_to(self.widget_ids[0], target.clone());
@@ -279,12 +257,12 @@ impl RegionApplication {
     }
 
     /// One row of the list: the name and the focus button.
-    fn entry_row(&self, index: usize, entry: &Entry) -> Element<'_, Message> {
+    fn entry_row(&self, entry: &Entry) -> Element<'_, Message> {
         let label = text(entry.name)
             .width(Fill)
             .wrapping(Wrapping::WordOrGlyph);
 
-        let focus = button(text("Fokus")).on_press(Message::Focus(index));
+        let focus = button(text("Fokus")).on_press(Message::Focus(entry.key));
 
         row![label, focus]
             .align_y(Alignment::Center)
@@ -302,9 +280,8 @@ impl RegionApplication {
         let list = self
             .entries
             .iter()
-            .enumerate()
-            .fold(column![].spacing(10), |list, (index, entry)| {
-                list.push(self.entry_row(index, entry))
+            .fold(column![].spacing(10), |list, entry| {
+                list.push(self.entry_row(entry))
             });
 
         let report = container(text(&self.report).wrapping(Wrapping::WordOrGlyph))

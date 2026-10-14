@@ -2,8 +2,7 @@
 //! the internal cache.
 
 use crate::annotation_system::annotation_compound::AnnotationSystem;
-use crate::annotation_system::annotation_support::{Annotation, AnnotationKey};
-use crate::annotation_system::region_system::RegionKey;
+use crate::annotation_system::annotation_support::AnnotationKey;
 use crate::annotation_system::waypoint_system::WaypointSystem;
 use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
@@ -299,17 +298,24 @@ impl MapWidgetSystem {
         self.widget_collection[id as usize].animate_to(&target.into());
     }
 
-    /// The focus target for the region `key`: its bounds, covering the share `fill`
-    /// of the widget's width or height. `None` if there is no such region.
-    pub fn region_focus_target(&self, key: RegionKey, fill: f32) -> Option<FocusTarget> {
+    /// The focus target for the annotation `key`, to hand to [`Self::jump_to`] or
+    /// [`Self::animate_to`]. An annotation with an extent, like a region, is fitted to
+    /// cover the share `fill` of the widget's width or height; a way point becomes its
+    /// position and `fill` is ignored. `None` if there is no such annotation.
+    pub fn focus_target(&self, key: AnnotationKey, fill: f32) -> Option<FocusTarget> {
         self.annotation_system
-            .region_system
-            .region_collection
-            .get(key)
-            .map(|region| FocusTarget::Area {
-                bounds: region.cull_bounds().clone(),
-                fill,
-            })
+            .get_specific_element(key)
+            .map(|annotation| annotation.focus_target(fill))
+    }
+
+    /// The point the annotation `key` stands for, the one its direction arrow points
+    /// at: the position of a way point, the centre of a circle, the apex of a sector,
+    /// the centre of the bounds of a convex hull. `None` if there is no such
+    /// annotation.
+    pub fn center(&self, key: AnnotationKey) -> Option<LatitudeLongitude> {
+        self.annotation_system
+            .get_specific_element(key)
+            .map(|annotation| annotation.get_center())
     }
 
     /// The canvas stack for one widget. Returns an `Element`, because the map tiles

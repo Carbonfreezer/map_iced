@@ -5,6 +5,7 @@ use crate::annotation_system::annotation_support::{
     Annotation, LabelPosition, MercatorRectangle, RenderingInformation,
 };
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
+use crate::gui_system::map_widget::map_widget_components::FocusTarget;
 use bytes::Bytes;
 use iced::Color;
 use iced::advanced::image::Handle;
@@ -229,6 +230,11 @@ impl Annotation for WaypointInfo {
 
     fn hit_test_specific(&self, _position: LatitudeLongitude) -> bool {
         true
+    }
+
+    /// A way point has no extent to fit, the focus keeps the zoom level.
+    fn focus_target(&self, _fill: f32) -> FocusTarget {
+        FocusTarget::Position(self.get_center())
     }
 
     fn label_anchor(&self, _cursor: LatitudeLongitude) -> LabelPosition {

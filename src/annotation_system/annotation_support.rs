@@ -8,6 +8,7 @@ use iced::Color;
 use iced::advanced::image::Handle;
 use std::fmt::Debug;
 use crate::annotation_system::region_system::RegionKey;
+use crate::gui_system::map_widget::map_widget_components::FocusTarget;
 
 /// Indicates where a  label should be positioned.
 pub enum LabelPosition {
@@ -26,9 +27,22 @@ pub(crate) trait Annotation: Debug {
     fn description(&self, cursor: LatitudeLongitude) -> Option<String>;
     /// Gets the colling boundaries of the system, should be precomputed.
     fn cull_bounds(&self) -> &MercatorRectangle;
-    /// The center is the center of the cull bounds.
+    /// The point the annotation stands for: direction arrows point at it and
+    /// [`MapWidgetSystem::center`] reports it. By default the centre of the cull
+    /// bounds, which for a way point is its position.
+    ///
+    /// [`MapWidgetSystem::center`]: crate::gui_system::map_widget_system::MapWidgetSystem::center
     fn get_center(&self) -> LatitudeLongitude {
         self.cull_bounds().get_center()
+    }
+    /// What a focus on the annotation aims at. By default its cull bounds, covering
+    /// the share `fill` of the widget; an annotation without extent overrides this
+    /// with its position.
+    fn focus_target(&self, fill: f32) -> FocusTarget {
+        FocusTarget::Area {
+            bounds: self.cull_bounds().clone(),
+            fill,
+        }
     }
     /// Does a hit test if a position handed over. This has be to combined with a test against the cull bounds
     /// upfront. For a waypoint this is always true. For a region or path that can be used as a filter to

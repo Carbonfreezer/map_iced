@@ -15,7 +15,7 @@ use map_iced::Bytes;
 use map_iced::annotation_system::annotation_support::AnnotationKey;
 use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol};
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
-use map_iced::gui_system::map_widget::map_widget_components::FocalPoint;
+use map_iced::gui_system::map_widget::map_widget_components::FocusTarget;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 
@@ -132,14 +132,10 @@ impl WaypointApplication {
                         MapEvent::AnnotationSelected { key, .. } => self.selected = Some(key),
                         MapEvent::FocusReached { .. } => {}
                         // An arrow click acts like the focus button: all maps follow.
+                        // The fill only matters for annotations with an extent.
                         MapEvent::ArrowClicked { key, .. } => {
-                            if let Some(entry) =
-                                self.entries.iter().find(|entry| entry.key == Some(key))
-                            {
-                                let position = entry.position;
-                                for widget_id in self.widget_ids {
-                                    self.focus(widget_id, position);
-                                }
+                            if let Some(target) = self.widget_system.focus_target(key, 1.0) {
+                                self.focus_all(target);
                             }
                         }
                         // Error display is the subject of the other example, but
@@ -208,14 +204,13 @@ impl WaypointApplication {
                 }
             }
 
+            // The row may not be registered with the map system, so the focus goes to
+            // the position the application keeps rather than to the key.
             Message::Focus(index) => {
                 let Some(entry) = self.entries.get(index) else {
                     return;
                 };
-                let position = entry.position;
-                for widget_id in self.widget_ids {
-                    self.focus(widget_id, position);
-                }
+                self.focus_all(entry.position.into());
             }
 
             Message::Flagged(index, flagged) => {
@@ -240,20 +235,11 @@ impl WaypointApplication {
         }
     }
 
-    /// Moves one map to `position`: the left map jumps, the right one animates. The
-    /// hard focus keeps the zoom level, just like the soft one ends on it.
-    fn focus(&mut self, widget_id: u32, position: LatitudeLongitude) {
-        if widget_id == self.widget_ids[0] {
-            self.widget_system.set_focal_point(
-                widget_id,
-                FocalPoint {
-                    position,
-                    ..self.widget_system.focal_point(widget_id)
-                },
-            );
-        } else {
-            self.widget_system.animate_to(widget_id, position);
-        }
+    /// Moves all maps to `target`: the left map jumps, the right one animates. For a
+    /// position the hard focus keeps the zoom level, just like the soft one ends on it.
+    fn focus_all(&mut self, target: FocusTarget) {
+        self.widget_system.jump_to(self.widget_ids[0], target.clone());
+        self.widget_system.animate_to(self.widget_ids[1], target);
     }
 
     /// Returns the visual representation of this map element, that can be included in a view
