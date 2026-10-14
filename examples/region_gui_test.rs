@@ -226,7 +226,7 @@ impl RegionApplication {
     /// Moves all maps to the element `key`: the left map jumps, the right one
     /// animates.
     fn focus_all(&mut self, key: AnnotationKey) {
-        let Some(target) = self.widget_system.focus_target(key, REGION_FILL) else {
+        let Some(target) = self.widget_system.focus_target(key, Some(REGION_FILL)) else {
             return;
         };
         self.widget_system.jump_to(self.widget_ids[0], target.clone());

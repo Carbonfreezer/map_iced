@@ -77,6 +77,11 @@ pub struct MapWidgetSystem {
 }
 
 impl MapWidgetSystem {
+    /// The share of the widget a focused annotation covers when [`Self::focus_target`]
+    /// gets no `fill`. Below 1.0, so the outline of a region keeps some distance
+    /// from the widget edge instead of being clipped by it.
+    pub const DEFAULT_FOCUS_FILL: f32 = 0.9;
+
     /// Generates our instance and the stream for the messages.
     /// The Tile cache is opaque but gets contructed in [`super::tile_cache_construction::TileCacheConfig`]
     pub fn boot(mut tile_cache: TileCache) -> (Self, Task<MapWidgetMessage>) {
@@ -300,9 +305,11 @@ impl MapWidgetSystem {
 
     /// The focus target for the annotation `key`, to hand to [`Self::jump_to`] or
     /// [`Self::animate_to`]. An annotation with an extent, like a region, is fitted to
-    /// cover the share `fill` of the widget's width or height; a way point becomes its
-    /// position and `fill` is ignored. `None` if there is no such annotation.
-    pub fn focus_target(&self, key: AnnotationKey, fill: f32) -> Option<FocusTarget> {
+    /// cover the share `fill` of the widget's width or height, [`Self::DEFAULT_FOCUS_FILL`]
+    /// if `None`; a way point becomes its position and `fill` is ignored. `None` if there
+    /// is no such annotation.
+    pub fn focus_target(&self, key: AnnotationKey, fill: Option<f32>) -> Option<FocusTarget> {
+        let fill = fill.unwrap_or(Self::DEFAULT_FOCUS_FILL);
         self.annotation_system
             .get_specific_element(key)
             .map(|annotation| annotation.focus_target(fill))

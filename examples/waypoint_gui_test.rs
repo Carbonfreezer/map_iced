@@ -134,7 +134,7 @@ impl WaypointApplication {
                         // An arrow click acts like the focus button: all maps follow.
                         // The fill only matters for annotations with an extent.
                         MapEvent::ArrowClicked { key, .. } => {
-                            if let Some(target) = self.widget_system.focus_target(key, 1.0) {
+                            if let Some(target) = self.widget_system.focus_target(key, None) {
                                 self.focus_all(target);
                             }
                         }
