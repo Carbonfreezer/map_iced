@@ -1,9 +1,7 @@
 //! This module administrates the way points, A way point is a single isolated location on the map.
 //! This differentiates from the paths, where several points are interconnected with each other.
 
-use crate::annotation_system::annotation_support::{
-    Annotation, ClosestPoint, LabelPosition, MercatorRectangle, RenderingInformation,
-};
+use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingInformation};
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::FocusTarget;
@@ -264,16 +262,6 @@ impl Annotation for WaypointInfo {
     fn clone_box(&self) -> Box<dyn Annotation> {
         Box::new(self.clone())
     }
-}
-
-/// How the direction arrow of a flagged way point looks.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DirectionFlag {
-    /// The fill colour of the arrow.
-    pub color: Color,
-    /// Where several arrows overlap, the higher priority is drawn on top and wins
-    /// the click. They are not spread apart, that would bend their direction.
-    pub priority: u8,
 }
 
 #[cfg(test)]

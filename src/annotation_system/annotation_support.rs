@@ -2,7 +2,7 @@
 
 use crate::annotation_system::path_system::PathKey;
 use crate::annotation_system::region_system::RegionKey;
-use crate::annotation_system::waypoint_system::{DirectionFlag, WaypointKey};
+use crate::annotation_system::waypoint_system::WaypointKey;
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::{
     BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
@@ -225,6 +225,17 @@ impl MercatorRectangle {
         self.pixel_padding as f32
     }
 }
+
+/// How the direction arrow of a flagged annotation component looks.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DirectionFlag {
+    /// The fill colour of the arrow.
+    pub color: Color,
+    /// Where several arrows overlap, the higher priority is drawn on top and wins
+    /// the click. They are not spread apart, that would bend their direction.
+    pub priority: u8,
+}
+
 
 #[cfg(test)]
 mod tests {

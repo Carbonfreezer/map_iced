@@ -1,10 +1,6 @@
 //! This system represents regions that can be selected and annotated and zoomed to.
 
-use crate::annotation_system::annotation_support::{
-    Annotation, ClosestPoint, LabelPosition, MercatorRectangle, RenderingClosedShape,
-    RenderingInformation,
-};
-use crate::annotation_system::waypoint_system::DirectionFlag;
+use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingClosedShape, RenderingInformation};
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use geo::{Area, BoundingRect, Closest, ClosestPoint as _, ConvexHull, MultiPoint, Polygon, point};
@@ -135,7 +131,7 @@ pub struct RegionStyle {
 /// keeps it, so it can be asked for later with [`RegionSystem::shape`].
 ///
 /// All rings built from it run counter-clockwise with longitude as x and latitude as
-/// y, see [`RenderingClosedShape`].
+/// y, see `RenderingClosedShape`.
 #[derive(Debug, Clone)]
 pub enum RegionShape {
     /// A circle of `radius_meter` around `center`, measured along great circles. The

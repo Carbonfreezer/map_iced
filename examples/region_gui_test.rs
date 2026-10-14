@@ -20,10 +20,10 @@
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
-use map_iced::annotation_system::annotation_support::AnnotationKey;
+use map_iced::annotation_system::annotation_support::{AnnotationKey, DirectionFlag};
 use map_iced::annotation_system::path_system::PathError;
 use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
-use map_iced::annotation_system::waypoint_system::{DirectionFlag, WaypointSymbol};
+use map_iced::annotation_system::waypoint_system::WaypointSymbol;
 use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};

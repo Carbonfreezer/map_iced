@@ -1,10 +1,7 @@
 //! This module administrates paths, which typically stem from gpx tracks and are a series of
 //! points that are annotated with a time stamp.
 
-use crate::annotation_system::annotation_support::{
-    Annotation, ClosestPoint, LabelPosition, MercatorRectangle, RenderingInformation,
-};
-use crate::annotation_system::waypoint_system::DirectionFlag;
+use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingInformation};
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use geo::{Densify, Haversine, LineString};
