@@ -24,7 +24,7 @@ use map_iced::annotation_system::annotation_support::{AnnotationKey, DirectionFl
 use map_iced::annotation_system::path_system::PathError;
 use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
 use map_iced::annotation_system::waypoint_system::WaypointSymbol;
-use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+use map_iced::gui_system::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 

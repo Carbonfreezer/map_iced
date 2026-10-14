@@ -15,7 +15,7 @@ pub(crate) const BOUNDARY_LONGITUDE: f64 = 180.0;
 const EARTH_RADIUS: f64 = 6_378_137.0;
 
 /// The circumference of the earth in meters for mercator calculations..
-pub const EARTH_CIRCUMFERENCE: f64 = 2.0 * PI * EARTH_RADIUS;
+pub(crate) const EARTH_CIRCUMFERENCE: f64 = 2.0 * PI * EARTH_RADIUS;
 
 /// The latitude longitude pair. Both are given in degrees.
 /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
@@ -150,7 +150,7 @@ impl LatitudeLongitude {
     ///
     /// # Example
     /// ```
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let first_point = LatitudeLongitude::new(49.7554, 6.6436);
     /// let second_point = LatitudeLongitude::new( 49.7540, 6.6100);
     /// let dist = first_point.get_distance_to(second_point);

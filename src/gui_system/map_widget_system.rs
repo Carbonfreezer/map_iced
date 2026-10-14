@@ -10,13 +10,17 @@ use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::{
-    AnnotationOverlay, FocalPoint, FocusTarget, MapInteractionCommand, SpecificInteractionCommand,
+    AnnotationOverlay, SpecificInteractionCommand,
 };
 use crate::gui_system::map_widget::map_widget_core::MapWidget;
 use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
+
+pub use crate::gui_system::map_widget::map_widget_components::{
+    FocalPoint, FocusTarget, MapInteractionCommand,
+};
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.

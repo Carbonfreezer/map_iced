@@ -14,9 +14,10 @@ use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::Bytes;
 use map_iced::annotation_system::annotation_support::{AnnotationKey, DirectionFlag};
 use map_iced::annotation_system::waypoint_system::WaypointSymbol;
-use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
-use map_iced::gui_system::map_widget::map_widget_components::FocusTarget;
-use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
+use map_iced::gui_system::LatitudeLongitude;
+use map_iced::gui_system::map_widget_system::{
+    FocusTarget, MapEvent, MapWidgetMessage, MapWidgetSystem,
+};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
 
 /// The configuration data to load.

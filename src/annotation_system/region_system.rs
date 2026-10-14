@@ -264,7 +264,7 @@ impl RegionSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionError, RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::from_rgba(1.0, 0.0, 0.0, 0.3), border: Color::from_rgb(1.0, 0.0, 0.0) };
     ///
@@ -326,7 +326,7 @@ impl RegionSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let apex = LatitudeLongitude::new(49.75, 6.63);
@@ -352,7 +352,7 @@ impl RegionSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
@@ -378,7 +378,7 @@ impl RegionSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let plume = |heading_degree| RegionShape::Sector {
@@ -411,7 +411,7 @@ impl RegionSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
@@ -436,7 +436,7 @@ impl RegionSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
@@ -463,7 +463,7 @@ impl RegionSystem {
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
     /// use map_iced::annotation_system::annotation_support::DirectionFlag;
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
@@ -489,7 +489,7 @@ impl RegionSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::region_system::{RegionError, RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = RegionSystem::default();
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };

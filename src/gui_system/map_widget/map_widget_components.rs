@@ -83,7 +83,7 @@ impl From<LatitudeLongitude> for FocusTarget {
 ///
 /// [`MapWidgetSystem`]: crate::gui_system::map_widget_system::MapWidgetSystem
 #[derive(Debug, Clone)]
-pub enum SpecificInteractionCommand {
+pub(crate) enum SpecificInteractionCommand {
     /// We want to set the focal point as latitude longitude and the zoom level.
     SetFocalPoint(FocalPoint, Rectangle),
     /// A left click landed on the given annotation element with the click point handed over as latitude, longitude.

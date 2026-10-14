@@ -227,7 +227,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::{PathError, PathSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// let track = vec![
     ///     LatitudeLongitude::new(49.750, 6.630),
@@ -263,7 +263,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::PathSystem;
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
     /// let key = system.add_path(track.clone(), Color::BLACK, None).expect("two positions");
@@ -290,7 +290,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::PathSystem;
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// // About 7.2 km due east along the 50th parallel.
     /// let track = vec![LatitudeLongitude::new(50.0, 7.0), LatitudeLongitude::new(50.0, 7.1)];
@@ -322,7 +322,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::PathSystem;
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// // An L shape, east then north. The centre of its bounds lies off the path, and
     /// // on the map the northern leg is nearer to it than the eastern one.
@@ -352,7 +352,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::PathSystem;
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// let mut track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
     /// let key = system.add_path(track.clone(), Color::BLACK, None).expect("two positions");
@@ -379,7 +379,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::PathSystem;
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
     /// let key = system.add_path(track, Color::BLACK, None).expect("two positions");
@@ -399,7 +399,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::PathSystem;
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
     /// let key = system.add_path(track, Color::BLACK, None).expect("two positions");
@@ -425,7 +425,7 @@ impl PathSystem {
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::PathSystem;
     /// use map_iced::annotation_system::annotation_support::DirectionFlag;
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
     /// let key = system.add_path(track, Color::BLACK, None).expect("two positions");
@@ -446,7 +446,7 @@ impl PathSystem {
     /// ```
     /// use iced::Color;
     /// use map_iced::annotation_system::path_system::{PathError, PathSystem};
-    /// use map_iced::gui_system::latitude_longitude::LatitudeLongitude;
+    /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = PathSystem::default();
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
     /// let key = system.add_path(track, Color::BLACK, None).expect("two positions");
