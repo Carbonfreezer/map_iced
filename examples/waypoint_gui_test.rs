@@ -92,7 +92,7 @@ impl WaypointApplication {
         let cache = TileCacheConfig::from_json_str(CONFIG_DATA)
             .and_then(TileCacheConfig::build)
             .or_else(|e| {
-                eprintln!("Konfigurationsfehler: {e}");
+                eprintln!("Configuration error: {e}");
                 tile_cache_debug_default()
             })
             .expect("Should not be possible to reach");
@@ -144,7 +144,7 @@ impl WaypointApplication {
                         MapEvent::Error(text) => {
                             // The question mark starts the beginning of API tokens.
                             eprintln!(
-                                "Kartenfehler: {}",
+                                "Map error: {}",
                                 text.split("?").next().unwrap_or_default()
                             );
                         }
@@ -291,7 +291,7 @@ impl WaypointApplication {
         let toggle = checkbox(entry.key.is_some())
             .on_toggle(move |checked| Message::Toggled(index, checked));
 
-        let focus = button(text("Fokus")).on_press(Message::Focus(index));
+        let focus = button(text("Focus")).on_press(Message::Focus(index));
 
         row![label, focus, flag, toggle]
             .align_y(Alignment::Center)

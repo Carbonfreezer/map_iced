@@ -10,7 +10,7 @@
 //! centre, for a track with the distance ridden from its start to the point on it
 //! nearest to the click. Hovering a track shows the same text in its label: the
 //! example answers every `AnnotationHovered` on a track with a new description.
-//! The way point "Trier Dom" lies inside the cordon circle and
+//! The way point "Trier Cathedral" lies inside the cordon circle and
 //! is reported as the way point, since way points are drawn and hit on top of
 //! regions, with the tracks in between.
 //!
@@ -89,7 +89,7 @@ impl RegionApplication {
         let cache = TileCacheConfig::from_json_str(CONFIG_DATA)
             .and_then(TileCacheConfig::build)
             .or_else(|e| {
-                eprintln!("Konfigurationsfehler: {e}");
+                eprintln!("Configuration error: {e}");
                 tile_cache_debug_default()
             })
             .expect("Should not be possible to reach");
@@ -119,9 +119,9 @@ impl RegionApplication {
 
         let waypoints = widget_system.get_waypoint_system_as_mut();
         for (name, position, color) in [
-            ("Trier Dom", DOME_POSITION.clone(), DOME_COLOR),
+            ("Trier Cathedral", DOME_POSITION.clone(), DOME_COLOR),
             (
-                "Rettungswache Konz",
+                "Konz ambulance station",
                 LatitudeLongitude::new(49.7020, 6.5800),
                 FIRE_STATION_COLOR,
             ),
@@ -154,7 +154,7 @@ impl RegionApplication {
             // The centre is a little off the cathedral, so that a click on the way
             // point and one next to it in the circle are told apart.
             (
-                "Absperrkreis Dom",
+                "Cathedral cordon",
                 RegionShape::Circle {
                     center: DOME_POSITION.clone(),
                     radius_meter: 1_200.0,
@@ -162,7 +162,7 @@ impl RegionApplication {
                 red,
             ),
             (
-                "Hafen Mertert",
+                "Mertert harbour",
                 RegionShape::ConvexHull {
                     points: vec![
                         LatitudeLongitude::new(49.7120, 6.4700),
@@ -176,7 +176,7 @@ impl RegionApplication {
             ),
             // Gas from a leak, carried north east by a south west wind.
             (
-                "Gaswolke Trier-Nord",
+                "Gas plume Trier North",
                 RegionShape::Sector {
                     apex: LatitudeLongitude::new(49.7750, 6.6550),
                     radius_meter: 2_500.0,
@@ -244,7 +244,7 @@ impl RegionApplication {
                         MapEvent::Error(text) => {
                             // The question mark starts the beginning of API tokens.
                             eprintln!(
-                                "Kartenfehler: {}",
+                                "Map error: {}",
                                 text.split("?").next().unwrap_or_default()
                             );
                         }
@@ -328,7 +328,7 @@ impl RegionApplication {
             .width(Fill)
             .wrapping(Wrapping::WordOrGlyph);
 
-        let focus = button(text("Fokus")).on_press(Message::Focus(entry.key));
+        let focus = button(text("Focus")).on_press(Message::Focus(entry.key));
 
         row![label, focus]
             .align_y(Alignment::Center)

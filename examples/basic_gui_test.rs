@@ -26,7 +26,7 @@ impl BasicApplication {
         let cache = TileCacheConfig::from_json_str(CONFIG_DATA)
             .and_then(TileCacheConfig::build)
             .or_else(|e| {
-                eprintln!("Konfigurationsfehler: {e}");
+                eprintln!("Configuration error: {e}");
                 tile_cache_debug_default()
             })
             .expect("Should not be possible to reach");
