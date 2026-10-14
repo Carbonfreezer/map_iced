@@ -2,6 +2,7 @@
 
 use crate::annotation_system::region_system::RegionKey;
 use crate::annotation_system::waypoint_system::{DirectionFlag, WaypointKey};
+use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::{
     BOUNDARY_LATITUDE, BOUNDARY_LONGITUDE, LatitudeLongitude,
 };
@@ -44,10 +45,15 @@ pub(crate) trait Annotation: Debug {
             fill,
         }
     }
-    /// Does a hit test if a position handed over. This has be to combined with a test against the cull bounds
-    /// upfront. For a waypoint this is always true. For a region or path that can be used as a filter to
-    /// only hit test against specific regions.
-    fn hit_test_specific(&self, position: LatitudeLongitude) -> bool;
+    /// The point of the annotation closest to `position`, measured Euclidean in
+    /// Mercator space, or [`ClosestPoint::Inside`] if `position` lies on or inside it.
+    /// The widget turns the distance to it into pixels and compares that against the
+    /// pixel padding of the [`Self::cull_bounds`], the fine test after the coarse one.
+    ///
+    /// Only called after `position` passed the test against [`Self::cull_bounds`],
+    /// so an annotation without extent (a way point) or without usable geometry can
+    /// answer `Inside` and the padded bounds become its hit area.
+    fn closest_point(&self, position: MercatorPoint) -> ClosestPoint;
     /// Gets the anchor position of the label.
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition;
     /// Gets the waypoint info if existing.
@@ -56,6 +62,15 @@ pub(crate) trait Annotation: Debug {
     fn get_render_information(&self) -> RenderingInformation<'_>;
     /// Clones the annotation into a box, so the widgets can take a snapshot of it.
     fn clone_box(&self) -> Box<dyn Annotation>;
+}
+
+/// The answer of [`Annotation::closest_point`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ClosestPoint {
+    /// The position lies on or inside the annotation, it is hit whatever the padding.
+    Inside,
+    /// The point of the annotation nearest to the position, in Mercator space.
+    Nearest(MercatorPoint),
 }
 
 /// The generalized form of annotation keys. Can be used to query all annotations.

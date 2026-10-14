@@ -1,11 +1,13 @@
 //! This system represents regions that can be selected and annotated and zoomed to.
 
 use crate::annotation_system::annotation_support::{
-    Annotation, LabelPosition, MercatorRectangle, RenderingClosedShape, RenderingInformation,
+    Annotation, ClosestPoint, LabelPosition, MercatorRectangle, RenderingClosedShape,
+    RenderingInformation,
 };
 use crate::annotation_system::waypoint_system::DirectionFlag;
+use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use geo::{Area, BoundingRect, Contains, ConvexHull, MultiPoint, Polygon, point};
+use geo::{Area, BoundingRect, Closest, ClosestPoint as _, ConvexHull, MultiPoint, Polygon, point};
 use iced::Color;
 use slotmap::{SlotMap, new_key_type};
 
@@ -36,8 +38,9 @@ pub struct Region {
     center: LatitudeLongitude,
     /// The shape the region was built from, everything else here is derived from it.
     shape: RegionShape,
-    /// The polygon in geo coordinates.
-    geo_polygon: Polygon,
+    /// The ring as polygon in Mercator space for the hit test, see
+    /// [`Annotation::closest_point`].
+    mercator_polygon: Polygon,
     /// The rendering information.
     rendering_info: RenderingClosedShape,
     /// The annotation text of the region.
@@ -61,9 +64,18 @@ impl Annotation for Region {
         self.center
     }
 
-    fn hit_test_specific(&self, position: LatitudeLongitude) -> bool {
-        self.geo_polygon
-            .contains(&point!(x: position.longitude, y: position.latitude))
+    fn closest_point(&self, position: MercatorPoint) -> ClosestPoint {
+        match self
+            .mercator_polygon
+            .closest_point(&point!(x: position.x, y: position.y))
+        {
+            Closest::SinglePoint(nearest) => ClosestPoint::Nearest(MercatorPoint {
+                x: nearest.x(),
+                y: nearest.y(),
+            }),
+            // Indeterminate only comes from an empty ring, which add_region rejects.
+            Closest::Intersection(_) | Closest::Indeterminate => ClosestPoint::Inside,
+        }
     }
 
     fn label_anchor(&self, _cursor: LatitudeLongitude) -> LabelPosition {
@@ -106,8 +118,8 @@ struct Outline {
     center: LatitudeLongitude,
     /// The bounds of the ring.
     bounds: MercatorRectangle,
-    /// The ring as polygon for the hit test.
-    geo_polygon: Polygon,
+    /// The ring as polygon in Mercator space for the hit test.
+    mercator_polygon: Polygon,
 }
 
 /// The colours a region is drawn with.
@@ -132,8 +144,8 @@ pub enum RegionShape {
         center: LatitudeLongitude,
         radius_meter: f64,
     },
-    /// The convex hull of `points`, computed with longitude as x and latitude as y, the
-    /// same plane the hit test works in. Points inside the hull are dropped, so their
+    /// The convex hull of `points`, computed with longitude as x and latitude as y.
+    /// Points inside the hull are dropped, so their
     /// order does not matter. Fewer than three points, or points on a single line, span
     /// no area. The region reports the centre of its bounds as its centre.
     ConvexHull { points: Vec<LatitudeLongitude> },
@@ -160,10 +172,15 @@ impl RegionShape {
     /// fails.
     fn outline(&self) -> Result<Outline, RegionError> {
         let (positions_ccw, center) = self.ring()?;
-        let geo_polygon = Polygon::new(
+        // Projected vertex by vertex, the same way the outline gets drawn. Mercator y
+        // points south, so the ring runs clockwise here, which geo does not mind.
+        let mercator_polygon = Polygon::new(
             positions_ccw
                 .iter()
-                .map(|pos| (pos.longitude, pos.latitude))
+                .map(|pos| {
+                    let MercatorPoint { x, y } = (*pos).into();
+                    (x, y)
+                })
                 .collect(),
             vec![],
         );
@@ -173,7 +190,7 @@ impl RegionShape {
             center: center.unwrap_or_else(|| bounds.get_center()),
             positions_ccw,
             bounds,
-            geo_polygon,
+            mercator_polygon,
         })
     }
 
@@ -293,7 +310,7 @@ impl RegionSystem {
             center: outline.center,
             bounds: outline.bounds,
             shape,
-            geo_polygon: outline.geo_polygon,
+            mercator_polygon: outline.mercator_polygon,
             rendering_info: RenderingClosedShape {
                 positions_ccw: outline.positions_ccw,
                 core_color: style.fill,
@@ -385,7 +402,7 @@ impl RegionSystem {
         let outline = shape.outline()?;
         region.center = outline.center;
         region.bounds = outline.bounds;
-        region.geo_polygon = outline.geo_polygon;
+        region.mercator_polygon = outline.mercator_polygon;
         region.rendering_info.positions_ccw = outline.positions_ccw;
         region.shape = shape;
         Ok(())
@@ -510,6 +527,31 @@ mod tests {
         system.add_region(RegionShape::ConvexHull { points }, STYLE, None)
     }
 
+    /// Whether the region counts `position` as inside, whatever the padding.
+    fn hits(region: &Region, position: LatitudeLongitude) -> bool {
+        region.closest_point(position.into()) == ClosestPoint::Inside
+    }
+
+    #[test]
+    fn closest_point_outside_lies_on_the_border_in_mercator() {
+        let mut system = RegionSystem::default();
+        let key = add(
+            &mut system,
+            &[(49.7, 6.6), (49.7, 6.7), (49.8, 6.7), (49.8, 6.6)],
+        )
+        .expect("the square spans an area");
+        let region = &system.region_collection[key];
+        // East of the square: the nearest point is straight west on the east edge.
+        let ClosestPoint::Nearest(nearest) =
+            region.closest_point(LatitudeLongitude::new(49.75, 6.8).into())
+        else {
+            panic!("east of the square is outside");
+        };
+        let expected = MercatorPoint::from(LatitudeLongitude::new(49.75, 6.7));
+        assert!((nearest.x - expected.x).abs() < 1e-12);
+        assert!((nearest.y - expected.y).abs() < 1e-12);
+    }
+
     #[test]
     fn hull_drops_inner_points_and_stays_open_and_ccw() {
         let mut system = RegionSystem::default();
@@ -543,8 +585,8 @@ mod tests {
 
         assert_eq!(region.bounds.min_max_lat, (49.7, 49.8));
         assert_eq!(region.bounds.min_max_long, (6.6, 6.7));
-        assert!(region.hit_test_specific(LatitudeLongitude::new(49.75, 6.65)));
-        assert!(!region.hit_test_specific(LatitudeLongitude::new(49.75, 6.75)));
+        assert!(hits(region, LatitudeLongitude::new(49.75, 6.65)));
+        assert!(!hits(region, LatitudeLongitude::new(49.75, 6.75)));
     }
 
     #[test]
@@ -579,9 +621,9 @@ mod tests {
         assert_eq!(region.get_center().latitude, 49.75);
         assert_eq!(region.get_center().longitude, 6.63);
         // 0.07 degrees of longitude are about 5 km at this latitude.
-        assert!(region.hit_test_specific(LatitudeLongitude::new(49.75, 6.70)));
-        assert!(!region.hit_test_specific(LatitudeLongitude::new(49.75, 6.56)));
-        assert!(!region.hit_test_specific(LatitudeLongitude::new(49.80, 6.63)));
+        assert!(hits(region, LatitudeLongitude::new(49.75, 6.70)));
+        assert!(!hits(region, LatitudeLongitude::new(49.75, 6.56)));
+        assert!(!hits(region, LatitudeLongitude::new(49.80, 6.63)));
         // The bounds start at the apex and reach east only.
         assert_eq!(region.bounds.min_max_long.0, 6.63);
     }
@@ -634,15 +676,15 @@ mod tests {
             .expect("a valid sector");
         let east = LatitudeLongitude::new(49.75, 6.70);
         let west = LatitudeLongitude::new(49.75, 6.56);
-        assert!(system.region_collection[key].hit_test_specific(east));
+        assert!(hits(&system.region_collection[key], east));
 
         // The wind turns, the plume now spreads west.
         system
             .update_shape(key, sector(270.0))
             .expect("a valid sector");
         let region = &system.region_collection[key];
-        assert!(region.hit_test_specific(west));
-        assert!(!region.hit_test_specific(east));
+        assert!(hits(region, west));
+        assert!(!hits(region, east));
         assert_eq!(region.bounds.min_max_long.1, 6.63);
         assert_eq!(region.description.as_deref(), Some("plume"));
         assert!(matches!(

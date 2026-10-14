@@ -2,8 +2,9 @@
 //! This differentiates from the paths, where several points are interconnected with each other.
 
 use crate::annotation_system::annotation_support::{
-    Annotation, LabelPosition, MercatorRectangle, RenderingInformation,
+    Annotation, ClosestPoint, LabelPosition, MercatorRectangle, RenderingInformation,
 };
+use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::FocusTarget;
 use bytes::Bytes;
@@ -235,8 +236,9 @@ impl Annotation for WaypointInfo {
         &self.mercator_rectangle
     }
 
-    fn hit_test_specific(&self, _position: LatitudeLongitude) -> bool {
-        true
+    /// A way point has no extent, its padded bounds are the hit area.
+    fn closest_point(&self, _position: MercatorPoint) -> ClosestPoint {
+        ClosestPoint::Inside
     }
 
     /// A way point has no extent to fit, the focus keeps the zoom level.

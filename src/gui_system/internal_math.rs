@@ -24,6 +24,25 @@ pub struct TileCoordinates {
     pub zoom: u8,
 }
 
+/// A point in normalized Web Mercator space, the world spans 0..1 in x and y, with y
+/// pointing south. These are the [`TileCoordinates`] at zoom level 0, so a Euclidean
+/// distance here is the distance in tiles at that level, the whole world being the
+/// one tile. Pixels are a uniform scale of it at every zoom level, so Euclidean
+/// distances here are proportional to pixel distances, and a straight line here is
+/// what gets drawn as a straight line between two projected positions.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct MercatorPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl From<LatitudeLongitude> for MercatorPoint {
+    fn from(position: LatitudeLongitude) -> Self {
+        let TileCoordinates { x, y, .. } = position.get_tile_coordinates(0);
+        Self { x, y }
+    }
+}
+
 /// A position of the tile in rounded coordinates.
 /// These are the coordinates that go into the slippy
 /// tile system.
@@ -405,6 +424,31 @@ impl DrawingPositionConverter {
         shifted.into()
     }
 
+    /// The Mercator point under a pixel in widget coordinates. Unlike
+    /// [`Self::get_latitude_longitude_for_pixel_point`] it is linear and exact, nothing
+    /// gets clamped.
+    pub fn get_mercator_for_pixel_point(&self, position: Point) -> MercatorPoint {
+        let world_pixels = self.world_pixels();
+        MercatorPoint {
+            x: (position.x as f64 - self.central_offset.x) / world_pixels,
+            y: (position.y as f64 - self.central_offset.y) / world_pixels,
+        }
+    }
+
+    /// The distance in pixels the two Mercator points have on screen.
+    pub fn get_pixel_distance_between(
+        &self,
+        point_a: MercatorPoint,
+        point_b: MercatorPoint,
+    ) -> f64 {
+        (point_a.x - point_b.x).hypot(point_a.y - point_b.y) * self.world_pixels()
+    }
+
+    /// The edge length of the whole world in pixels at the current scaling.
+    fn world_pixels(&self) -> f64 {
+        get_scaling_factor(self.zoom()) * self.transform_scaling
+    }
+
     /// Checks of a mercator rectangle handed over is actually visible by the inner drawing rectangle.
     pub fn is_mercator_visible(&self, mercator_rect: &MercatorRectangle) -> bool {
         // If there is no real rectangle it may never become visible.
@@ -528,6 +572,33 @@ mod tests {
             let drawing = transformer.get_draw_instruction(focus_point.get_tile_coordinates(zoom)).expect("Zoom level should fit.");
             prop_assert!((width * 0.5 - drawing.offset.x).abs() < 0.01, "x coordinate off" );
             prop_assert!((height * 0.5 - drawing.offset.y).abs() < 0.01, "x coordinate off" );
+        }
+    }
+
+    proptest! {
+        /// The pixel to Mercator mapping is checked against the drawing position, which
+        /// goes the other way through latitude longitude. The distance of two pixels
+        /// must come back as their pixel distance.
+        #[test]
+        fn pixel_mercator_round_trip(latitude in -60f64 .. 60f64, longitude in -150f64 .. 150f64,
+            scaling in 0f32 ..= MAXIMUM_ZOOM_LEVEL as f32, width in 1f32..1000.0, height in 1f32..1000.0,
+            a in (0f32..1.0, 0f32..1.0), b in (0f32..1.0, 0f32..1.0)) {
+
+            let bounds = Rectangle::new(Point { x: 0.0, y: 0.0 }, Size { width, height });
+            let focus = LatitudeLongitude::new(latitude, longitude);
+            let converter = DrawingPositionConverter::new(&focus, scaling, &bounds).0;
+            let [a, b] = [a, b].map(|(x, y)| Point { x: x * width, y: y * height });
+            let (mercator_a, mercator_b) =
+                (converter.get_mercator_for_pixel_point(a), converter.get_mercator_for_pixel_point(b));
+
+            let focus_pixel = converter.get_unclipped_drawing_position(focus);
+            let focus_mercator = MercatorPoint::from(focus);
+            let back = Point { x: focus_pixel.x as f32, y: focus_pixel.y as f32 };
+            prop_assert!(converter.get_pixel_distance_between(converter.get_mercator_for_pixel_point(back), focus_mercator) < 1e-3);
+
+            let expected = ((a.x - b.x) as f64).hypot((a.y - b.y) as f64);
+            let distance = converter.get_pixel_distance_between(mercator_a, mercator_b);
+            prop_assert!((distance - expected).abs() < 1e-3, "{distance} vs {expected}");
         }
     }
 

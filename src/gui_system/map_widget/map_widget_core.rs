@@ -1,7 +1,7 @@
 //! This module contains the core par of map widget.
 
 use crate::annotation_system::annotation_support::{
-    AnnotationKey, LabelPosition, RenderingInformation,
+    AnnotationKey, ClosestPoint, LabelPosition, RenderingInformation,
 };
 use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
@@ -304,17 +304,25 @@ impl MapWidget {
             .map(|arrow| arrow.key)
     }
 
-    /// Looks if we have an annotation at the indicated position. Returns the annotation information.
+    /// Looks if we have an annotation at the indicated position, the topmost one first.
+    /// The cull bounds are the coarse test, the closest point of the annotation within
+    /// their pixel padding the fine one.
     pub(crate) fn annotation_at(&self, position: Point) -> Option<AnnotationKey> {
         let converter = self.position_converter.as_ref()?;
+        let mercator = converter.get_mercator_for_pixel_point(position);
         self.annotation_info
             .get_iterator()
             .rev()
             .find(|(_, annotation)| {
-                converter.is_pixel_point_in_mercator(position, annotation.cull_bounds())
-                    && annotation.hit_test_specific(
-                        converter.get_latitude_longitude_for_pixel_point(position),
-                    )
+                let bounds = annotation.cull_bounds();
+                converter.is_pixel_point_in_mercator(position, bounds)
+                    && match annotation.closest_point(mercator) {
+                        ClosestPoint::Inside => true,
+                        ClosestPoint::Nearest(nearest) => {
+                            converter.get_pixel_distance_between(mercator, nearest)
+                                <= bounds.pixel_padding
+                        }
+                    }
             })
             .map(|(index, _)| index)
     }
