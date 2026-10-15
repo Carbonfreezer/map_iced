@@ -90,6 +90,52 @@ pub enum MapEvent {
 
 /// The map widget system administrates all the widgets in combination with a
 /// tile map cache.
+///
+/// # Example
+/// A minimal application with one map widget. The task of [`Self::boot`] and the
+/// commands of the canvas both come back as [`MapWidgetMessage`]s into
+/// [`Self::process_message`], which turns them into [`MapEvent`]s.
+/// ```no_run
+/// use iced::{Element, Task};
+/// use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
+/// use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+///
+/// struct Application {
+///     map: MapWidgetSystem,
+///     widget_id: u32,
+/// }
+///
+/// #[derive(Debug, Clone)]
+/// enum Message {
+///     Map(MapWidgetMessage),
+/// }
+///
+/// impl Application {
+///     fn boot() -> (Self, Task<Message>) {
+///         let config = TileCacheConfig::open_street_map("MyCoolMappingApp/1.0 (contact@example.com)");
+///         let (mut map, task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+///         let widget_id = map.request_new_widget();
+///         (Self { map, widget_id }, task.map(Message::Map))
+///     }
+///
+///     fn update(&mut self, message: Message) {
+///         let Message::Map(message) = message;
+///         if let Some(MapEvent::Error(text)) = self.map.process_message(message) {
+///             eprintln!("{text}");
+///         }
+///     }
+///
+///     fn view(&self) -> Element<'_, Message> {
+///         self.map
+///             .canvas(self.widget_id)
+///             .map(|command| Message::Map(command.into()))
+///     }
+/// }
+///
+/// fn main() -> iced::Result {
+///     iced::application(Application::boot, Application::update, Application::view).run()
+/// }
+/// ```
 pub struct MapWidgetSystem {
     tile_cache: TileCache,
     widget_collection: Vec<MapWidget>,
@@ -107,6 +153,25 @@ impl MapWidgetSystem {
     /// with the task that feeds the cache results back as [`MapWidgetMessage`]s.
     /// The config comes from JSON with [`TileCacheConfig::from_json_str`] or is built
     /// in code, e.g. with [`TileCacheConfig::open_street_map`].
+    ///
+    /// # Example
+    /// A configuration read from JSON, with the test pattern as fallback if it is
+    /// broken. The task has to be returned from the application's boot function.
+    /// ```no_run
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// let json = r#"{
+    ///     "cache": { "CacheDirectory": "OpenStreetMap" },
+    ///     "cache_size": 100000000,
+    ///     "source": { "OpenStreetMap": { "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)" } }
+    /// }"#;
+    /// let (system, task) = TileCacheConfig::from_json_str(json)
+    ///     .and_then(MapWidgetSystem::boot)
+    ///     .unwrap_or_else(|e| {
+    ///         eprintln!("{e}, showing the test pattern instead");
+    ///         MapWidgetSystem::boot(TileCacheConfig::test_pattern()).expect("test pattern set up")
+    ///     });
+    /// ```
     pub fn boot(config: TileCacheConfig) -> Result<(Self, Task<MapWidgetMessage>), TileCacheError> {
         let mut tile_cache = config.build()?;
         let receiver = tile_cache
@@ -130,12 +195,48 @@ impl MapWidgetSystem {
     /// The unit system the scale bars show, [`DistanceUnits::Metric`] unless set
     /// otherwise. Also meant for the application's own distance texts, e.g. with
     /// [`DistanceUnits::distance_text`] in an annotation description.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::DistanceUnits;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// assert_eq!(system.distance_units(), DistanceUnits::Metric);
+    /// // The same units in the application's own texts as on the scale bars.
+    /// let text = system.distance_units().distance_text(1_240.0);
+    /// assert_eq!(text, "1.24 km");
+    /// ```
     pub fn distance_units(&self) -> DistanceUnits {
         self.distance_units
     }
 
     /// Switches the scale bars of all widgets, present and future, to `distance_units`.
     /// Descriptions are the application's texts and stay as they are.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::DistanceUnits;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// system.set_distance_units(DistanceUnits::Imperial);
+    /// assert_eq!(system.distance_units(), DistanceUnits::Imperial);
+    /// ```
     pub fn set_distance_units(&mut self, distance_units: DistanceUnits) {
         self.distance_units = distance_units;
         for widget in &mut self.widget_collection {
@@ -151,18 +252,80 @@ impl MapWidgetSystem {
     }
 
     /// Gets a mutable access for the way point system to modify things.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::waypoint_system::WaypointSymbol;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let key = system.get_waypoint_system_as_mut().add_way_point(
+    ///     WaypointSymbol::cross(Color::from_rgb(1.0, 0.0, 0.0)),
+    ///     LatitudeLongitude::new(49.7499, 6.6371),
+    ///     Some("Porta Nigra".to_string()),
+    /// );
+    /// ```
     pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
         self.reset_all_widgets();
         self.annotation_system.waypoint_system()
     }
 
     /// Gets a mutable access for the region system to modify things.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let style = RegionStyle { fill: Color::from_rgba(1.0, 0.0, 0.0, 0.3), border: Color::from_rgb(1.0, 0.0, 0.0) };
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let key = system.get_region_system_as_mut().add_region(circle, style, None);
+    /// assert!(key.is_ok());
+    /// ```
     pub fn get_region_system_as_mut(&mut self) -> &mut RegionSystem {
         self.reset_all_widgets();
         self.annotation_system.region_system()
     }
 
     /// Gets a mutable access for the path system to modify things.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
+    /// let key = system.get_path_system_as_mut().add_path(track, Color::BLACK, None);
+    /// assert!(key.is_ok());
+    /// ```
     pub fn get_path_system_as_mut(&mut self) -> &mut PathSystem {
         self.reset_all_widgets();
         self.annotation_system.path_system()
@@ -173,6 +336,35 @@ impl MapWidgetSystem {
     /// this does not reset the widgets: they only swap their copy of the one
     /// annotation and keep everything drawn. That makes it cheap enough to answer
     /// every [`MapEvent::AnnotationHovered`], e.g. with the distance along a track.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::annotation_support::{AnnotationError, AnnotationKey};
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let track = vec![LatitudeLongitude::new(50.0, 7.0), LatitudeLongitude::new(50.0, 7.1)];
+    /// let path_key = system.get_path_system_as_mut().add_path(track, Color::BLACK, None).expect("two positions");
+    /// let key = AnnotationKey::from(path_key);
+    ///
+    /// // As the answer to a MapEvent::AnnotationHovered with this hover point.
+    /// let hover_point = LatitudeLongitude::new(50.0, 7.05);
+    /// let location = system.get_path_system().closest_point_on_path(path_key, hover_point).expect("present");
+    /// let text = system.distance_units().distance_text(location.distance_from_start_meter);
+    /// assert!(system.update_description(key, Some(format!("{text} from the start"))).is_ok());
+    ///
+    /// system.get_path_system_as_mut().delete_path(path_key).expect("present");
+    /// assert_eq!(system.update_description(key, None), Err(AnnotationError::KeyNotContained));
+    /// ```
     pub fn update_description(
         &mut self,
         key: AnnotationKey,
@@ -190,20 +382,54 @@ impl MapWidgetSystem {
         Ok(())
     }
 
-    /// Gets a read-only access for the way point system, to query things without
-    /// the widget reset that comes with [`Self::get_waypoint_system_as_mut`].
-    pub fn get_waypoint_system(&self) -> &WaypointSystem {
-        &self.annotation_system.waypoint_system
-    }
-
     /// Gets a read-only access for the region system, to query things without the
     /// widget reset that comes with [`Self::get_region_system_as_mut`].
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let key = system.get_region_system_as_mut().add_region(circle, style, None).expect("a valid circle");
+    /// assert!(matches!(system.get_region_system().shape(key), Ok(RegionShape::Circle { .. })));
+    /// ```
     pub fn get_region_system(&self) -> &RegionSystem {
         &self.annotation_system.region_system
     }
 
     /// Gets a read-only access for the path system, to query things without the
     /// widget reset that comes with [`Self::get_path_system_as_mut`].
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
+    /// let key = system.get_path_system_as_mut().add_path(track.clone(), Color::BLACK, None).expect("two positions");
+    /// assert_eq!(system.get_path_system().positions(key), Ok(track.as_slice()));
+    /// ```
     pub fn get_path_system(&self) -> &PathSystem {
         &self.annotation_system.path_system
     }
@@ -343,6 +569,26 @@ impl MapWidgetSystem {
     }
 
     /// Processes all the relevant messages and reports what came out of it.
+    ///
+    /// # Example
+    /// The update function of an application: the system first, then the
+    /// application's answer to what came out of it.
+    /// ```
+    /// use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
+    /// fn update(system: &mut MapWidgetSystem, message: MapWidgetMessage) {
+    ///     match system.process_message(message) {
+    ///         // Clicked annotations and arrows: the widget heads there.
+    ///         Some(MapEvent::AnnotationSelected { client_id, key, .. })
+    ///         | Some(MapEvent::ArrowClicked { client_id, key }) => {
+    ///             if let Ok(target) = system.focus_target(key, None) {
+    ///                 system.animate_to(client_id, target);
+    ///             }
+    ///         }
+    ///         Some(MapEvent::Error(text)) => eprintln!("{text}"),
+    ///         _ => {}
+    ///     }
+    /// }
+    /// ```
     pub fn process_message(&mut self, message: MapWidgetMessage) -> Option<MapEvent> {
         match message {
             MapWidgetMessage::CachingResultMessage(msg) => self.process_caching_message(msg),
@@ -354,6 +600,26 @@ impl MapWidgetSystem {
     }
 
     /// Requests a new widget and returns the handle for it.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// // An overview and a detail view, each with a view of its own.
+    /// let overview = system.request_new_widget();
+    /// let detail = system.request_new_widget();
+    /// assert_ne!(overview, detail);
+    /// system.jump_to(detail, LatitudeLongitude::new(49.7499, 6.6371));
+    /// ```
     pub fn request_new_widget(&mut self) -> u32 {
         let id = self.widget_collection.len() as u32;
         self.widget_collection.push(MapWidget::new(
@@ -371,6 +637,24 @@ impl MapWidgetSystem {
     /// The hard focus on a [`FocusTarget`]: a position keeps the zoom level, an area
     /// is fitted into the widget. A soft focus still running on that widget is
     /// cancelled.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let widget = system.request_new_widget();
+    /// // A position converts into a FocusTarget, the zoom level stays.
+    /// system.jump_to(widget, LatitudeLongitude::new(49.7499, 6.6371));
+    /// ```
     pub fn jump_to(&mut self, id: u32, target: impl Into<FocusTarget>) {
         self.widget_collection[id as usize].jump_to(&target.into());
     }
@@ -380,6 +664,24 @@ impl MapWidgetSystem {
     /// targets are reached by a pan, far ones by zooming out, panning and zooming in.
     /// User panning and zooming is suspended meanwhile, and
     /// [`MapEvent::FocusReached`] reports the arrival.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let widget = system.request_new_widget();
+    /// // Far away from the start view: zooms out, pans and zooms in again.
+    /// system.animate_to(widget, LatitudeLongitude::new(48.8566, 2.3522));
+    /// ```
     pub fn animate_to(&mut self, id: u32, target: impl Into<FocusTarget>) {
         self.widget_collection[id as usize].animate_to(&target.into());
     }
@@ -389,6 +691,32 @@ impl MapWidgetSystem {
     /// cover the share `fill` of the widget's width or height, [`Self::DEFAULT_FOCUS_FILL`]
     /// if `None`; a way point becomes its position and `fill` is ignored.
     /// [`AnnotationError::KeyNotContained`] if there is no such annotation.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::{FocusTarget, MapWidgetSystem};
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
+    /// let key = system.get_region_system_as_mut().add_region(circle, style, None).expect("a valid circle");
+    /// let widget = system.request_new_widget();
+    ///
+    /// // The circle fills half the widget, with plenty of surroundings.
+    /// let target = system.focus_target(key.into(), Some(0.5)).expect("present");
+    /// assert!(matches!(target, FocusTarget::Area { .. }));
+    /// system.animate_to(widget, target);
+    /// ```
     pub fn focus_target(
         &self,
         key: AnnotationKey,
@@ -404,6 +732,29 @@ impl MapWidgetSystem {
     /// at: the position of a way point, the centre of a circle, the apex of a sector,
     /// the centre of the bounds of a convex hull.
     /// [`AnnotationError::KeyNotContained`] if there is no such annotation.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
+    /// let apex = LatitudeLongitude::new(49.75, 6.63);
+    /// let sector = RegionShape::Sector { apex, radius_meter: 5_000.0, heading_degree: 90.0, opening_degree: 60.0 };
+    /// let key = system.get_region_system_as_mut().add_region(sector, style, None).expect("a valid sector");
+    /// // A sector stands for its apex, the source of the plume.
+    /// assert_eq!(system.center(key.into()), Ok(apex));
+    /// ```
     pub fn center(&self, key: AnnotationKey) -> Result<LatitudeLongitude, AnnotationError> {
         self.annotation_system
             .get_specific_element(key)
@@ -413,6 +764,24 @@ impl MapWidgetSystem {
     /// The canvas stack for one widget. Returns an `Element`, because the map tiles
     /// and the annotations have to sit in two stacked canvases to end up in separate
     /// render layers, see `AnnotationOverlay`.
+    ///
+    /// # Example
+    /// The view of an application with two map widgets side by side.
+    /// ```
+    /// use iced::Element;
+    /// use iced::widget::row;
+    /// use map_iced::gui_system::map_widget_system::{MapWidgetMessage, MapWidgetSystem};
+    /// #[derive(Debug, Clone)]
+    /// enum Message {
+    ///     Map(MapWidgetMessage),
+    /// }
+    ///
+    /// fn view(system: &MapWidgetSystem, widget_ids: [u32; 2]) -> Element<'_, Message> {
+    ///     row(widget_ids.map(|id| system.canvas(id).map(|command| Message::Map(command.into()))))
+    ///         .spacing(10)
+    ///         .into()
+    /// }
+    /// ```
     pub fn canvas(&self, id: u32) -> Element<'_, MapInteractionCommand> {
         let widget = self
             .widget_collection
@@ -431,11 +800,45 @@ impl MapWidgetSystem {
     }
 
     /// Retries to load the failed tiles.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// // E.g. behind a button that is only enabled while tiles are missing.
+    /// if system.number_of_tiles_failed() > 0 {
+    ///     system.retry_failed_tiles();
+    /// }
+    /// ```
     pub fn retry_failed_tiles(&mut self) {
         self.tile_cache.retry_failed_tiles();
     }
 
     /// Checks the number of failed tiles.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// // Nothing has been requested yet, so nothing has failed.
+    /// assert_eq!(system.number_of_tiles_failed(), 0);
+    /// ```
     pub fn number_of_tiles_failed(&self) -> u32 {
         self.tile_cache.number_of_tiles_failed()
     }

@@ -178,6 +178,17 @@ impl TileCacheConfig {
 
     /// The configuration built in code: tiles from `source`, stored in `cache` with
     /// at most `cache_size` bytes on disc.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::tile_cache_construction::{CachingDirectory, TileCacheConfig, TileSource};
+    /// // Mapbox satellite imagery, 500 MB in the folder Satellite of the OS cache directory.
+    /// let config = TileCacheConfig::new(
+    ///     TileSource::MapBoxSatellite { api_key: "your-access-token".to_string() },
+    ///     CachingDirectory::CacheDirectory("Satellite".into()),
+    ///     500_000_000,
+    /// );
+    /// ```
     pub fn new(source: TileSource, cache: CachingDirectory, cache_size: u64) -> Self {
         Self {
             cache,
@@ -189,6 +200,12 @@ impl TileCacheConfig {
     /// OpenStreetMap tiles in the subfolder `OpenStreetMap` of the OS cache directory,
     /// with [`Self::DEFAULT_CACHE_SIZE`]. OSM asks for a `user_agent` that identifies
     /// the application and a contact, e.g. `MyCoolMappingApp/1.0 (contact@example.com)`.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// let config = TileCacheConfig::open_street_map("MyCoolMappingApp/1.0 (contact@example.com)");
+    /// ```
     pub fn open_street_map(user_agent: impl Into<String>) -> Self {
         Self::new(
             TileSource::OpenStreetMap {
@@ -203,6 +220,14 @@ impl TileCacheConfig {
     /// access. Meant for tests, or as the fallback of an example whose configuration
     /// failed, never as a map. Kept in its own subfolder of the OS cache directory, so
     /// the test images never mix with real tiles.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// // In a test of the application's own logic, without network access.
+    /// let (system, task) = MapWidgetSystem::boot(TileCacheConfig::test_pattern()).expect("test pattern set up");
+    /// ```
     pub fn test_pattern() -> Self {
         Self::new(
             TileSource::TestPattern,

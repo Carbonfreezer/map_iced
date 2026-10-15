@@ -166,6 +166,14 @@ impl From<&MercatorRectangle> for TopLeftBottomRight {
 
 impl MercatorRectangle {
     /// Creates a mercator rectangle from a single position, as used for the way points.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::annotation_system::annotation_support::MercatorRectangle;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// let bounds = MercatorRectangle::create_from_position(LatitudeLongitude::new(49.75, 6.63), 10.0);
+    /// assert_eq!(bounds.get_center(), LatitudeLongitude::new(49.75, 6.63));
+    /// ```
     pub fn create_from_position(
         position: LatitudeLongitude,
         pixel_padding: f64,
@@ -179,6 +187,19 @@ impl MercatorRectangle {
 
     /// Creates the mercator rectangle from a position array, as used by paths and regions.
     /// An empty array gives `None`, there is nothing to cover then.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::annotation_system::annotation_support::MercatorRectangle;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::FocusTarget;
+    /// // The area of an operation, to focus a widget on it.
+    /// let positions = [LatitudeLongitude::new(49.70, 6.60), LatitudeLongitude::new(49.80, 6.70)];
+    /// let bounds = MercatorRectangle::create_from_position_array(positions.into_iter(), 0.0).expect("not empty");
+    /// let target = FocusTarget::Area { bounds, fill: 0.9 };
+    ///
+    /// assert!(MercatorRectangle::create_from_position_array(std::iter::empty(), 0.0).is_none());
+    /// ```
     pub fn create_from_position_array(
         mut position_array: impl Iterator<Item = LatitudeLongitude>,
         pixel_padding: f64,
@@ -201,6 +222,17 @@ impl MercatorRectangle {
     }
 
     /// The centre of the rectangle, by default the centre of an annotation.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::annotation_system::annotation_support::MercatorRectangle;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// let positions = [LatitudeLongitude::new(49.70, 6.60), LatitudeLongitude::new(49.80, 6.70)];
+    /// let bounds = MercatorRectangle::create_from_position_array(positions.into_iter(), 0.0).expect("not empty");
+    /// let center = bounds.get_center();
+    /// assert!((center.latitude - 49.75).abs() < 1e-9);
+    /// assert!((center.longitude - 6.65).abs() < 1e-9);
+    /// ```
     pub fn get_center(&self) -> LatitudeLongitude {
         LatitudeLongitude::new(
             (self.min_max_lat.0 + self.min_max_lat.1) * 0.5,
@@ -209,6 +241,14 @@ impl MercatorRectangle {
     }
 
     /// Asks specifically for the pixel padding.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::annotation_system::annotation_support::MercatorRectangle;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// let bounds = MercatorRectangle::create_from_position(LatitudeLongitude::new(49.75, 6.63), 10.0);
+    /// assert_eq!(bounds.pixel_padding(), 10.0);
+    /// ```
     pub fn pixel_padding(&self) -> f32 {
         self.pixel_padding as f32
     }

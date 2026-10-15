@@ -45,8 +45,6 @@ impl BasicApplication {
     }
 
     fn update(&mut self, message: Message) {
-        // println!("New message: {:?}", message);
-
         match message {
             Message::Widget(m) => {
                 let mut errors = String::new();

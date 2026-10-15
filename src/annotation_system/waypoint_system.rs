@@ -48,6 +48,13 @@ impl WaypointSymbol {
     }
 
     /// A cross drawn in `color`.
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::waypoint_system::WaypointSymbol;
+    /// let symbol = WaypointSymbol::cross(Color::from_rgb(1.0, 0.0, 0.0));
+    /// ```
     pub fn cross(color: Color) -> Self {
         WaypointSymbol(InternalWaypointImage::Cross(color))
     }

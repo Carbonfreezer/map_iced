@@ -26,6 +26,13 @@ pub enum DistanceUnits {
 impl DistanceUnits {
     /// `metres` as text in this unit system, see [`metric_distance_text`] and
     /// [`imperial_distance_text`].
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::DistanceUnits;
+    /// assert_eq!(DistanceUnits::Metric.distance_text(1_240.0), "1.24 km");
+    /// assert_eq!(DistanceUnits::Imperial.distance_text(1_240.0), "0.77 mi");
+    /// ```
     pub fn distance_text(self, metres: f64) -> String {
         match self {
             DistanceUnits::Metric => metric_distance_text(metres),
@@ -35,17 +42,36 @@ impl DistanceUnits {
 }
 
 /// Metres from miles.
+///
+/// # Example
+/// ```
+/// use map_iced::gui_system::distance_units::metres_from_miles;
+/// assert_eq!(metres_from_miles(1.0), 1_609.344);
+/// ```
 pub fn metres_from_miles(miles: f64) -> f64 {
     miles * METRES_PER_MILE
 }
 
 /// Metres from feet.
+///
+/// # Example
+/// ```
+/// use map_iced::gui_system::distance_units::metres_from_feet;
+/// assert_eq!(metres_from_feet(1.0), 0.3048);
+/// ```
 pub fn metres_from_feet(feet: f64) -> f64 {
     feet * METRES_PER_FOOT
 }
 
 /// `metres` as text: whole metres below one kilometre, kilometres from there on.
 /// E.g. "850 m", "1.24 km", "12.4 km", "124 km".
+///
+/// # Example
+/// ```
+/// use map_iced::gui_system::distance_units::metric_distance_text;
+/// assert_eq!(metric_distance_text(850.0), "850 m");
+/// assert_eq!(metric_distance_text(12_400.0), "12.4 km");
+/// ```
 pub fn metric_distance_text(metres: f64) -> String {
     if metres.abs() < 1000.0 {
         format!("{metres:.0} m")
@@ -56,6 +82,13 @@ pub fn metric_distance_text(metres: f64) -> String {
 
 /// `metres` as text: whole feet below a tenth of a mile, miles from there on.
 /// E.g. "420 ft", "0.25 mi", "1.24 mi", "12.4 mi".
+///
+/// # Example
+/// ```
+/// use map_iced::gui_system::distance_units::{imperial_distance_text, metres_from_feet, metres_from_miles};
+/// assert_eq!(imperial_distance_text(metres_from_feet(420.0)), "420 ft");
+/// assert_eq!(imperial_distance_text(metres_from_miles(0.25)), "0.25 mi");
+/// ```
 pub fn imperial_distance_text(metres: f64) -> String {
     if metres.abs() < FEET_LIMIT {
         format!("{:.0} ft", metres / METRES_PER_FOOT)

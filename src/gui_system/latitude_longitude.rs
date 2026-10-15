@@ -31,6 +31,16 @@ pub struct LatitudeLongitude {
 impl LatitudeLongitude {
     /// Constructs the object and makes sure, that both coordinates are in the valid range
     /// (latitude: -85 .. 85, longitude: -180 .. 180)
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// let trier = LatitudeLongitude::new(49.7499, 6.6371);
+    /// assert_eq!(trier.latitude, 49.7499);
+    /// // Web Mercator ends short of the poles, the latitude gets clamped.
+    /// let pole = LatitudeLongitude::new(90.0, 0.0);
+    /// assert!(pole.latitude < 86.0);
+    /// ```
     pub const fn new(latitude: f64, longitude: f64) -> Self {
         Self {
             latitude: latitude.clamp(-BOUNDARY_LATITUDE, BOUNDARY_LATITUDE),
