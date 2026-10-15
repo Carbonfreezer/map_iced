@@ -34,6 +34,11 @@ use map_iced::gui_system::{DistanceUnits, LatitudeLongitude};
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("assets/osm.json");
 
+/// The icon for the chruch
+const ICON_CHURCH: &[u8] = include_bytes!("assets/Church.png");
+
+
+
 /// The two bicycle tracks, each with the colour of its line.
 const TRACKS: [(&[u8], Color); 2] = [
     (
@@ -54,9 +59,6 @@ const FLAG: DirectionFlag = DirectionFlag {
     color: Color::from_rgb(0.9, 0.15, 0.15),
     priority: 0,
 };
-
-/// The color for the dome.
-const DOME_COLOR: Color = Color::from_rgb(0.3, 0.8, 0.3);
 
 /// The color for the fire station.
 const FIRE_STATION_COLOR: Color = Color::from_rgb(0.8, 0.3, 0.3);
@@ -121,16 +123,16 @@ impl RegionApplication {
         let mut entries = Vec::new();
 
         let waypoints = widget_system.get_waypoint_system_as_mut();
-        for (name, position, color) in [
-            ("Trier Cathedral", DOME_POSITION, DOME_COLOR),
+        for (name, position, symbol) in [
+            ("Trier Cathedral", DOME_POSITION, WaypointSymbol::image(ICON_CHURCH)),
             (
                 "Konz ambulance station",
                 LatitudeLongitude::new(49.7020, 6.5800),
-                FIRE_STATION_COLOR,
+                WaypointSymbol::cross(FIRE_STATION_COLOR),
             ),
         ] {
             let key = waypoints.add_way_point(
-                WaypointSymbol::cross(color),
+                symbol,
                 position,
                 Some(name.to_string()),
             );
