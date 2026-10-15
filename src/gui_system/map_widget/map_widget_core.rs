@@ -1,4 +1,4 @@
-//! This module contains the core par of map widget.
+//! This module contains the core part of the map widget.
 
 use crate::annotation_system::annotation_support::{
     Annotation, AnnotationKey, ClosestPoint, LabelPosition, RenderingInformation,
@@ -62,7 +62,7 @@ pub(crate) struct MapWidget {
     annotation_info: HashmapStable,
     /// The direction arrows of the current view, see [`Self::place_arrows`].
     arrows: Vec<PlacedArrow>,
-    /// Flags that we want to have a focal reset usually because of waypoint or annotation changes from the outside.
+    /// Flags that we want to have a focal reset, usually because of annotation changes from the outside.
     pub(crate) request_focal_reset: bool,
     /// The soft focus currently running, if any.
     pub(crate) animation: Option<FocusAnimation>,
@@ -196,13 +196,13 @@ impl MapWidget {
     }
 
     /// Does an invalidation by requesting a reset of the focal point. This is
-    /// relevant, if waypoints change.
+    /// relevant, if annotations change.
     pub(crate) fn request_focal_reset(&mut self) {
         self.request_focal_reset = true;
     }
 
-    /// Called from outside the map widget system to set the waypoint information:
-    /// the way points around the view, and all flagged ones for the arrows.
+    /// Called from the map widget system to set the annotation information:
+    /// the annotations around the view, and all flagged ones for the arrows.
     pub(crate) fn set_annotation_info(
         &mut self,
         render_points: HashmapStable,
@@ -227,7 +227,7 @@ impl MapWidget {
 
     /// Places the direction arrows for the current view.
     ///
-    /// An off screen way point gets a radar arrow on the edge. One that comes into
+    /// An off screen annotation gets a radar arrow on the edge. One that comes into
     /// view during a soft focus keeps the arrow it had in the frame before, now
     /// attached to its symbol and with the direction frozen, until the animation is
     /// over. Otherwise the arrow would vanish halfway through the move, and taking
@@ -267,7 +267,7 @@ impl MapWidget {
             .collect();
 
         // Drawn in this order, so the last one lies on top and wins the click: the
-        // highest priority, and within one priority the nearest way point, which is
+        // highest priority, and within one priority the nearest annotation, which is
         // the one to head for first.
         ranked.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.total_cmp(&a.1)));
         self.arrows = ranked.into_iter().map(|(_, _, arrow)| arrow).collect();
@@ -293,19 +293,15 @@ impl MapWidget {
 
     /// Prints the copyright information into the lower right corner
     fn print_copyright_text(&self, bounds: Rectangle, frame: &mut Frame<Renderer>) {
-        // 1. Calculate the bounding box of your text (needed to offset the position)
         let text_content = self.copyright_text.clone();
 
-        // 2. Measure or estimate the dimensions
-        // Iced uses an approximate width based on character count if not measured directly
-        let estimated_width = text_content.len() as f32 * (FONT_SIZE * 0.5); // Rough estimate
+        // Not measured, estimated from the character count.
+        let estimated_width = text_content.len() as f32 * (FONT_SIZE * 0.5);
 
-        // 3. Subtract the text size from the canvas bounds
         let padding = 5.0; // Distance from the absolute edges
         let x = bounds.width - estimated_width - padding;
         let y = bounds.height - FONT_SIZE - padding;
 
-        // 4. Draw the text
         fill_text_with_halo(
             frame,
             Text {
@@ -319,7 +315,7 @@ impl MapWidget {
     }
 
     /// Hit test in widget coordinates against the direction arrows. Returns the key
-    /// of the way point whose arrow covers `position`, the topmost one first.
+    /// of the annotation whose arrow covers `position`, the topmost one first.
     pub(crate) fn arrow_at(&self, position: Point) -> Option<AnnotationKey> {
         self.arrows
             .iter()
@@ -365,7 +361,7 @@ impl MapWidget {
         Some(HoverTarget { key, anchor })
     }
 
-    /// The annotation symbols. Cached, because they only change with the way point
+    /// The annotation symbols. Cached, because they only change with the annotation
     /// snapshot or the focal point, never with the cursor.
     pub(crate) fn draw_annotation_symbols(
         &self,

@@ -1,5 +1,5 @@
-//! This module administrates paths, which typically stem from gpx tracks and are a series of
-//! points that are annotated with a time stamp.
+//! This module administrates paths: series of connected positions, drawn as a line, typically
+//! from GPX tracks.
 
 use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingInformation};
 use crate::gui_system::internal_math::MercatorPoint;

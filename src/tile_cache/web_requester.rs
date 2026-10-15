@@ -1,4 +1,4 @@
-//! this module contains the functionality to interact with web requests.
+//! This module contains the functionality to interact with web requests.
 
 use crate::tile_cache::tile_name_conversion::TileSpecification;
 use bytes::Bytes;
@@ -15,8 +15,8 @@ pub enum RequesterError {
     HttpClient(String),
 }
 
-/// A requester struct that does the web requests, defaults to the dummy data
-/// if no client is set.
+/// A requester struct that does the web requests, or serves the test image without a
+/// client, see [`Self::dummy`].
 pub struct Requester {
     client: Option<reqwest::Client>,
     intro_url: String,
@@ -26,8 +26,7 @@ pub struct Requester {
 impl Requester {
     /// Generates a new web requester. The intro url is what should get prepended to the
     /// standard tile specification and the post part is what should get postpended. This
-    /// is for instance the user id in mat box. The user agent is the agent, that is required for
-    /// OSM Example: `MyCoolMappingApp/1.0 (contact@example.com)`
+    /// is for instance the access token for Mapbox. The user agent is the one OSM asks for, e.g. `MyCoolMappingApp/1.0 (contact@example.com)`
     pub fn new(
         intro_url: &str,
         post_url: &str,

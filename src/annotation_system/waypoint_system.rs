@@ -191,7 +191,7 @@ impl WaypointSystem {
         Ok(())
     }
 
-    /// Deletes the way point with the indicated key returns as a result if it was possible.
+    /// Deletes the way point with the indicated key.
     ///
     /// # Example
     /// ```
@@ -221,8 +221,7 @@ pub(crate) enum InternalWaypointImage {
     Cross(Color),
 }
 
-/// The way point information stored. This only becomes relevant in deletion, then it
-/// can be modified to to be stored as a new waypoint.
+/// A way point as stored in the [`WaypointSystem`].
 #[derive(Debug, Clone)]
 pub(crate) struct WaypointInfo {
     /// This contains the graphical representation. Internal, the outside has no

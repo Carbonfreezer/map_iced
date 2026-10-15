@@ -1,4 +1,4 @@
-//! This is the rea core of the tile cache.
+//! This is the real core of the tile cache.
 //! It provides asynchronous access to the the caching system.
 //!
 //! It is the responsibility of the user to make sure that no two requests for the same
@@ -438,9 +438,9 @@ pub fn generate_dummy_cache(
     )
 }
 
-/// Generates the real cache. The first 3 entries refer to the url and the username to access the web service.
-/// Cache base directory is the place where we store data and the maximum amount is the maximum amount of data we want to take.
-/// The last line is the copyright text that should be displayed for the tiles.
+/// Generates the real cache. The url parts and the user agent go to the [`Requester`], see
+/// [`Requester::new`]. The copyright text gets displayed with the tiles. Cache base directory is
+/// the place where we store data and the maximum amount is the maximum amount of data we want to take.
 pub fn generate_cache(
     intro_url: &str,
     post_url: &str,
@@ -464,21 +464,17 @@ mod tests {
     use std::time::Duration;
 
     #[tokio::test]
-    // #[ignore]
     async fn first_setup() {
         let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
-        // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize();
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
-        // tokio::time::sleep(Duration::from_secs(AMOUNT_OF_SECONDS_TILL_SAVE as u64 + 2)).await;
     }
 
     #[tokio::test]
     async fn first_fill() {
         let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
-        // let cache = generate_dummy_cache("transient", 20_000);
         cache.initialize();
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();

@@ -1,5 +1,5 @@
-//! This module contains the latitude longitude positional representation that is visible to
-//! the outside in this crate.
+//! This module contains the latitude longitude positional representation, re-exported as
+//! [`crate::gui_system::LatitudeLongitude`].
 
 use crate::gui_system::internal_math::{TileCoordinates, get_scaling_factor};
 use std::f64::consts::PI;

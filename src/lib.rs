@@ -1,5 +1,5 @@
 //! This module implements an iced widget for displaying maps and map annotations.
-//! Currently supported as annotations are way points and paths.
+//! Supported annotations are way points, paths and regions.
 //! It contains a tile caching system
 //! and can operate with different tile providers that works with the  [slippy map convention](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames).
 

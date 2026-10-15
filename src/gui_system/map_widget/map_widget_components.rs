@@ -20,10 +20,10 @@ pub(crate) const FONT_SIZE: f32 = 15.0;
 /// The color we use for drawing overlay text.
 pub(crate) const TEXT_COLOR: Color = Color::BLACK;
 
-/// These become the interaction commands with the rest of the system later on. These
-/// commands contain the information of a specific client widget.
-/// Made public because it is needed for mapping in the view construction,
-/// as these are the highest level commands originating from the widget system.
+/// The message a map widget produces, tagged with the widget it comes from. Public
+/// because the application maps it into its own message type in its view and hands
+/// it back to the [`MapWidgetSystem`](crate::gui_system::map_widget_system::MapWidgetSystem)
+/// as a [`MapWidgetMessage`](crate::gui_system::map_widget_system::MapWidgetMessage).
 ///
 /// # Example
 /// ```
@@ -91,7 +91,7 @@ pub(crate) enum SpecificInteractionCommand {
     /// The hover moved onto the given annotation element, with the cursor position
     /// handed over as latitude, longitude.
     AnnotationHovered(AnnotationKey, LatitudeLongitude),
-    /// A left click landed on the direction arrow of the given way point.
+    /// A left click landed on the direction arrow of the given annotation.
     ArrowClicked(AnnotationKey),
     /// One frame of the soft focus started under `generation`. `finished` marks the
     /// last frame, which sits exactly on the target.
@@ -102,7 +102,7 @@ pub(crate) enum SpecificInteractionCommand {
         finished: bool,
     },
     /// The user has simply clicked onto a position on the map in latitude longitude.
-    /// Gets superseded by arrow and waypoint selection.
+    /// Gets superseded by a click on an arrow or an annotation.
     MapPointClicked(LatitudeLongitude),
 }
 
@@ -268,7 +268,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         bounds: Rectangle,
         cursor: Cursor,
     ) -> Interaction {
-        // The cursor shape for the way points is decided here, in the lower canvas
+        // The cursor shape for the annotations is decided here, in the lower canvas
         // of the stack, and not in the overlay on top of it. `stack` levitates the
         // cursor for every child below as soon as an upper child claims an
         // interaction, which would cut this widget off from the middle button and
@@ -398,7 +398,7 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
     ) -> Interaction {
         // Must stay `None`. Anything else makes `stack` levitate the cursor for the
         // children below, which would stop the map from panning and zooming while
-        // the cursor sits on a way point. The way point cursor shape therefore lives
+        // the cursor sits on an annotation. The annotation cursor shape therefore lives
         // in `MapWidget::mouse_interaction`, and a click is claimed by capturing the
         // event in `update`, which only consumes that single event.
         Interaction::None

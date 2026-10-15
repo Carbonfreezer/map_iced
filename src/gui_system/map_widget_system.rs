@@ -76,12 +76,12 @@ pub enum MapEvent {
     /// A soft focus started with [`MapWidgetSystem::animate_to`] has arrived. Not
     /// sent for an animation that was cancelled or replaced on the way.
     FocusReached { client_id: u32 },
-    /// The user clicked the direction arrow of this flagged way point in the widget
+    /// The user clicked the direction arrow of this flagged annotation in the widget
     /// `client_id`. What follows is up to the application, typically a focus of that
-    /// widget on the way point.
+    /// widget on the annotation.
     ArrowClicked { client_id: u32, key: AnnotationKey },
-    /// On the client simply a map position with latitude. longitude has been selected.
-    /// If there is some kind of annotation on the map this information would dominate.
+    /// The user clicked a spot of the map in the widget `client_id` where there is no
+    /// annotation and no direction arrow; those give their own events instead.
     MapPositionClicked {
         client_id: u32,
         position: LatitudeLongitude,
@@ -143,7 +143,7 @@ impl MapWidgetSystem {
         }
     }
 
-    /// Requires a reset for all widgets, because some annotation information may have changed,
+    /// Requires a reset for all widgets, because some annotation information may have changed.
     fn reset_all_widgets(&mut self) {
         for widget in &mut self.widget_collection {
             widget.request_focal_reset();
@@ -260,7 +260,7 @@ impl MapWidgetSystem {
             .set_annotation_info(render_points, flagged_points);
     }
 
-    /// Processes the messsage and eventually returns a map event for further processing.
+    /// Processes the message and possibly returns a map event for further processing.
     fn process_widget_message(
         &mut self,
         client_id: u32,
@@ -298,7 +298,7 @@ impl MapWidgetSystem {
 
             SpecificInteractionCommand::AnnotationClicked(key, click_point) => {
                 // The widget reports what the click hit, the meaning is decided here.
-                // A way point that is gone by now must not reach the application, the
+                // An annotation that is gone by now must not reach the application, the
                 // snapshot in the widget can be older than the collection.
                 self.annotation_system
                     .get_specific_element(key)
@@ -330,7 +330,7 @@ impl MapWidgetSystem {
             }
 
             SpecificInteractionCommand::ArrowClicked(key) => {
-                // Same reasoning as for the way point, and a way point that lost its
+                // Same reasoning as for the click, and an annotation that lost its
                 // flag in the meantime has no arrow any more either.
                 match self.annotation_system.get_specific_element(key) {
                     Ok(annotation) if annotation.get_flag().is_some() => {

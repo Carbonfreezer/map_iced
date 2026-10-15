@@ -18,7 +18,7 @@ pub(crate) const HALO_COLOR: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.8);
 /// How far the text halo reaches around each glyph, in pixels.
 const HALO_WIDTH: f32 = 1.0;
 
-/// How long the cursor has to rest on a way point before its description shows up.
+/// How long the cursor has to rest on an annotation before its description shows up.
 const HOVER_DELAY: Duration = Duration::from_secs(1);
 
 /// Draws `text` with a halo in [`HALO_COLOR`]: first in the halo colour, shifted to
@@ -48,10 +48,10 @@ pub(crate) fn fill_text_with_halo(frame: &mut Frame<Renderer>, text: Text) {
 /// is anchored to.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct HoverTarget {
-    /// The hovered annotation, see [`MapWidget::annotation_at`]. Unlike an index into
+    /// The hovered annotation, see [`MapWidget::annotation_at`](super::map_widget_core::MapWidget::annotation_at). Unlike an index into
     /// the snapshot, the key stays valid when the snapshot is replaced.
     pub(crate) key: AnnotationKey,
-    /// Where the description goes, resolved from [`Annotation::label_anchor`] when the
+    /// Where the description goes, resolved from [`Annotation::label_anchor`](crate::annotation_system::annotation_support::Annotation::label_anchor) when the
     /// cursor came to rest.
     ///
     /// Part of the target on purpose: a fixed anchor, as for a way point, stays the
@@ -69,8 +69,8 @@ struct Hover {
     visible_at: Instant,
 }
 
-/// The interaction state of the [`AnnotationOverlay`]. Separate from
-/// [`InteractionState`], because the overlay is a canvas of its own and therefore
+/// The interaction state of the [`AnnotationOverlay`](super::map_widget_components::AnnotationOverlay). Separate from
+/// [`InteractionState`](super::map_widget_components::InteractionState), because the overlay is a canvas of its own and therefore
 /// carries its own widget state.
 #[derive(Debug, Default)]
 pub(crate) struct AnnotationInteractionState {

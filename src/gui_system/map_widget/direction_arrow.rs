@@ -1,7 +1,8 @@
-//! The direction arrow of a flagged way point that is off screen, drawn like on a
-//! radar: the tip sits on the edge of the widget and points towards the way point.
+//! The direction arrow of a flagged annotation that is off screen, drawn like on a
+//! radar: the tip sits on the edge of the widget and points towards the annotation's
+//! centre.
 //!
-//! During a soft focus an arrow does not vanish when its way point comes into view,
+//! During a soft focus an arrow does not vanish when its annotation comes into view,
 //! it attaches to the symbol instead and stays until the animation is over.
 
 use crate::annotation_system::annotation_support::AnnotationKey;
@@ -50,7 +51,7 @@ pub(crate) fn symbol_visible(size: Size, target: Vector<f64>, half_size: f64) ->
         && (-half_size..=size.height as f64 + half_size).contains(&target.y)
 }
 
-/// The radar arrow for an off screen way point at `target`. The tip is where the ray
+/// The radar arrow for an off screen annotation at `target`. The tip is where the ray
 /// from the widget centre to the target leaves the frame, pulled in by
 /// [`EDGE_INSET`]. `None` if the widget is too small to hold an arrow.
 pub(crate) fn radar_arrow(size: Size, target: Vector<f64>) -> Option<ArrowPlacement> {

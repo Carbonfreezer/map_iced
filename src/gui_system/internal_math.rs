@@ -1,7 +1,7 @@
 //! This module contains all related to latitude longitude
 //! and tile coordinate system. This is the pure internal representation
 //! of the coordinates. It contains all to the tile coordinates used in the
-//! slippy tile system. It also administrates badges (bounding rectangles of tiles).
+//! slippy tile system. It also administrates bounding rectangles of tiles.
 //! Can be useful for internal computations.
 
 use crate::annotation_system::annotation_support::{MercatorRectangle, TopLeftBottomRight};

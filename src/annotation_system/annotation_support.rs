@@ -23,7 +23,7 @@ pub(crate) trait Annotation: Debug {
     /// Asks for the annotation description, can process the cursor being handed over in latitude longitude
     /// coordinates, for instance if the annotation should change on cursor position (for instance on a track)
     fn description(&self, cursor: LatitudeLongitude) -> Option<String>;
-    /// Gets the colling boundaries of the system, should be precomputed.
+    /// Gets the culling boundaries of the system, should be precomputed.
     fn cull_bounds(&self) -> &MercatorRectangle;
     /// The point the annotation stands for: direction arrows point at it and
     /// [`MapWidgetSystem::center`] reports it. By default the centre of the cull
@@ -53,7 +53,7 @@ pub(crate) trait Annotation: Debug {
     fn closest_point(&self, position: MercatorPoint) -> ClosestPoint;
     /// Gets the anchor position of the label.
     fn label_anchor(&self, cursor: LatitudeLongitude) -> LabelPosition;
-    /// Gets the waypoint info if existing.
+    /// The direction arrow, if the annotation is flagged.
     fn get_flag(&self) -> Option<DirectionFlag>;
     /// This method returns all information to render the specific object.
     fn get_render_information(&self) -> RenderingInformation<'_>;
@@ -147,14 +147,14 @@ pub struct MercatorRectangle {
     pub(crate) pixel_padding: f64,
 }
 
-/// The top left bottom right position to be able to check with the Rectangle of the viewport later on.
+/// The corners of a [`MercatorRectangle`] in latitude longitude.
 #[derive(Debug, Clone)]
 pub(crate) struct TopLeftBottomRight {
     pub(crate) top_left: LatitudeLongitude,
     pub(crate) bottom_right: LatitudeLongitude,
 }
 
-/// Converts the extensions of the meractor rectangle
+/// Converts the extensions of the mercator rectangle.
 impl From<&MercatorRectangle> for TopLeftBottomRight {
     fn from(rect: &MercatorRectangle) -> Self {
         Self {
@@ -165,7 +165,7 @@ impl From<&MercatorRectangle> for TopLeftBottomRight {
 }
 
 impl MercatorRectangle {
-    /// Crates a mercator rectangle from a position like used for the way points.
+    /// Creates a mercator rectangle from a single position, as used for the way points.
     pub fn create_from_position(
         position: LatitudeLongitude,
         pixel_padding: f64,
@@ -177,7 +177,7 @@ impl MercatorRectangle {
         }
     }
 
-    /// Crates the mercator rectangle from a position array as it may be used by a way path or region marked by gps points.
+    /// Creates the mercator rectangle from a position array, as used by paths and regions.
     /// An empty array gives `None`, there is nothing to cover then.
     pub fn create_from_position_array(
         mut position_array: impl Iterator<Item = LatitudeLongitude>,
@@ -200,8 +200,7 @@ impl MercatorRectangle {
         ))
     }
 
-    /// Asks for the center position of the region, that gets used to get the pointers of the
-    /// annotation elements.
+    /// The centre of the rectangle, by default the centre of an annotation.
     pub fn get_center(&self) -> LatitudeLongitude {
         LatitudeLongitude::new(
             (self.min_max_lat.0 + self.min_max_lat.1) * 0.5,

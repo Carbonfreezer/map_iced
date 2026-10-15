@@ -1,4 +1,5 @@
-//! This module contains helper functions and structures to generate a high level tile cache.
+//! The configuration of the tile cache: where the tiles come from and where they are kept
+//! on disc. [`MapWidgetSystem::boot`](super::map_widget_system::MapWidgetSystem::boot) takes it.
 
 use crate::gui_system::high_level_tile_cache::TileCache;
 use crate::tile_cache::cache_core::{generate_cache, generate_dummy_cache};
@@ -44,7 +45,7 @@ impl fmt::Display for TileCacheError {
 
 impl std::error::Error for TileCacheError {}
 
-/// The different types of aching directories we offer.
+/// The different types of caching directories we offer.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum CachingDirectory {
     /// Completely manually constructed.
@@ -232,8 +233,8 @@ impl TileCacheConfig {
     ///   }
     /// }
     /// ```
-    /// This generates a subfolder besides the working directory called cache/osm, allows
-    /// for 1oo MB of disc space and uses OSM for tile queries.
+    /// This generates the folder cache/osm in the working directory, allows
+    /// for 100 MB of disc space and uses OSM for tile queries.
     pub fn from_json_str(s: &str) -> Result<Self, TileCacheError> {
         serde_json::from_str(s).map_err(|e| TileCacheError::InvalidJson(e.to_string()))
     }
