@@ -3,7 +3,7 @@ use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
-use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
+use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
 
 struct BasicApplication {
     widget_system: MapWidgetSystem,
@@ -23,15 +23,13 @@ const CONFIG_DATA: &str = include_str!("../osm.json");
 
 impl BasicApplication {
     pub fn boot() -> (BasicApplication, Task<Message>) {
-        let cache = TileCacheConfig::from_json_str(CONFIG_DATA)
-            .and_then(TileCacheConfig::build)
-            .or_else(|e| {
-                eprintln!("Configuration error: {e}");
-                tile_cache_debug_default()
-            })
-            .expect("Should not be possible to reach");
-
-        let (mut widget_system, task) = MapWidgetSystem::boot(cache);
+        let (mut widget_system, task) = TileCacheConfig::from_json_str(CONFIG_DATA)
+            .and_then(MapWidgetSystem::boot)
+            .unwrap_or_else(|e| {
+                eprintln!("{e}, showing the test pattern instead");
+                MapWidgetSystem::boot(TileCacheConfig::test_pattern())
+                    .expect("Tile cache could not be created")
+            });
         let widget_ids = [
             widget_system.request_new_widget(),
             widget_system.request_new_widget(),

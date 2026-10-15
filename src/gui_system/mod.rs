@@ -1,6 +1,6 @@
 //! Ths contains all high level functions that sit on top of the ui.
-//! The central entry point of usage is here [`tile_cache_construction::TileCacheConfig`]
-//! to generate the tile caching system.
+//! The central entry point is [`map_widget_system::MapWidgetSystem::boot`], which takes
+//! a [`tile_cache_construction::TileCacheConfig`] describing where the tiles come from.
 
 pub mod distance_units;
 mod hashmap_stable;

@@ -14,6 +14,7 @@ use crate::gui_system::map_widget::map_widget_components::{
     AnnotationOverlay, FocalPoint, SpecificInteractionCommand,
 };
 use crate::gui_system::map_widget::map_widget_core::MapWidget;
+use crate::gui_system::tile_cache_construction::{TileCacheConfig, TileCacheError};
 use crate::tile_cache::cache_core::CachingResultMessage;
 use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
@@ -102,9 +103,12 @@ impl MapWidgetSystem {
     /// from the widget edge instead of being clipped by it.
     pub const DEFAULT_FOCUS_FILL: f32 = 0.9;
 
-    /// Generates our instance and the stream for the messages.
-    /// The Tile cache is opaque but gets contructed in [`super::tile_cache_construction::TileCacheConfig`]
-    pub fn boot(mut tile_cache: TileCache) -> (Self, Task<MapWidgetMessage>) {
+    /// Sets up the tile cache described by `config` and returns the system together
+    /// with the task that feeds the cache results back as [`MapWidgetMessage`]s.
+    /// The config comes from JSON with [`TileCacheConfig::from_json_str`] or is built
+    /// in code, e.g. with [`TileCacheConfig::open_street_map`].
+    pub fn boot(config: TileCacheConfig) -> Result<(Self, Task<MapWidgetMessage>), TileCacheError> {
+        let mut tile_cache = config.build()?;
         let receiver = tile_cache
             .get_receiver()
             .expect("fresh cache has a receiver");
@@ -112,7 +116,7 @@ impl MapWidgetSystem {
             ReceiverStream::new(receiver),
             MapWidgetMessage::CachingResultMessage,
         );
-        (
+        Ok((
             Self {
                 tile_cache,
                 widget_collection: Vec::new(),
@@ -120,7 +124,7 @@ impl MapWidgetSystem {
                 distance_units: Default::default(),
             },
             task,
-        )
+        ))
     }
 
     /// The unit system the scale bars show, [`DistanceUnits::Metric`] unless set

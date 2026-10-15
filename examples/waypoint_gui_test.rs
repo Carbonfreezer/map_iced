@@ -17,7 +17,7 @@ use map_iced::gui_system::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{
     FocusTarget, MapEvent, MapWidgetMessage, MapWidgetSystem,
 };
-use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
+use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
 
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
@@ -89,15 +89,13 @@ enum Message {
 
 impl WaypointApplication {
     pub fn boot() -> (WaypointApplication, Task<Message>) {
-        let cache = TileCacheConfig::from_json_str(CONFIG_DATA)
-            .and_then(TileCacheConfig::build)
-            .or_else(|e| {
-                eprintln!("Configuration error: {e}");
-                tile_cache_debug_default()
-            })
-            .expect("Should not be possible to reach");
-
-        let (mut widget_system, task) = MapWidgetSystem::boot(cache);
+        let (mut widget_system, task) = TileCacheConfig::from_json_str(CONFIG_DATA)
+            .and_then(MapWidgetSystem::boot)
+            .unwrap_or_else(|e| {
+                eprintln!("{e}, showing the test pattern instead");
+                MapWidgetSystem::boot(TileCacheConfig::test_pattern())
+                    .expect("Tile cache could not be created")
+            });
         let widget_ids = [
             widget_system.request_new_widget(),
             widget_system.request_new_widget(),

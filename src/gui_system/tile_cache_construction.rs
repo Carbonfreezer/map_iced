@@ -4,7 +4,38 @@ use crate::gui_system::high_level_tile_cache::TileCache;
 use crate::tile_cache::cache_core::{generate_cache, generate_dummy_cache};
 use dirs::cache_dir;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::path::PathBuf;
+
+/// What can go wrong when setting up the tile cache.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TileCacheError {
+    /// The configuration text is no valid JSON for a [`TileCacheConfig`].
+    InvalidJson(String),
+    /// The configuration refers to the OS cache directory, but the system has none.
+    NoCacheDirectory,
+    /// The tile cache itself could not be set up, e.g. because the user agent is no
+    /// valid HTTP header value.
+    CacheCreation(String),
+}
+
+impl fmt::Display for TileCacheError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TileCacheError::InvalidJson(message) => {
+                write!(f, "invalid tile cache configuration: {message}")
+            }
+            TileCacheError::NoCacheDirectory => {
+                write!(f, "the system has no cache directory")
+            }
+            TileCacheError::CacheCreation(message) => {
+                write!(f, "the tile cache could not be created: {message}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for TileCacheError {}
 
 /// The different types of aching directories we offer.
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -18,14 +49,14 @@ pub enum CachingDirectory {
 }
 
 impl CachingDirectory {
-    fn get_path(&self) -> Result<PathBuf, String> {
+    fn get_path(&self) -> Result<PathBuf, TileCacheError> {
         match self {
             CachingDirectory::FullyConstructed(path) => Ok(path.clone()),
             CachingDirectory::CacheDirectory(path) => Ok(cache_dir()
-                .ok_or("Cache directory not found on system")?
+                .ok_or(TileCacheError::NoCacheDirectory)?
                 .join(path)),
             CachingDirectory::CacheDirFixed => Ok(cache_dir()
-                .ok_or("Cache directory not found on system")?
+                .ok_or(TileCacheError::NoCacheDirectory)?
                 .join("Tiles")),
         }
     }
@@ -52,6 +83,10 @@ pub enum TileSource {
     MapBoxSatellite { api_key: String },
     /// Thunderforst [maps](https://www.thunderforest.com/docs/map-tiles-api).
     Thunderforest { style: String, api_key: String },
+    /// No map at all: the built-in test image `assets/Test.png` for every position
+    /// and zoom level, without any network access. For tests only, see
+    /// [`TileCacheConfig::test_pattern`].
+    TestPattern,
 }
 
 /// The combined information for serialization. It contains the real
@@ -74,8 +109,9 @@ pub(crate) struct QuadrupleInfo {
 }
 
 impl TileSource {
-    pub(crate) fn get_quadruple(&self) -> QuadrupleInfo {
-        match self {
+    /// The web access for the source, `None` for the [`TileSource::TestPattern`].
+    pub(crate) fn get_quadruple(&self) -> Option<QuadrupleInfo> {
+        let quadruple = match self {
             TileSource::FullyConstructed {
                 start_url,
                 end_url,
@@ -122,11 +158,51 @@ impl TileSource {
                 copyright_text: "Maps © www.thunderforest.com, Data © www.osm.org/copyright"
                     .to_string(),
             },
-        }
+            TileSource::TestPattern => return None,
+        };
+        Some(quadruple)
     }
 }
 
 impl TileCacheConfig {
+    /// The disc space [`Self::open_street_map`] allows for, 100 MB.
+    pub const DEFAULT_CACHE_SIZE: u64 = 100_000_000;
+
+    /// The configuration built in code: tiles from `source`, stored in `cache` with
+    /// at most `cache_size` bytes on disc.
+    pub fn new(source: TileSource, cache: CachingDirectory, cache_size: u64) -> Self {
+        Self {
+            cache,
+            cache_size,
+            source,
+        }
+    }
+
+    /// OpenStreetMap tiles in the subfolder `OpenStreetMap` of the OS cache directory,
+    /// with [`Self::DEFAULT_CACHE_SIZE`]. OSM asks for a `user_agent` that identifies
+    /// the application and a contact, e.g. `MyCoolMappingApp/1.0 (contact@example.com)`.
+    pub fn open_street_map(user_agent: impl Into<String>) -> Self {
+        Self::new(
+            TileSource::OpenStreetMap {
+                user_agent: user_agent.into(),
+            },
+            CachingDirectory::CacheDirectory("OpenStreetMap".into()),
+            Self::DEFAULT_CACHE_SIZE,
+        )
+    }
+
+    /// The [`TileSource::TestPattern`]: one test image for every tile, no network
+    /// access. Meant for tests, or as the fallback of an example whose configuration
+    /// failed, never as a map. Kept in its own subfolder of the OS cache directory, so
+    /// the test images never mix with real tiles.
+    pub fn test_pattern() -> Self {
+        Self::new(
+            TileSource::TestPattern,
+            CachingDirectory::CacheDirectory("TestPattern".into()),
+            30_000,
+        )
+    }
+
     /// Generates the tile cache config from a string, that can either be loaded from from
     /// a file or generated with include_str!
     ///
@@ -151,29 +227,25 @@ impl TileCacheConfig {
     /// ```
     /// This generates a subfolder besides the working directory called cache/osm, allows
     /// for 1oo MB of disc space and uses OSM for tile queries.
-    pub fn from_json_str(s: &str) -> Result<Self, String> {
-        serde_json::from_str(s).map_err(|e| e.to_string())
+    pub fn from_json_str(s: &str) -> Result<Self, TileCacheError> {
+        serde_json::from_str(s).map_err(|e| TileCacheError::InvalidJson(e.to_string()))
     }
 
     /// Creates the tile cache from the internal representation.
-    pub fn build(self) -> Result<TileCache, String> {
-        let dir_info = self.cache;
-        let cache_size = self.cache_size;
-        let tile_source = self.source;
-        let description = tile_source.get_quadruple();
-        TileCache::new(generate_cache(
-            &description.start_url,
-            &description.end_url,
-            &description.user_agent,
-            description.copyright_text,
-            dir_info.get_path()?,
-            cache_size,
-        )?)
+    pub(crate) fn build(self) -> Result<TileCache, TileCacheError> {
+        let path = self.cache.get_path()?;
+        let system = match self.source.get_quadruple() {
+            Some(description) => generate_cache(
+                &description.start_url,
+                &description.end_url,
+                &description.user_agent,
+                description.copyright_text,
+                path,
+                self.cache_size,
+            )
+            .map_err(TileCacheError::CacheCreation)?,
+            None => generate_dummy_cache(path, self.cache_size),
+        };
+        TileCache::new(system).map_err(TileCacheError::CacheCreation)
     }
-}
-
-/// Offline-Cache with internal dummy cache for debug purposes.
-pub fn tile_cache_debug_default() -> Result<TileCache, String> {
-    let dir_info = CachingDirectory::CacheDirFixed;
-    TileCache::new(generate_dummy_cache(dir_info.get_path()?, 30_000))
 }
