@@ -17,7 +17,7 @@ use slotmap::{SlotMap, new_key_type};
 /// padding of the way point's [`MercatorRectangle`], which the widget uses for
 /// culling, hit testing and the size of the drawn symbol. Widening the padding
 /// therefore also grows the symbol.
-const WAYPOINT_HALF_SIZE: f64 = 15.0;
+const WAYPOINT_HALF_SIZE: f64 = 12.0;
 
 new_key_type! {
     /// The handle of a way point inside a [`WaypointSystem`]. A type of its own, so
