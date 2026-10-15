@@ -127,7 +127,7 @@ impl RegionApplication {
             ),
         ] {
             let key = waypoints.add_way_point(
-                WaypointSymbol::Cross(color),
+                WaypointSymbol::cross(color),
                 position,
                 Some(name.to_string()),
             );

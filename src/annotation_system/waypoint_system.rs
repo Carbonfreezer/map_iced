@@ -5,10 +5,9 @@ use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, Dir
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::FocusTarget;
-/// Re-exported so that callers of [`WaypointSymbol::Image`] do not have to depend on
-/// `bytes` themselves and keep its version in step with ours.
-///
-/// [`WaypointSymbol::Image`]: annotation_system::waypoint_system::WaypointSymbol::Image
+/// Re-exported so that callers who already hold a `Bytes` for [`WaypointSymbol::image`]
+/// do not have to depend on `bytes` themselves and keep its version in step with ours.
+/// Everyone else passes a `Vec<u8>` or `&'static [u8]`.
 pub use bytes::Bytes;
 use iced::Color;
 use iced::advanced::image::Handle;
@@ -29,12 +28,29 @@ new_key_type! {
     pub struct WaypointKey;
 }
 
-/// The way point parameter symbol we paint over the map.
-pub enum WaypointSymbol {
-    /// Image with raw image data, from an image file.
-    Image(Bytes),
-    /// A cross we want to draw with an indicated color.
-    Cross(Color),
+/// The way point parameter symbol we paint over the map, built with
+/// [`WaypointSymbol::image`] or [`WaypointSymbol::cross`].
+#[derive(Debug, Clone)]
+pub struct WaypointSymbol(InternalWaypointImage);
+
+impl WaypointSymbol {
+    /// An image symbol from the encoded image file data, e.g. a `Vec<u8>` read at
+    /// runtime or a `&'static [u8]` from `include_bytes!`, without naming [`Bytes`].
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::annotation_system::waypoint_system::WaypointSymbol;
+    /// const ICON: &[u8] = include_bytes!("../../assets/Icon.png");
+    /// let symbol = WaypointSymbol::image(ICON);
+    /// ```
+    pub fn image(data: impl Into<Bytes>) -> Self {
+        WaypointSymbol(InternalWaypointImage::Image(Handle::from_bytes(data.into())))
+    }
+
+    /// A cross drawn in `color`.
+    pub fn cross(color: Color) -> Self {
+        WaypointSymbol(InternalWaypointImage::Cross(color))
+    }
 }
 
 /// The administration for the whole waypoint system.
@@ -60,7 +76,7 @@ impl WaypointSystem {
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// ```
     pub fn add_way_point(
         &mut self,
@@ -68,13 +84,8 @@ impl WaypointSystem {
         position: LatitudeLongitude,
         description: Option<String>,
     ) -> WaypointKey {
-        let image = match symbol {
-            WaypointSymbol::Image(image) => InternalWaypointImage::Image(Handle::from_bytes(image)),
-            WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color),
-        };
-
         self.waypoint_collection.insert(WaypointInfo {
-            image,
+            image: symbol.0,
             mercator_rectangle: MercatorRectangle::create_from_position(
                 position,
                 WAYPOINT_HALF_SIZE,
@@ -92,7 +103,7 @@ impl WaypointSystem {
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let _ = system.update_waypoint_position(key, LatitudeLongitude::new(50.0, 8.0));
     /// ```
     pub fn update_waypoint_position(
@@ -116,22 +127,18 @@ impl WaypointSystem {
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
-    /// let _ = system.update_waypoint_symbol(key, WaypointSymbol::Cross(Color::BLACK));
+    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let _ = system.update_waypoint_symbol(key, WaypointSymbol::cross(Color::BLACK));
     /// ```
     pub fn update_waypoint_symbol(
         &mut self,
         key: WaypointKey,
         symbol: WaypointSymbol,
     ) -> Result<(), WaypointError> {
-        let image = match symbol {
-            WaypointSymbol::Image(image) => InternalWaypointImage::Image(Handle::from_bytes(image)),
-            WaypointSymbol::Cross(color) => InternalWaypointImage::Cross(color),
-        };
         self.waypoint_collection
             .get_mut(key)
             .ok_or(WaypointError::KeyNotContained)?
-            .image = image;
+            .image = symbol.0;
         Ok(())
     }
 
@@ -143,7 +150,7 @@ impl WaypointSystem {
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let _ = system.update_waypoint_description(key, Some("Annotation".to_string()));
     /// ```
     pub fn update_waypoint_description(
@@ -168,7 +175,7 @@ impl WaypointSystem {
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let flag = DirectionFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
     /// assert!(system.set_flag(key, Some(flag)).is_ok());
     /// ```
@@ -192,7 +199,7 @@ impl WaypointSystem {
     /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
     /// use map_iced::gui_system::LatitudeLongitude;
     /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::Cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
+    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0),None);
     /// let _ = system.delete_waypoint(key);
     /// ```
     pub fn delete_waypoint(&mut self, key: WaypointKey) -> Result<(), WaypointError> {
@@ -278,7 +285,7 @@ mod tests {
         let mut system = WaypointSystem::default();
 
         let key = system.add_way_point(
-            WaypointSymbol::Cross(Color::WHITE),
+            WaypointSymbol::cross(Color::WHITE),
             LatitudeLongitude::new(50.0, 7.0),
             None,
         );

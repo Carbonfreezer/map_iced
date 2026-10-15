@@ -74,7 +74,7 @@ mod tests {
             .map(|(index, name)| {
                 system
                     .add_way_point(
-                        WaypointSymbol::Cross(Color::WHITE),
+                        WaypointSymbol::cross(Color::WHITE),
                         LatitudeLongitude::new(50.0, 7.0 + index as f64),
                         Some(name.to_string()),
                     )
@@ -106,7 +106,7 @@ mod tests {
 
         // A key that did not make it into the snapshot is not found.
         let missing = system.add_way_point(
-            WaypointSymbol::Cross(Color::WHITE),
+            WaypointSymbol::cross(Color::WHITE),
             LatitudeLongitude::new(0.0, 0.0),
             None,
         );
