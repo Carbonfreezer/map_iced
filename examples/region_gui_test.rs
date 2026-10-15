@@ -14,6 +14,9 @@
 //! is reported as the way point, since way points are drawn and hit on top of
 //! regions, with the tracks in between.
 //!
+//! The button above the list switches the scale bars and the distance texts
+//! between metric and imperial units.
+//!
 //! The cordon circle is flagged, so it gets a direction arrow while off screen, e.g.
 //! after focusing the harbour of Mertert. Clicking the arrow focuses all maps on it.
 
@@ -24,9 +27,9 @@ use map_iced::annotation_system::annotation_support::{AnnotationKey, DirectionFl
 use map_iced::annotation_system::path_system::PathError;
 use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
 use map_iced::annotation_system::waypoint_system::WaypointSymbol;
-use map_iced::gui_system::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::{TileCacheConfig, tile_cache_debug_default};
+use map_iced::gui_system::{DistanceUnits, LatitudeLongitude};
 
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("../osm.json");
@@ -82,6 +85,8 @@ enum Message {
     Widget(MapWidgetMessage),
     /// Move the maps to the given element.
     Focus(AnnotationKey),
+    /// Switch between metric and imperial units.
+    ToggleUnits,
 }
 
 impl RegionApplication {
@@ -251,6 +256,13 @@ impl RegionApplication {
                 }
             }
             Message::Focus(key) => self.focus_all(key),
+            Message::ToggleUnits => {
+                let units = match self.widget_system.distance_units() {
+                    DistanceUnits::Metric => DistanceUnits::Imperial,
+                    DistanceUnits::Imperial => DistanceUnits::Metric,
+                };
+                self.widget_system.set_distance_units(units);
+            }
         }
     }
 
@@ -267,7 +279,9 @@ impl RegionApplication {
             AnnotationKey::Region(_) => match self.widget_system.center(key) {
                 Ok(center) => format!(
                     "{name}\nDistance to centre: {}",
-                    format_distance(center.get_distance_to(click_point))
+                    self.widget_system
+                        .distance_units()
+                        .distance_text(center.get_distance_to(click_point))
                 ),
                 Err(_) => name.to_string(),
             },
@@ -278,7 +292,9 @@ impl RegionApplication {
             {
                 Ok(location) => format!(
                     "{name}\nDistance from start: {}",
-                    format_distance(location.distance_from_start_meter)
+                    self.widget_system
+                        .distance_units()
+                        .distance_text(location.distance_from_start_meter)
                 ),
                 Err(PathError::KeyNotContained | PathError::TooFewPositions) => name.to_string(),
             },
@@ -339,7 +355,17 @@ impl RegionApplication {
             .style(text::primary)
             .width(Fill)
             .align_x(Alignment::Center);
-        let head_container = container(head_line).padding(20);
+        let units = match self.widget_system.distance_units() {
+            DistanceUnits::Metric => "Imperial units",
+            DistanceUnits::Imperial => "Metric units",
+        };
+        let head_container = column![
+            head_line,
+            button(text(units)).on_press(Message::ToggleUnits)
+        ]
+        .align_x(Alignment::Center)
+        .spacing(10)
+        .padding(20);
 
         let list = self
             .entries
@@ -398,15 +424,6 @@ fn read_track(data: &[u8]) -> (String, Vec<LatitudeLongitude>) {
     (track.name.unwrap_or_else(|| "Track".to_string()), positions)
 }
 
-/// A distance in metres as text, in kilometres from one kilometre on.
-fn format_distance(meter: f64) -> String {
-    if meter < 1_000.0 {
-        format!("{meter:.0} m")
-    } else {
-        format!("{:.2} km", meter / 1_000.0)
-    }
-}
-
 pub fn main() -> iced::Result {
     iced::application(
         RegionApplication::boot,
@@ -416,8 +433,8 @@ pub fn main() -> iced::Result {
     .theme(Theme::TokyoNight)
     .centered()
     .window_size(Size {
-        width: 512.0 * 3.0,
-        height: 512.0,
+        width: 666.0 * 3.0,
+        height: 666.0,
     })
     .run()
 }

@@ -6,6 +6,7 @@ use crate::annotation_system::annotation_support::{AnnotationError, AnnotationKe
 use crate::annotation_system::path_system::PathSystem;
 use crate::annotation_system::region_system::RegionSystem;
 use crate::annotation_system::waypoint_system::WaypointSystem;
+use crate::gui_system::distance_units::DistanceUnits;
 use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
@@ -92,6 +93,7 @@ pub struct MapWidgetSystem {
     tile_cache: TileCache,
     widget_collection: Vec<MapWidget>,
     annotation_system: AnnotationSystem,
+    distance_units: DistanceUnits,
 }
 
 impl MapWidgetSystem {
@@ -115,9 +117,26 @@ impl MapWidgetSystem {
                 tile_cache,
                 widget_collection: Vec::new(),
                 annotation_system: Default::default(),
+                distance_units: Default::default(),
             },
             task,
         )
+    }
+
+    /// The unit system the scale bars show, [`DistanceUnits::Metric`] unless set
+    /// otherwise. Also meant for the application's own distance texts, e.g. with
+    /// [`DistanceUnits::distance_text`] in an annotation description.
+    pub fn distance_units(&self) -> DistanceUnits {
+        self.distance_units
+    }
+
+    /// Switches the scale bars of all widgets, present and future, to `distance_units`.
+    /// Descriptions are the application's texts and stay as they are.
+    pub fn set_distance_units(&mut self, distance_units: DistanceUnits) {
+        self.distance_units = distance_units;
+        for widget in &mut self.widget_collection {
+            widget.set_distance_units(distance_units);
+        }
     }
 
     /// Requires a reset for all widgets, because some annotation information may have changed,
@@ -340,6 +359,7 @@ impl MapWidgetSystem {
                 position: LatitudeLongitude::new(49.75, 6.63),
                 continuous_zoom_level: 12.0,
             },
+            self.distance_units,
         ));
         id
     }

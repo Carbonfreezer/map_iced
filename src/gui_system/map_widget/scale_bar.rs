@@ -3,6 +3,7 @@
 //! the centre latitude the bar is only approximately right, and at low zoom levels,
 //! where the view spans many degrees of latitude, not even that.
 
+use crate::gui_system::distance_units::{DistanceUnits, METRES_PER_FOOT, METRES_PER_MILE};
 use crate::gui_system::internal_math::TILE_SIZE_PIXEL;
 use crate::gui_system::latitude_longitude::EARTH_CIRCUMFERENCE;
 use crate::gui_system::map_widget::map_widget_components::{FONT_SIZE, TEXT_COLOR};
@@ -46,28 +47,35 @@ pub(crate) fn metres_per_pixel(latitude: f64, zoom: f32) -> f64 {
 
 /// The bar for a view centred at `latitude` with the continuous `zoom` level: the
 /// longest distance of the form 1, 2 or 5 times a power of ten that fits into
-/// [`MAXIMUM_LENGTH`] pixels.
-pub(crate) fn scale_bar(latitude: f64, zoom: f32) -> Option<ScaleBar> {
+/// [`MAXIMUM_LENGTH`] pixels. The round number is taken in the unit shown, so an
+/// imperial bar reads e.g. "2000 ft" or "1 mi" rather than a converted "1.24 mi":
+/// metres turning kilometres at 1000 m, feet turning miles where a mile fits.
+pub(crate) fn scale_bar(latitude: f64, zoom: f32, units: DistanceUnits) -> Option<ScaleBar> {
     let per_pixel = metres_per_pixel(latitude, zoom);
     if per_pixel <= 0.0 {
         return None;
     }
     let maximum = per_pixel * MAXIMUM_LENGTH as f64;
+    let (unit_metres, unit_name) = match units {
+        DistanceUnits::Metric if maximum >= 1000.0 => (1000.0, "km"),
+        DistanceUnits::Metric => (1.0, "m"),
+        DistanceUnits::Imperial if maximum >= METRES_PER_MILE => (METRES_PER_MILE, "mi"),
+        DistanceUnits::Imperial => (METRES_PER_FOOT, "ft"),
+    };
+    let distance = round_distance(maximum / unit_metres)?;
+    Some(ScaleBar {
+        length: (distance * unit_metres / per_pixel) as f32,
+        label: format!("{distance} {unit_name}"),
+    })
+}
+
+/// The largest number of the form 1, 2 or 5 times a power of ten up to `maximum`.
+fn round_distance(maximum: f64) -> Option<f64> {
     let magnitude = f64::powi(10.0, maximum.log10().floor() as i32);
-    let distance = [5.0, 2.0, 1.0]
+    [5.0, 2.0, 1.0]
         .into_iter()
         .map(|factor| factor * magnitude)
-        .find(|&distance| distance <= maximum)?;
-
-    let label = if distance >= 1000.0 {
-        format!("{} km", distance / 1000.0)
-    } else {
-        format!("{distance} m")
-    };
-    Some(ScaleBar {
-        length: (distance / per_pixel) as f32,
-        label,
-    })
+        .find(|&distance| distance <= maximum)
 }
 
 /// Draws the bar into the lower left corner of a frame of `size`.
@@ -128,13 +136,26 @@ mod tests {
     #[test]
     fn bar_picks_a_round_distance_that_fits() {
         // Trier at zoom 12: about 24.6 m per pixel, so 120 px are about 2950 m.
-        let bar = scale_bar(49.75, 12.0).unwrap();
+        let bar = scale_bar(49.75, 12.0, DistanceUnits::Metric).unwrap();
         assert_eq!(bar.label, "2 km");
         assert!(bar.length > 60.0 && bar.length <= MAXIMUM_LENGTH);
 
         // Close in, the bar switches to metres.
-        let bar = scale_bar(49.75, 19.0).unwrap();
+        let bar = scale_bar(49.75, 19.0, DistanceUnits::Metric).unwrap();
         assert_eq!(bar.label, "20 m");
         assert!(bar.length <= MAXIMUM_LENGTH);
+    }
+
+    #[test]
+    fn imperial_bar_rounds_in_feet_and_miles() {
+        // About 2950 m, 1.83 mi: a whole mile, not a converted 2 km.
+        let bar = scale_bar(49.75, 12.0, DistanceUnits::Imperial).unwrap();
+        assert_eq!(bar.label, "1 mi");
+        assert!(bar.length > 60.0 && bar.length <= MAXIMUM_LENGTH);
+
+        // About 1475 m, short of a mile, so in feet: 4840 ft round down to 2000 ft.
+        let bar = scale_bar(49.75, 13.0, DistanceUnits::Imperial).unwrap();
+        assert_eq!(bar.label, "2000 ft");
+        assert!(bar.length > 40.0 && bar.length <= MAXIMUM_LENGTH);
     }
 }

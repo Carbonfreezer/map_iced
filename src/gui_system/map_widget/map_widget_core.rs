@@ -3,6 +3,7 @@
 use crate::annotation_system::annotation_support::{
     Annotation, AnnotationKey, ClosestPoint, LabelPosition, RenderingInformation,
 };
+use crate::gui_system::distance_units::DistanceUnits;
 use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::TilesToDraw;
 use crate::gui_system::internal_math::{
@@ -55,6 +56,8 @@ pub(crate) struct MapWidget {
     pub(crate) position_converter: Option<DrawingPositionConverter>,
     /// The copyright text we need for drawing.
     copyright_text: String,
+    /// The unit system of the scale bar.
+    distance_units: DistanceUnits,
     /// All the elements that gets rendered as overlay.
     annotation_info: HashmapStable,
     /// The direction arrows of the current view, see [`Self::place_arrows`].
@@ -78,7 +81,12 @@ pub(crate) const STANDARD_RECTANGLE: Rectangle = Rectangle {
 
 impl MapWidget {
     /// Creates a new widget from the client id.
-    pub fn new(client_id: u32, copyright_text: String, focal_point: FocalPoint) -> Self {
+    pub fn new(
+        client_id: u32,
+        copyright_text: String,
+        focal_point: FocalPoint,
+        distance_units: DistanceUnits,
+    ) -> Self {
         Self {
             tile_drawing_cache: Default::default(),
             overlay_cache: Default::default(),
@@ -90,12 +98,19 @@ impl MapWidget {
             position_converter: None,
             focal_point,
             copyright_text,
+            distance_units,
             annotation_info: Default::default(),
             arrows: vec![],
             request_focal_reset: true,
             animation: None,
             animation_generation: 0,
         }
+    }
+
+    /// Switches the unit system of the scale bar.
+    pub(crate) fn set_distance_units(&mut self, distance_units: DistanceUnits) {
+        self.distance_units = distance_units;
+        self.scale_cache.clear();
     }
 
     /// Asks for the drawing position converter if existing.
@@ -513,6 +528,7 @@ impl MapWidget {
             if let Some(bar) = scale_bar(
                 self.focal_point.position.latitude,
                 self.focal_point.continuous_zoom_level,
+                self.distance_units,
             ) {
                 draw_scale_bar(frame, bounds.size(), &bar);
             }
