@@ -6,6 +6,15 @@ use bytes::Bytes;
 /// The dummy test image we use for test purposes.
 const TEST_IMAGE: &[u8] = include_bytes!("../../assets/Test.png");
 
+/// Why a [`Requester`] could not be set up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequesterError {
+    /// The user agent, given here, is no valid HTTP header value.
+    InvalidUserAgent(String),
+    /// reqwest could not set up its client, typically the TLS backend; its message.
+    HttpClient(String),
+}
+
 /// A requester struct that does the web requests, defaults to the dummy data
 /// if no client is set.
 pub struct Requester {
@@ -19,19 +28,21 @@ impl Requester {
     /// standard tile specification and the post part is what should get postpended. This
     /// is for instance the user id in mat box. The user agent is the agent, that is required for
     /// OSM Example: `MyCoolMappingApp/1.0 (contact@example.com)`
-    pub fn new(intro_url: &str, post_url: &str, user_agent: &str) -> Result<Self, String> {
+    pub fn new(
+        intro_url: &str,
+        post_url: &str,
+        user_agent: &str,
+    ) -> Result<Self, RequesterError> {
+        let user_agent_value = reqwest::header::HeaderValue::from_str(user_agent)
+            .map_err(|_| RequesterError::InvalidUserAgent(user_agent.to_string()))?;
         let client = reqwest::Client::builder()
             .default_headers(
-                [(
-                    reqwest::header::USER_AGENT,
-                    reqwest::header::HeaderValue::from_str(user_agent)
-                        .map_err(|e| e.to_string())?,
-                )]
-                .into_iter()
-                .collect(),
+                [(reqwest::header::USER_AGENT, user_agent_value)]
+                    .into_iter()
+                    .collect(),
             )
             .build()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| RequesterError::HttpClient(e.to_string()))?;
 
         Ok(Self {
             client: Some(client),

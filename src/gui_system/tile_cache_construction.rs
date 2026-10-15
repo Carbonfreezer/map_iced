@@ -2,6 +2,7 @@
 
 use crate::gui_system::high_level_tile_cache::TileCache;
 use crate::tile_cache::cache_core::{generate_cache, generate_dummy_cache};
+use crate::tile_cache::web_requester::RequesterError;
 use dirs::cache_dir;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -14,9 +15,12 @@ pub enum TileCacheError {
     InvalidJson(String),
     /// The configuration refers to the OS cache directory, but the system has none.
     NoCacheDirectory,
-    /// The tile cache itself could not be set up, e.g. because the user agent is no
-    /// valid HTTP header value.
-    CacheCreation(String),
+    /// The user agent, given here, is no valid HTTP header value, e.g. because it
+    /// contains a line break.
+    InvalidUserAgent(String),
+    /// The HTTP client could not be set up, typically its TLS backend. Holds the
+    /// message of reqwest.
+    HttpClient(String),
 }
 
 impl fmt::Display for TileCacheError {
@@ -28,8 +32,11 @@ impl fmt::Display for TileCacheError {
             TileCacheError::NoCacheDirectory => {
                 write!(f, "the system has no cache directory")
             }
-            TileCacheError::CacheCreation(message) => {
-                write!(f, "the tile cache could not be created: {message}")
+            TileCacheError::InvalidUserAgent(user_agent) => {
+                write!(f, "the user agent {user_agent:?} is no valid HTTP header value")
+            }
+            TileCacheError::HttpClient(message) => {
+                write!(f, "the HTTP client could not be set up: {message}")
             }
         }
     }
@@ -243,9 +250,43 @@ impl TileCacheConfig {
                 path,
                 self.cache_size,
             )
-            .map_err(TileCacheError::CacheCreation)?,
+            .map_err(|e| match e {
+                RequesterError::InvalidUserAgent(user_agent) => {
+                    TileCacheError::InvalidUserAgent(user_agent)
+                }
+                RequesterError::HttpClient(message) => TileCacheError::HttpClient(message),
+            })?,
             None => generate_dummy_cache(path, self.cache_size),
         };
-        TileCache::new(system).map_err(TileCacheError::CacheCreation)
+        Ok(TileCache::new(system))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn line_break_in_user_agent_is_reported() {
+        let config = TileCacheConfig::new(
+            TileSource::OpenStreetMap {
+                user_agent: "MyApp\n(contact@example.com)".to_string(),
+            },
+            CachingDirectory::FullyConstructed("cache/never_created".into()),
+            1000,
+        );
+        assert!(matches!(
+            config.build(),
+            Err(TileCacheError::InvalidUserAgent(_))
+        ));
+    }
+
+    #[test]
+    fn test_pattern_from_json() {
+        let config = TileCacheConfig::from_json_str(
+            r#"{ "cache": "CacheDirFixed", "cache_size": 1000, "source": "TestPattern" }"#,
+        )
+        .unwrap();
+        assert!(config.source.get_quadruple().is_none());
     }
 }

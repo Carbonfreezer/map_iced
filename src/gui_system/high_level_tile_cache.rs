@@ -56,10 +56,10 @@ pub struct TileCache {
 
 impl TileCache {
     /// Creates a tile cache from the low level system handed over.
-    pub fn new(requestor: CachingSystem) -> Result<Self, String> {
+    pub fn new(requestor: CachingSystem) -> Self {
         // Kick off the initialization process.
-        requestor.initialize()?;
-        Ok(Self {
+        requestor.initialize();
+        Self {
             core: requestor,
             pending_requests: Vec::new(),
             content_tiles: FxHashMap::default(),
@@ -69,7 +69,7 @@ impl TileCache {
             tile_error_msg: "".to_string(),
             client_notifications: FxHashSet::default(),
             tiles_in_flight: FxHashSet::default(),
-        })
+        }
     }
 
     /// Extracts the receiver out of the class. Can only be done one time.
@@ -307,7 +307,7 @@ mod tests {
             },
         ]);
         let low_level = generate_dummy_cache(tempfile::tempdir().unwrap(), 100_000);
-        let mut high_level = TileCache::new(low_level).unwrap();
+        let mut high_level = TileCache::new(low_level);
         let mut receiver = high_level.get_receiver().unwrap();
 
         // Register, drop and register again before the answers arrive.

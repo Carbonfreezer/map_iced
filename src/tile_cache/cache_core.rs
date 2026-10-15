@@ -7,7 +7,7 @@
 use crate::tile_cache::file_util::{FileUtil, round_to_final_consumption};
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
-use crate::tile_cache::web_requester::Requester;
+use crate::tile_cache::web_requester::{Requester, RequesterError};
 use bytes::Bytes;
 use std::fmt::Debug;
 use std::path::Path;
@@ -245,23 +245,21 @@ impl CachingSystem {
             .await;
     }
 
-    /// Initializes the system. Starts an internal tokio task for the work.
-    pub fn initialize(&self) -> Result<(), String> {
-        if self
-            .cloneable_entry
-            .initialization_completed
-            .load(Ordering::Relaxed)
-        {
-            return Err(String::from(
-                "CachingSystem::initialize already initialized",
-            ));
-        }
+    /// Initializes the system. Starts an internal tokio task for the work. Called
+    /// once, right after construction.
+    pub fn initialize(&self) {
+        debug_assert!(
+            !self
+                .cloneable_entry
+                .initialization_completed
+                .load(Ordering::Relaxed),
+            "CachingSystem::initialize called twice"
+        );
         tokio::spawn(Self::process_initialize(
             self.cloneable_entry.clone(),
             self.stream_sender.clone(),
             self.savings_counter.clone(),
         ));
-        Ok(())
     }
 
     /// Poses a request for a tile. Starts an internal tokio task for the work.
@@ -450,7 +448,7 @@ pub fn generate_cache(
     copyright_text: String,
     cache_base_dir: impl AsRef<Path>,
     maximum_amount_of_data: u64,
-) -> Result<CachingSystem, String> {
+) -> Result<CachingSystem, RequesterError> {
     Ok(CachingSystem::new(
         Requester::new(intro_url, post_url, user_agent)?,
         cache_base_dir,
@@ -470,7 +468,7 @@ mod tests {
     async fn first_setup() {
         let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 10_000);
         // let cache = generate_dummy_cache("transient", 20_000);
-        cache.initialize().expect("Already initialized.");
+        cache.initialize();
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
@@ -481,7 +479,7 @@ mod tests {
     async fn first_fill() {
         let mut cache = generate_dummy_cache(tempfile::tempdir().unwrap(), 20_000);
         // let cache = generate_dummy_cache("transient", 20_000);
-        cache.initialize().expect("Already initialized.");
+        cache.initialize();
         let mut receiver = cache.get_receiver().unwrap();
         let message = receiver.recv().await.unwrap();
         assert_eq!(message, CachingResultMessage::InitializationCompleted);
