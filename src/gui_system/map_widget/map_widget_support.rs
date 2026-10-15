@@ -3,7 +3,9 @@
 
 use crate::annotation_system::annotation_support::AnnotationKey;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget::map_widget_components::MapInteractionCommand;
+use crate::gui_system::map_widget::map_widget_components::{
+    MapInteractionCommand, SpecificInteractionCommand,
+};
 use iced::advanced::graphics::geometry::Frame;
 use iced::widget::Action;
 use iced::widget::canvas::Text;
@@ -60,6 +62,17 @@ pub(crate) struct HoverTarget {
     pub(crate) anchor: LatitudeLongitude,
 }
 
+/// The result of a hit test under the cursor: the [`HoverTarget`] together with the
+/// cursor position it was found at. The cursor position is kept out of the target,
+/// otherwise every move would count as a new target and restart the dwell timer.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct HoverHit {
+    /// What the cursor points at.
+    pub(crate) target: HoverTarget,
+    /// Where the cursor is, handed to the application with the announcement.
+    pub(crate) cursor: LatitudeLongitude,
+}
+
 /// A [`HoverTarget`] together with the moment its description is due.
 #[derive(Debug, Clone, Copy)]
 struct Hover {
@@ -79,7 +92,7 @@ pub(crate) struct AnnotationInteractionState {
 }
 
 impl AnnotationInteractionState {
-    /// Points the hover at `target`.
+    /// Points the hover at the target of `hit`.
     ///
     /// The dwell timer only restarts when the target actually changes, so the jitter
     /// of a cursor resting inside a way point symbol does not keep pushing the
@@ -87,13 +100,14 @@ impl AnnotationInteractionState {
     /// with every move, so it hides while the cursor moves and shows up again where
     /// the cursor comes to rest.
     ///
-    /// A new target gets announced with the command `announce` builds for it, so the
-    /// application can adapt the description during the dwell time.
+    /// A new target gets announced to the client `client_id`, so the application can
+    /// adapt the description during the dwell time.
     pub(crate) fn aim(
         &mut self,
-        target: Option<HoverTarget>,
-        announce: impl FnOnce(&HoverTarget) -> Option<MapInteractionCommand>,
+        hit: Option<HoverHit>,
+        client_id: u32,
     ) -> Option<Action<MapInteractionCommand>> {
+        let target = hit.map(|hit| hit.target);
         if self.hovered.map(|hover| hover.target) == target {
             return None;
         }
@@ -104,23 +118,22 @@ impl AnnotationInteractionState {
             visible_at: Instant::now() + HOVER_DELAY,
         });
 
-        // An action either publishes or asks for a frame, not both. Publishing is
-        // enough: iced redraws after the message, which takes a visible description
-        // away, and that frame reaches settle, which asks for the frame at visible_at.
-        if let Some(hover) = self.hovered
-            && let Some(command) = announce(&hover.target)
-        {
-            return Some(Action::publish(command));
-        }
-
-        match self.hovered {
-            // Ask to be woken up when the dwell time is over, and drop a description
-            // that is on screen right now.
-            Some(_) if was_visible => Some(Action::request_redraw()),
-            Some(hover) => Some(Action::request_redraw_at(hover.visible_at)),
+        match hit {
+            // An action either publishes or asks for a frame, not both. Publishing is
+            // enough: iced redraws after the message, which takes a visible
+            // description away, and that frame reaches settle, which asks for the
+            // frame at visible_at. Sequence is here: We store the timer, publish AnnotationHovered
+            // publishing any message evokes in the iced system a redraw event (see doc Action::publish),
+            // that invokes settle, that requests a redraw at some point in the future.
+            Some(hit) => Some(Action::publish(MapInteractionCommand {
+                client_id,
+                command: SpecificInteractionCommand::AnnotationHovered(
+                    hit.target.key,
+                    hit.cursor,
+                ),
+            })),
             // Nothing to wait for, but a description that is on screen has to go.
-            None if was_visible => Some(Action::request_redraw()),
-            None => None,
+            None => was_visible.then(Action::request_redraw),
         }
     }
 

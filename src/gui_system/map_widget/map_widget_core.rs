@@ -18,7 +18,7 @@ use crate::gui_system::map_widget::map_widget_components::{
     TEXT_COLOR,
 };
 use crate::gui_system::map_widget::map_widget_support::{
-    AnnotationInteractionState, HoverTarget, fill_text_with_halo,
+    AnnotationInteractionState, HoverHit, HoverTarget, fill_text_with_halo,
 };
 use crate::gui_system::map_widget::scale_bar::{draw_scale_bar, scale_bar};
 use iced::advanced::graphics::geometry::Frame;
@@ -348,8 +348,9 @@ impl MapWidget {
     }
 
     /// The hover target at `position` in widget coordinates: the annotation under it,
-    /// with the anchor of its description resolved for this cursor position.
-    pub(crate) fn hover_target_at(&self, position: Point) -> Option<HoverTarget> {
+    /// with the anchor of its description resolved for this cursor position, together
+    /// with the cursor position in latitude, longitude.
+    pub(crate) fn hover_target_at(&self, position: Point) -> Option<HoverHit> {
         let key = self.annotation_at(position)?;
         let annotation = self.annotation_info.get(&key)?;
         let converter = self.position_converter.as_ref()?;
@@ -358,7 +359,10 @@ impl MapWidget {
             LabelPosition::AtMousePosition => cursor_pos,
             LabelPosition::FixGeoLocation(position) => position,
         };
-        Some(HoverTarget { key, anchor })
+        Some(HoverHit {
+            target: HoverTarget { key, anchor },
+            cursor: cursor_pos,
+        })
     }
 
     /// The annotation symbols. Cached, because they only change with the annotation

@@ -321,23 +321,11 @@ impl canvas::Program<MapInteractionCommand> for AnnotationOverlay<'_> {
                 let position = cursor.position_in(bounds);
                 state.aim(
                     position.and_then(|position| self.widget.hover_target_at(position)),
-                    |target| {
-                        let hover_point = self
-                            .widget
-                            .position_converter()?
-                            .get_latitude_longitude_for_pixel_point(position?);
-                        Some(MapInteractionCommand {
-                            client_id: self.widget.client_id,
-                            command: SpecificInteractionCommand::AnnotationHovered(
-                                target.key,
-                                hover_point,
-                            ),
-                        })
-                    },
+                    self.widget.client_id,
                 )
             }
 
-            Event::Mouse(mouse::Event::CursorLeft) => state.aim(None, |_| None),
+            Event::Mouse(mouse::Event::CursorLeft) => state.aim(None, self.widget.client_id),
 
             Event::Window(window::Event::RedrawRequested(now)) => state.settle(*now),
 
