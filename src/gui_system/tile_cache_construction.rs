@@ -1,5 +1,53 @@
 //! The configuration of the tile cache: where the tiles come from and where they are kept
 //! on disc. [`MapWidgetSystem::boot`](super::map_widget_system::MapWidgetSystem::boot) takes it.
+//!
+//! A [`TileCacheConfig`] is either built in code, with [`TileCacheConfig::new`] or one of
+//! its shortcuts, or read from JSON with [`TileCacheConfig::from_json_str`]. JSON is
+//! the way to go when the tile provider needs an API key: the key stays in a file next
+//! to the application instead of in the source code.
+//!
+//! # The JSON file
+//!
+//! The file is one object with three entries, all of them required:
+//!
+//! | Entry        | Meaning                                                   | See                  |
+//! |--------------|-----------------------------------------------------------|----------------------|
+//! | `cache`      | The directory the tiles are stored in.                    | [`CachingDirectory`] |
+//! | `cache_size` | The disc space for the tiles in bytes, e.g. `100000000` for 100 MB. When it is used up, the least recently used tiles are deleted. | |
+//! | `source`     | The tile provider and its access data.                    | [`TileSource`]       |
+//!
+//! `cache` and `source` name a variant of their enum. A variant without data is
+//! just its name as a string, a variant with data is an object with the variant name
+//! as its only key:
+//!
+//! ```
+//! # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+//! # TileCacheConfig::from_json_str(r#"
+//! {
+//!   "cache": "CacheDirFixed",
+//!   "cache_size": 100000000,
+//!   "source": { "Thunderforest": { "style": "cycle", "api_key": "your-api-key" } }
+//! }
+//! # "#).unwrap();
+//! ```
+//!
+//! Each variant of [`CachingDirectory`] and [`TileSource`] shows its JSON form. A
+//! file with an API key does not belong into version control; this repository ignores
+//! `*.json` for that reason.
+//!
+//! # Loading the file
+//!
+//! Either read it at run time, so the key can change without a rebuild, or compile it
+//! in with `include_str!`, as the examples of this crate do:
+//!
+//! ```no_run
+//! use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+//! use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+//!
+//! let json = std::fs::read_to_string("tiles.json").expect("tiles.json readable");
+//! let config = TileCacheConfig::from_json_str(&json).expect("tiles.json valid");
+//! let (system, task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+//! ```
 
 use crate::gui_system::high_level_tile_cache::TileCache;
 use crate::tile_cache::cache_core::{generate_cache, generate_dummy_cache};
@@ -45,14 +93,39 @@ impl fmt::Display for TileCacheError {
 
 impl std::error::Error for TileCacheError {}
 
-/// The different types of caching directories we offer.
+/// The directory the tiles are stored in. It is created if it does not exist. Different
+/// tile sources need different directories, otherwise their tiles mix.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum CachingDirectory {
-    /// Completely manually constructed.
+    /// The path as given. A relative path is relative to the working directory of the
+    /// application.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache_size": 1, "source": "TestPattern",
+    /// "cache": { "FullyConstructed": "cache/osm" }
+    /// # }"#).unwrap();
+    /// ```
     FullyConstructed(PathBuf),
-    /// Relative to the OSes caching dir see here [`cache_dir()`](https://docs.rs/dirs/7.0.0/dirs/fn.cache_dir.html).
+    /// A subfolder of the cache directory of the operating system, see
+    /// [`cache_dir()`](https://docs.rs/dirs/7.0.0/dirs/fn.cache_dir.html), e.g.
+    /// `C:\Users\<name>\AppData\Local\OpenStreetMap` on Windows.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache_size": 1, "source": "TestPattern",
+    /// "cache": { "CacheDirectory": "OpenStreetMap" }
+    /// # }"#).unwrap();
+    /// ```
     CacheDirectory(PathBuf),
-    /// Fixed to the OSes cache dir (**Tiles**)
+    /// The subfolder `Tiles` of the cache directory of the operating system.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache_size": 1, "source": "TestPattern",
+    /// "cache": "CacheDirFixed"
+    /// # }"#).unwrap();
+    /// ```
     CacheDirFixed,
 }
 
@@ -70,42 +143,114 @@ impl CachingDirectory {
     }
 }
 
-/// The tile source where we obtain our pngs from.
-/// They all follow the [slippy map convention](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames).
+/// The provider the PNG tiles are downloaded from. All of them follow the
+/// [slippy map convention](https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames):
+/// a tile is requested as `<start>{z}/{x}/{y}.png<end>`. Each variant names the URL
+/// it builds and the copyright text the map shows.
+///
+/// The providers with an `api_key` send the user agent `map-iced/<version>`.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum TileSource {
-    /// The most flexible form where the beginning, ending and the user agent are given.
+    /// Any provider that follows the convention: the tiles come from
+    /// `<start_url>{z}/{x}/{y}.png<end_url>`, with `user_agent` as the HTTP user agent
+    /// and `copyright_text` shown on the map.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache": "CacheDirFixed", "cache_size": 1, "source":
+    /// {
+    ///   "FullyConstructed": {
+    ///     "start_url": "https://tiles.example.com/",
+    ///     "end_url": "?key=your-api-key",
+    ///     "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)",
+    ///     "copyright_text": "© Example Maps"
+    ///   }
+    /// }
+    /// # }"#).unwrap();
+    /// ```
     FullyConstructed {
         start_url: String,
         end_url: String,
         user_agent: String,
         copyright_text: String,
     },
-    /// The open street map  [access](https://operations.osmfoundation.org/policies/tiles/)
+    /// [OpenStreetMap](https://www.openstreetmap.org), from
+    /// `https://tile.openstreetmap.org/{z}/{x}/{y}.png`. Free, but its
+    /// [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) asks for
+    /// a `user_agent` that names the application and a contact, e.g.
+    /// `MyCoolMappingApp/1.0 (contact@example.com)`.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache": "CacheDirFixed", "cache_size": 1, "source":
+    /// { "OpenStreetMap": { "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)" } }
+    /// # }"#).unwrap();
+    /// ```
     OpenStreetMap { user_agent: String },
-    /// The map [tiles api](https://www.maptilesapi.com).
+    /// [Map Tiles API](https://www.maptilesapi.com), from
+    /// `https://maptiles.p.rapidapi.com/en/map/v1/{z}/{x}/{y}.png?rapidapi-key=<api_key>`.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache": "CacheDirFixed", "cache_size": 1, "source":
+    /// { "MapTilesApi": { "api_key": "your-rapidapi-key" } }
+    /// # }"#).unwrap();
+    /// ```
     MapTilesApi { api_key: String },
-    /// The [mapbox](https://www.mapbox.com/)) api. Here you can specify a tile set id.
+    /// A [Mapbox](https://www.mapbox.com) tileset, from
+    /// `https://api.mapbox.com/v4/<tileset_id>/{z}/{x}/{y}.png?access_token=<api_key>`.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache": "CacheDirFixed", "cache_size": 1, "source":
+    /// { "MapBoxTiles": { "tileset_id": "mapbox.satellite", "api_key": "your-access-token" } }
+    /// # }"#).unwrap();
+    /// ```
     MapBoxTiles { tileset_id: String, api_key: String },
-    /// The [mapbox](https://www.mapbox.com/)) api. This defaults to the standard sattelite.
+    /// The [Mapbox](https://www.mapbox.com) satellite imagery, the same as
+    /// [`TileSource::MapBoxTiles`] with the tileset `mapbox.satellite`.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache": "CacheDirFixed", "cache_size": 1, "source":
+    /// { "MapBoxSatellite": { "api_key": "your-access-token" } }
+    /// # }"#).unwrap();
+    /// ```
     MapBoxSatellite { api_key: String },
-    /// Thunderforst [maps](https://www.thunderforest.com/docs/map-tiles-api).
+    /// A [Thunderforest](https://www.thunderforest.com/docs/map-tiles-api) map style
+    /// such as `cycle` or `transport`, from
+    /// `https://api.thunderforest.com/<style>/{z}/{x}/{y}.png?apikey=<api_key>`.
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache": "CacheDirFixed", "cache_size": 1, "source":
+    /// { "Thunderforest": { "style": "cycle", "api_key": "your-api-key" } }
+    /// # }"#).unwrap();
+    /// ```
     Thunderforest { style: String, api_key: String },
     /// No map at all: the built-in test image `assets/Test.png` for every position
     /// and zoom level, without any network access. For tests only, see
     /// [`TileCacheConfig::test_pattern`].
+    ///
+    /// ```
+    /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// # TileCacheConfig::from_json_str(r#"{ "cache": "CacheDirFixed", "cache_size": 1,
+    /// "source": "TestPattern"
+    /// # }"#).unwrap();
+    /// ```
     TestPattern,
 }
 
-/// The combined information for serialization. It contains the real
-/// caching inforation and the access to the tile provider.
+/// Where the tiles come from and where they are kept on disc, built in code or read
+/// from JSON, see the [module documentation](self) for the JSON file.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TileCacheConfig {
-    /// The info where the caching directory resides.
+    /// The directory the tiles are stored in.
     cache: CachingDirectory,
-    /// The size of the cache we use.
+    /// The disc space for the tiles in bytes. When it is used up, the least recently
+    /// used tiles are deleted.
     cache_size: u64,
-    /// The source of the information where to get tiles from.
+    /// The tile provider.
     source: TileSource,
 }
 
@@ -236,30 +381,28 @@ impl TileCacheConfig {
         )
     }
 
-    /// Generates the tile cache config from a string, that can either be loaded from from
-    /// a file or generated with include_str!
-    ///
-    /// On the highest level the json file consists of three entries.
-    /// * cache: Here we refer to the file cache construction which gets serialized from [`CachingDirectory`]
-    /// * cache_size: The amount of bytes we allow for the cache size on disc
-    /// * source: The source of the tiles as explained in [`TileSource`]
+    /// Reads the configuration from JSON text, read from a file or compiled in with
+    /// `include_str!`. The [module documentation](self) explains the format. Fails with
+    /// [`TileCacheError::InvalidJson`], which names line and column, if the text is no
+    /// valid JSON or does not have the expected shape. Nothing is created on disc or
+    /// requested from the network yet, that happens in
+    /// [`MapWidgetSystem::boot`](super::map_widget_system::MapWidgetSystem::boot).
     ///
     /// # Example
-    /// ```text
-    ///  {
-    ///   "cache": {
-    ///     "FullyConstructed": "cache/osm"
-    ///   },
-    ///   "cache_size" : 100000000,
-    ///   "source": {
-    ///     "OpenStreetMap": {
-    ///       "user_agent": "My Test Test mymail@gmail.com"
-    ///     }
-    ///   }
-    /// }
     /// ```
-    /// This generates the folder cache/osm in the working directory, allows
-    /// for 100 MB of disc space and uses OSM for tile queries.
+    /// use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
+    /// // OpenStreetMap tiles in the folder cache/osm of the working directory, 100 MB.
+    /// let config = TileCacheConfig::from_json_str(r#"
+    ///     {
+    ///       "cache": { "FullyConstructed": "cache/osm" },
+    ///       "cache_size": 100000000,
+    ///       "source": {
+    ///         "OpenStreetMap": { "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)" }
+    ///       }
+    ///     }
+    /// "#);
+    /// assert!(config.is_ok());
+    /// ```
     pub fn from_json_str(s: &str) -> Result<Self, TileCacheError> {
         serde_json::from_str(s).map_err(|e| TileCacheError::InvalidJson(e.to_string()))
     }

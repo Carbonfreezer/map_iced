@@ -5,8 +5,7 @@
   "cache_size" : 100000000,
   "source": {
     "OpenStreetMap": {
-      "user_agent": "Testprogram xxx@yyy-com",
-    
+      "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)"
     }
   }
 }
