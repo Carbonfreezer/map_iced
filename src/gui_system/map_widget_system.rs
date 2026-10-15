@@ -10,7 +10,7 @@ use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::{
-    AnnotationOverlay, SpecificInteractionCommand, FocalPoint
+    AnnotationOverlay, FocalPoint, SpecificInteractionCommand,
 };
 use crate::gui_system::map_widget::map_widget_core::MapWidget;
 use crate::tile_cache::cache_core::CachingResultMessage;
@@ -277,13 +277,14 @@ impl MapWidgetSystem {
                 // The widget reports what the click hit, the meaning is decided here.
                 // A way point that is gone by now must not reach the application, the
                 // snapshot in the widget can be older than the collection.
-                self.annotation_system.get_specific_element(key).map(|_| {
-                    MapEvent::AnnotationSelected {
+                self.annotation_system
+                    .get_specific_element(key)
+                    .map(|_| MapEvent::AnnotationSelected {
                         client_id,
                         key,
                         click_point,
-                    }
-                }).ok()
+                    })
+                    .ok()
             }
 
             // Same reasoning as for the click.
@@ -294,7 +295,8 @@ impl MapWidgetSystem {
                     client_id,
                     key,
                     hover_point,
-                }).ok(),
+                })
+                .ok(),
 
             // In this case we have simply clicked somewhere on the map.
             SpecificInteractionCommand::MapPointClicked(position) => {
@@ -342,7 +344,6 @@ impl MapWidgetSystem {
         id
     }
 
-
     /// The hard focus on a [`FocusTarget`]: a position keeps the zoom level, an area
     /// is fitted into the widget. A soft focus still running on that widget is
     /// cancelled.
@@ -363,7 +364,12 @@ impl MapWidgetSystem {
     /// [`Self::animate_to`]. An annotation with an extent, like a region, is fitted to
     /// cover the share `fill` of the widget's width or height, [`Self::DEFAULT_FOCUS_FILL`]
     /// if `None`; a way point becomes its position and `fill` is ignored.
-    pub fn focus_target(&self, key: AnnotationKey, fill: Option<f32>) -> Result<FocusTarget,AnnotationError> {
+    /// [`AnnotationError::KeyNotContained`] if there is no such annotation.
+    pub fn focus_target(
+        &self,
+        key: AnnotationKey,
+        fill: Option<f32>,
+    ) -> Result<FocusTarget, AnnotationError> {
         let fill = fill.unwrap_or(Self::DEFAULT_FOCUS_FILL);
         self.annotation_system
             .get_specific_element(key)
@@ -372,8 +378,8 @@ impl MapWidgetSystem {
 
     /// The point the annotation `key` stands for, the one its direction arrow points
     /// at: the position of a way point, the centre of a circle, the apex of a sector,
-    /// the centre of the bounds of a convex hull. `None` if there is no such
-    /// annotation.
+    /// the centre of the bounds of a convex hull.
+    /// [`AnnotationError::KeyNotContained`] if there is no such annotation.
     pub fn center(&self, key: AnnotationKey) -> Result<LatitudeLongitude, AnnotationError> {
         self.annotation_system
             .get_specific_element(key)

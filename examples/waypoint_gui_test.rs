@@ -12,7 +12,7 @@ use iced::widget::text::Wrapping;
 use iced::widget::{button, checkbox, column, container, row, text};
 use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::annotation_system::annotation_support::{AnnotationKey, DirectionFlag};
-use map_iced::annotation_system::waypoint_system::{WaypointSymbol, Bytes};
+use map_iced::annotation_system::waypoint_system::{Bytes, WaypointSymbol};
 use map_iced::gui_system::LatitudeLongitude;
 use map_iced::gui_system::map_widget_system::{
     FocusTarget, MapEvent, MapWidgetMessage, MapWidgetSystem,
