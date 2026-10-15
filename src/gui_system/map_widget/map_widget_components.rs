@@ -161,9 +161,14 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         }
 
         // Here we are not animating.
-        match event {
-            Event::Window(window::Event::Resized(_)) => self.publish(self.focal_point, bounds),
+        // A resize is detected by comparing the bounds, not by `window::Event::Resized`:
+        // iced delivers that event before the relayout, so it still carries the old
+        // bounds. The `RedrawRequested` following the relayout brings the new ones.
+        if self.view_size() != Some(bounds.size()) {
+            return self.publish(self.focal_point, bounds);
+        }
 
+        match event {
             Event::Mouse(mouse::Event::WheelScrolled {
                 delta: ScrollDelta::Lines { y, .. },
             }) if cursor.is_over(bounds) => {

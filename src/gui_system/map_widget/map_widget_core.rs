@@ -118,7 +118,7 @@ impl MapWidget {
     }
 
     /// The size the widget was last laid out with, `None` before the first layout.
-    fn view_size(&self) -> Option<Size> {
+    pub(crate) fn view_size(&self) -> Option<Size> {
         self.position_converter.as_ref().map(|c| c.drawing_size())
     }
 
