@@ -283,7 +283,7 @@ impl MapWidgetSystem {
                         key,
                         click_point,
                     }
-                })
+                }).ok()
             }
 
             // Same reasoning as for the click.
@@ -294,7 +294,7 @@ impl MapWidgetSystem {
                     client_id,
                     key,
                     hover_point,
-                }),
+                }).ok(),
 
             // In this case we have simply clicked somewhere on the map.
             SpecificInteractionCommand::MapPointClicked(position) => {
@@ -308,7 +308,7 @@ impl MapWidgetSystem {
                 // Same reasoning as for the way point, and a way point that lost its
                 // flag in the meantime has no arrow any more either.
                 match self.annotation_system.get_specific_element(key) {
-                    Some(annotation) if annotation.get_flag().is_some() => {
+                    Ok(annotation) if annotation.get_flag().is_some() => {
                         Some(MapEvent::ArrowClicked { client_id, key })
                     }
                     _ => None,
@@ -341,7 +341,7 @@ impl MapWidgetSystem {
         ));
         id
     }
-    
+
 
     /// The hard focus on a [`FocusTarget`]: a position keeps the zoom level, an area
     /// is fitted into the widget. A soft focus still running on that widget is
@@ -362,9 +362,8 @@ impl MapWidgetSystem {
     /// The focus target for the annotation `key`, to hand to [`Self::jump_to`] or
     /// [`Self::animate_to`]. An annotation with an extent, like a region, is fitted to
     /// cover the share `fill` of the widget's width or height, [`Self::DEFAULT_FOCUS_FILL`]
-    /// if `None`; a way point becomes its position and `fill` is ignored. `None` if there
-    /// is no such annotation.
-    pub fn focus_target(&self, key: AnnotationKey, fill: Option<f32>) -> Option<FocusTarget> {
+    /// if `None`; a way point becomes its position and `fill` is ignored.
+    pub fn focus_target(&self, key: AnnotationKey, fill: Option<f32>) -> Result<FocusTarget,AnnotationError> {
         let fill = fill.unwrap_or(Self::DEFAULT_FOCUS_FILL);
         self.annotation_system
             .get_specific_element(key)
@@ -375,7 +374,7 @@ impl MapWidgetSystem {
     /// at: the position of a way point, the centre of a circle, the apex of a sector,
     /// the centre of the bounds of a convex hull. `None` if there is no such
     /// annotation.
-    pub fn center(&self, key: AnnotationKey) -> Option<LatitudeLongitude> {
+    pub fn center(&self, key: AnnotationKey) -> Result<LatitudeLongitude, AnnotationError> {
         self.annotation_system
             .get_specific_element(key)
             .map(|annotation| annotation.get_center())

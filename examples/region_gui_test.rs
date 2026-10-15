@@ -265,11 +265,11 @@ impl RegionApplication {
             .map_or("Unknown element", |entry| &entry.name);
         match key {
             AnnotationKey::Region(_) => match self.widget_system.center(key) {
-                Some(center) => format!(
+                Ok(center) => format!(
                     "{name}\nDistance to centre: {}",
                     format_distance(center.get_distance_to(click_point))
                 ),
-                None => name.to_string(),
+                Err(_) => name.to_string(),
             },
             AnnotationKey::Path(path_key) => match self
                 .widget_system
@@ -289,7 +289,7 @@ impl RegionApplication {
     /// Moves all maps to the element `key`: the left map jumps, the right one
     /// animates.
     fn focus_all(&mut self, key: AnnotationKey) {
-        let Some(target) = self.widget_system.focus_target(key, Some(REGION_FILL)) else {
+        let Ok(target) = self.widget_system.focus_target(key, Some(REGION_FILL)) else {
             return;
         };
         self.widget_system

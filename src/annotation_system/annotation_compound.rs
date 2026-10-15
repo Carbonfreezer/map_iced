@@ -81,22 +81,26 @@ impl AnnotationSystem {
             .ok_or(AnnotationError::KeyNotContained)
     }
 
-    pub(crate) fn get_specific_element(&self, key: AnnotationKey) -> Option<&dyn Annotation> {
+    pub(crate) fn get_specific_element(&self, key: AnnotationKey) -> Result<&dyn Annotation, AnnotationError> {
         match key {
             AnnotationKey::Waypoint(key) => self
                 .waypoint_system
                 .waypoint_collection
                 .get(key)
+                .ok_or(AnnotationError::KeyNotContained)
                 .map(|value| value as &dyn Annotation),
+                // .map(|value| value as &dyn Annotation),
             AnnotationKey::Region(key) => self
                 .region_system
                 .region_collection
                 .get(key)
+                .ok_or(AnnotationError::KeyNotContained)
                 .map(|value| value as &dyn Annotation),
             AnnotationKey::Path(key) => self
                 .path_system
                 .path_collection
                 .get(key)
+                .ok_or(AnnotationError::KeyNotContained)
                 .map(|value| value as &dyn Annotation),
         }
     }
