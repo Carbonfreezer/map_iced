@@ -12,7 +12,8 @@ pub(crate) const BOUNDARY_LATITUDE: f64 = 85.05112878;
 pub(crate) const BOUNDARY_LONGITUDE: f64 = 180.0;
 
 /// The radius of the sphere Web Mercator is defined on, in metres.
-const EARTH_RADIUS: f64 = 6_378_137.0;
+/// Defined consistently with the geo package as earth mean radius.
+const EARTH_RADIUS: f64 = 6_371_008.8;
 
 /// The circumference of the earth in meters for mercator calculations..
 pub(crate) const EARTH_CIRCUMFERENCE: f64 = 2.0 * PI * EARTH_RADIUS;
