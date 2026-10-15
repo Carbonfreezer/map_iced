@@ -20,10 +20,10 @@ use map_iced::gui_system::map_widget_system::{
 use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
 
 /// The configuration data to load.
-const CONFIG_DATA: &str = include_str!("../osm.json");
+const CONFIG_DATA: &str = include_str!("assets/osm.json");
 
 /// The icon we mark every way point with.
-const ICON_DATA: &[u8] = include_bytes!("../assets/Icon.png");
+const ICON_DATA: &[u8] = include_bytes!("assets/Icon.png");
 
 /// The direction arrow of a flagged way point.
 const FLAG: DirectionFlag = DirectionFlag {

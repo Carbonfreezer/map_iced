@@ -19,7 +19,7 @@ enum Message {
 }
 
 /// The configuration data to load.
-const CONFIG_DATA: &str = include_str!("../osm.json");
+const CONFIG_DATA: &str = include_str!("assets/osm.json");
 
 impl BasicApplication {
     pub fn boot() -> (BasicApplication, Task<Message>) {

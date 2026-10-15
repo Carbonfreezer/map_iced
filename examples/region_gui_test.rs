@@ -32,16 +32,16 @@ use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
 use map_iced::gui_system::{DistanceUnits, LatitudeLongitude};
 
 /// The configuration data to load.
-const CONFIG_DATA: &str = include_str!("../osm.json");
+const CONFIG_DATA: &str = include_str!("assets/osm.json");
 
 /// The two bicycle tracks, each with the colour of its line.
 const TRACKS: [(&[u8], Color); 2] = [
     (
-        include_bytes!("../assets/Longuich.gpx"),
+        include_bytes!("assets/Longuich.gpx"),
         Color::from_rgb(0.65, 0.2, 0.9),
     ),
     (
-        include_bytes!("../assets/Ferschweiler.gpx"),
+        include_bytes!("assets/Ferschweiler.gpx"),
         Color::from_rgb(0.0, 0.65, 0.75),
     ),
 ];

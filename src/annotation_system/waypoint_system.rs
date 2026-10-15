@@ -40,7 +40,7 @@ impl WaypointSymbol {
     /// # Example
     /// ```
     /// use map_iced::annotation_system::waypoint_system::WaypointSymbol;
-    /// const ICON: &[u8] = include_bytes!("../../assets/Icon.png");
+    /// const ICON: &[u8] = include_bytes!("../../assets/Test.png");
     /// let symbol = WaypointSymbol::image(ICON);
     /// ```
     pub fn image(data: impl Into<Bytes>) -> Self {

@@ -2,6 +2,8 @@
 name = "map_iced"
 version = "0.1.0"
 edition = "2024"
+# The examples and their assets (gpx tracks, icon, map configs) stay in the repository only.
+include = ["src/**", "assets/Test.png", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
 reqwest = "0.13.4"
