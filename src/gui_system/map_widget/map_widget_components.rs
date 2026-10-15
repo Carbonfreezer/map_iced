@@ -51,12 +51,12 @@ pub struct MapInteractionCommand {
 /// Focal point info consisting of latitude, longitude and a
 /// continuous zoom level.
 #[derive(Debug, Clone, Copy)]
-pub struct FocalPoint {
-    pub position: LatitudeLongitude,
-    pub continuous_zoom_level: f32,
+pub(crate) struct FocalPoint {
+    pub(crate) position: LatitudeLongitude,
+    pub(crate) continuous_zoom_level: f32,
 }
 
-/// What a focus aims at. Turned into a [`FocalPoint`] by the widget itself, since
+/// What a focus aims at. Turned into a `FocalPoint` by the widget itself, since
 /// only the widget knows its size at that moment.
 #[derive(Debug, Clone)]
 pub enum FocusTarget {

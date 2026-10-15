@@ -19,7 +19,7 @@ const EARTH_RADIUS: f64 = 6_371_008.8;
 pub(crate) const EARTH_CIRCUMFERENCE: f64 = 2.0 * PI * EARTH_RADIUS;
 
 /// The latitude longitude pair. Both are given in degrees.
-/// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
+/// (latitude: -85 .. 85, longitude: -180 .. 180)
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LatitudeLongitude {
     /// Latitude in degrees
@@ -30,7 +30,7 @@ pub struct LatitudeLongitude {
 
 impl LatitudeLongitude {
     /// Constructs the object and makes sure, that both coordinates are in the valid range
-    /// (latitude: -BOUNDARY_LATITUDE .. BOUNDARY_LATITUDE, longitude: -180 .. 180)
+    /// (latitude: -85 .. 85, longitude: -180 .. 180)
     pub const fn new(latitude: f64, longitude: f64) -> Self {
         Self {
             latitude: latitude.clamp(-BOUNDARY_LATITUDE, BOUNDARY_LATITUDE),

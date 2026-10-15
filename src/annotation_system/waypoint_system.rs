@@ -5,7 +5,11 @@ use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, Dir
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::FocusTarget;
-use bytes::Bytes;
+/// Re-exported so that callers of [`WaypointSymbol::Image`] do not have to depend on
+/// `bytes` themselves and keep its version in step with ours.
+///
+/// [`WaypointSymbol::Image`]: annotation_system::waypoint_system::WaypointSymbol::Image
+pub use bytes::Bytes;
 use iced::Color;
 use iced::advanced::image::Handle;
 use slotmap::{SlotMap, new_key_type};

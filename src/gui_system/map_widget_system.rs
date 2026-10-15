@@ -10,7 +10,7 @@ use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::{
-    AnnotationOverlay, SpecificInteractionCommand,
+    AnnotationOverlay, SpecificInteractionCommand, FocalPoint
 };
 use crate::gui_system::map_widget::map_widget_core::MapWidget;
 use crate::tile_cache::cache_core::CachingResultMessage;
@@ -19,7 +19,7 @@ use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
 
 pub use crate::gui_system::map_widget::map_widget_components::{
-    FocalPoint, FocusTarget, MapInteractionCommand,
+    FocusTarget, MapInteractionCommand,
 };
 
 /// The messages dealing with the widgets these are messages from the
@@ -341,17 +341,7 @@ impl MapWidgetSystem {
         ));
         id
     }
-
-    /// The view the widget currently shows.
-    pub fn focal_point(&self, id: u32) -> FocalPoint {
-        self.widget_collection[id as usize].focal_point()
-    }
-
-    /// The hard focus: the widget jumps to `focal_point` without any animation. A
-    /// soft focus still running on that widget is cancelled.
-    pub fn set_focal_point(&mut self, id: u32, focal_point: FocalPoint) {
-        self.widget_collection[id as usize].set_focal_point(focal_point);
-    }
+    
 
     /// The hard focus on a [`FocusTarget`]: a position keeps the zoom level, an area
     /// is fitted into the widget. A soft focus still running on that widget is

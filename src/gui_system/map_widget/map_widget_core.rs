@@ -98,12 +98,6 @@ impl MapWidget {
         }
     }
 
-    /// The view this widget currently shows. During a soft focus this is the frame
-    /// shown last.
-    pub(crate) fn focal_point(&self) -> FocalPoint {
-        self.focal_point
-    }
-
     /// Asks for the drawing position converter if existing.
     pub(crate) fn position_converter(&self) -> Option<&DrawingPositionConverter> {
         self.position_converter.as_ref()

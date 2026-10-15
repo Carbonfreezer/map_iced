@@ -5,12 +5,6 @@
 
 #![warn(clippy::await_holding_lock)]
 
-/// Re-exported so that callers of [`WaypointSymbol::Image`] do not have to depend on
-/// `bytes` themselves and keep its version in step with ours.
-///
-/// [`WaypointSymbol::Image`]: annotation_system::waypoint_system::WaypointSymbol::Image
-pub use bytes::Bytes;
-
 pub mod annotation_system;
 pub mod gui_system;
 pub(crate) mod tile_cache;
