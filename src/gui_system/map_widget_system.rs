@@ -112,7 +112,8 @@ pub enum MapEvent {
 ///
 /// impl Application {
 ///     fn boot() -> (Self, Task<Message>) {
-///         let config = TileCacheConfig::open_street_map("MyCoolMappingApp/1.0 (contact@example.com)");
+///         // Your own application name and e-mail instead of the placeholder.
+///         let config = TileCacheConfig::open_street_map("PlaceholderMapping");
 ///         let (mut map, task) = MapWidgetSystem::boot(config).expect("tile cache set up");
 ///         let widget_id = map.request_new_widget();
 ///         (Self { map, widget_id }, task.map(Message::Map))
@@ -157,13 +158,14 @@ impl MapWidgetSystem {
     /// # Example
     /// A configuration read from JSON, with the test pattern as fallback if it is
     /// broken. The task has to be returned from the application's boot function.
+    /// `PlaceholderMapping` stands for your own application name and e-mail.
     /// ```no_run
     /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
     /// use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
     /// let json = r#"{
     ///     "cache": { "CacheDirectory": "OpenStreetMap" },
     ///     "cache_size": 100000000,
-    ///     "source": { "OpenStreetMap": { "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)" } }
+    ///     "source": { "OpenStreetMap": { "user_agent": "PlaceholderMapping" } }
     /// }"#;
     /// let (system, task) = TileCacheConfig::from_json_str(json)
     ///     .and_then(MapWidgetSystem::boot)

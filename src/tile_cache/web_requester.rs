@@ -26,7 +26,7 @@ pub struct Requester {
 impl Requester {
     /// Generates a new web requester. The intro url is what should get prepended to the
     /// standard tile specification and the post part is what should get postpended. This
-    /// is for instance the access token for Mapbox. The user agent is the one OSM asks for, e.g. `MyCoolMappingApp/1.0 (contact@example.com)`
+    /// is for instance the access token for Mapbox. The user agent is the one OSM asks for, the application name and a contact, e.g. `MyMapApp/1.0 (me@mydomain.org)`
     pub fn new(
         intro_url: &str,
         post_url: &str,

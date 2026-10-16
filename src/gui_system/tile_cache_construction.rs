@@ -162,7 +162,7 @@ pub enum TileSource {
     ///   "FullyConstructed": {
     ///     "start_url": "https://tiles.example.com/",
     ///     "end_url": "?key=your-api-key",
-    ///     "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)",
+    ///     "user_agent": "PlaceholderMapping",
     ///     "copyright_text": "© Example Maps"
     ///   }
     /// }
@@ -177,13 +177,16 @@ pub enum TileSource {
     /// [OpenStreetMap](https://www.openstreetmap.org), from
     /// `https://tile.openstreetmap.org/{z}/{x}/{y}.png`. Free, but its
     /// [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) asks for
-    /// a `user_agent` that names the application and a contact, e.g.
-    /// `MyCoolMappingApp/1.0 (contact@example.com)`.
+    /// a `user_agent` that names the application and a contact. `PlaceholderMapping`
+    /// below is only a stand-in: put in your own application name and e-mail, e.g.
+    /// `MyMapApp/1.0 (me@mydomain.org)`. OSM blocks user agents that are copied from
+    /// examples or shared by many applications and then serves an "Access blocked"
+    /// image instead of the tiles, which ends up in the disc cache like any other tile.
     ///
     /// ```
     /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
     /// # TileCacheConfig::from_json_str(r#"{ "cache": "CacheDirFixed", "cache_size": 1, "source":
-    /// { "OpenStreetMap": { "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)" } }
+    /// { "OpenStreetMap": { "user_agent": "PlaceholderMapping" } }
     /// # }"#).unwrap();
     /// ```
     OpenStreetMap { user_agent: String },
@@ -344,12 +347,14 @@ impl TileCacheConfig {
 
     /// OpenStreetMap tiles in the subfolder `OpenStreetMap` of the OS cache directory,
     /// with [`Self::DEFAULT_CACHE_SIZE`]. OSM asks for a `user_agent` that identifies
-    /// the application and a contact, e.g. `MyCoolMappingApp/1.0 (contact@example.com)`.
+    /// the application and a contact; put in your own application name and e-mail
+    /// instead of `PlaceholderMapping`, see [`TileSource::OpenStreetMap`].
     ///
     /// # Example
     /// ```
     /// use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
-    /// let config = TileCacheConfig::open_street_map("MyCoolMappingApp/1.0 (contact@example.com)");
+    /// // Your own application name and e-mail instead of the placeholder.
+    /// let config = TileCacheConfig::open_street_map("PlaceholderMapping");
     /// ```
     pub fn open_street_map(user_agent: impl Into<String>) -> Self {
         Self::new(
@@ -392,12 +397,13 @@ impl TileCacheConfig {
     /// ```
     /// use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
     /// // OpenStreetMap tiles in the folder cache/osm of the working directory, 100 MB.
+    /// // Your own application name and e-mail instead of the placeholder user agent.
     /// let config = TileCacheConfig::from_json_str(r#"
     ///     {
     ///       "cache": { "FullyConstructed": "cache/osm" },
     ///       "cache_size": 100000000,
     ///       "source": {
-    ///         "OpenStreetMap": { "user_agent": "MyCoolMappingApp/1.0 (contact@example.com)" }
+    ///         "OpenStreetMap": { "user_agent": "PlaceholderMapping" }
     ///       }
     ///     }
     /// "#);
