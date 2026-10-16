@@ -18,7 +18,7 @@ use crate::gui_system::map_widget::map_widget_components::{
     TEXT_COLOR,
 };
 use crate::gui_system::map_widget::map_widget_support::{
-    AnnotationInteractionState, HoverHit, HoverTarget, fill_text_with_halo,
+    AnnotationInteractionState, HALO_COLOR, HoverHit, HoverTarget, fill_text_with_halo,
 };
 use crate::gui_system::map_widget::scale_bar::{draw_scale_bar, scale_bar};
 use iced::advanced::graphics::geometry::Frame;
@@ -394,27 +394,32 @@ impl MapWidget {
                             );
                         }
                         RenderingInformation::Cross(color) => {
-                            let line_stroke = Stroke {
+                            let mut draw_cross = |stroke: Stroke| {
+                                frame.stroke(
+                                    &Path::line(
+                                        Point::new(-padding, -padding) + draw_pos,
+                                        Point::new(padding, padding) + draw_pos,
+                                    ),
+                                    stroke,
+                                );
+                                frame.stroke(
+                                    &Path::line(
+                                        Point::new(-padding, padding) + draw_pos,
+                                        Point::new(padding, -padding) + draw_pos,
+                                    ),
+                                    stroke,
+                                )
+                            };
+                            draw_cross(Stroke {
+                                width: 4.0,
+                                style: stroke::Style::Solid(HALO_COLOR),
+                                ..Stroke::default()
+                            });
+                            draw_cross(Stroke {
                                 width: 2.0,
                                 style: stroke::Style::Solid(color),
                                 ..Stroke::default()
-                            };
-
-                            frame.stroke(
-                                &Path::line(
-                                    Point::new(-padding, -padding) + draw_pos,
-                                    Point::new(padding, padding) + draw_pos,
-                                ),
-                                line_stroke,
-                            );
-
-                            frame.stroke(
-                                &Path::line(
-                                    Point::new(-padding, padding) + draw_pos,
-                                    Point::new(padding, -padding) + draw_pos,
-                                ),
-                                line_stroke,
-                            );
+                            });
                         }
                         RenderingInformation::Polygon(poly_info) => {
                             let mut drawing_points = poly_info.positions_ccw.iter().map(|point| {
