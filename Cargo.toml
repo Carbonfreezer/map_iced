@@ -2,6 +2,13 @@
 name = "map_iced"
 version = "0.1.0"
 edition = "2024"
+description = "A map widget for iced with tile caching and interactive way points, regions and paths."
+repository = "https://github.com/Carbonfreezer/map_iced"
+license = "MIT"
+keywords = ["map", "iced", "openstreetmap", "gis", "widget"]
+categories = ["gui", "science::geo"]
+readme = "README.md"
+authors = ["Christoph Lürig <christoph.luerig@gmail.com>"]
 # The examples and their assets (gpx tracks, icon, map configs) stay in the repository only.
 include = ["src/**", "assets/Test.png", "Cargo.toml", "README.md", "LICENSE"]
 rust-version = "1.95"
