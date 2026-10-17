@@ -114,6 +114,29 @@ is compiled in.
 > you were blocked, fix the user agent and press "Clear cache" in `basic_gui_test`,
 > or delete the cache folder (`cache/osm` for the examples).
 
+## Working from the repository
+
+Only relevant if you cloned the code from GitHub; the documentation of the
+published crate is on [docs.rs](https://docs.rs/map_iced).
+
+To build the documentation locally and open it in the browser:
+
+```sh
+cargo doc --no-deps --open
+```
+
+`--no-deps` leaves out the documentation of all dependencies, iced included, which
+would otherwise make the build many times larger and slower.
+
+To run the tests, e.g. before a pull request:
+
+```sh
+cargo test
+```
+
+One test that downloads a tile from OpenStreetMap is ignored by default, so the
+test suite does not send requests to the OSM servers.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
