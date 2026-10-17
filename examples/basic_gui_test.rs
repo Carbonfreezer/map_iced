@@ -2,7 +2,9 @@ use iced::widget::space::vertical;
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
-use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
+use map_iced::gui_system::map_widget_system::{
+    CacheClearing, MapEvent, MapWidgetMessage, MapWidgetSystem,
+};
 use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
 
 struct BasicApplication {
@@ -16,6 +18,8 @@ enum Message {
     Widget(MapWidgetMessage),
     /// User message, when we want to retry failed tiles.
     RetryFailedTiles,
+    /// User message, when we want to delete the cached tiles and load them anew.
+    ClearCache,
 }
 
 /// The configuration data to load.
@@ -49,8 +53,13 @@ impl BasicApplication {
             Message::Widget(m) => {
                 let mut errors = String::new();
                 // This example does not deal with way points or focusing or map selection.
-                if let Some(MapEvent::Error(text)) = self.widget_system.process_message(m) {
-                    errors.push_str(&text);
+                match self.widget_system.process_message(m) {
+                    Some(MapEvent::Error(text)) => errors.push_str(&text),
+                    Some(MapEvent::CacheCleared) => {
+                        self.error_text = "Cache cleared".to_string();
+                        return;
+                    }
+                    _ => {}
                 }
                 // The question mark starts the beginning of API tokens and is very long.
                 let new_message = errors.split("?").collect::<Vec<&str>>()[0].to_string();
@@ -61,6 +70,10 @@ impl BasicApplication {
             Message::RetryFailedTiles => {
                 self.error_text = "".to_string();
                 self.widget_system.retry_failed_tiles();
+            }
+            Message::ClearCache => {
+                self.error_text = "".to_string();
+                self.widget_system.clear_cache(CacheClearing::Refresh);
             }
         }
     }
@@ -105,7 +118,10 @@ impl BasicApplication {
         } else {
             button("Retry").on_press(Message::RetryFailedTiles)
         };
-        let button_container = container(retry).align_x(Alignment::Center).width(Fill);
+        let clear = button("Clear cache").on_press(Message::ClearCache);
+        let button_container = container(row![retry, clear].spacing(10))
+            .align_x(Alignment::Center)
+            .width(Fill);
 
         column![head_container, message, vertical(), button_container]
             .padding(10)

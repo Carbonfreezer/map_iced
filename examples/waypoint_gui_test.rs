@@ -131,7 +131,9 @@ impl WaypointApplication {
                 match event {
                     MapEvent::AnnotationSelected { key, .. } => self.selected = Some(key),
                     // The way point descriptions are fixed in this example.
-                    MapEvent::FocusReached { .. } | MapEvent::AnnotationHovered { .. } => {}
+                    MapEvent::FocusReached { .. }
+                    | MapEvent::AnnotationHovered { .. }
+                    | MapEvent::CacheCleared => {}
                     // An arrow click acts like the focus button: all maps follow.
                     // The fill only matters for annotations with an extent.
                     MapEvent::ArrowClicked { key, .. } => {

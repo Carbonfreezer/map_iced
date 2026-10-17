@@ -23,6 +23,8 @@ pub enum CacheUpdateMessage {
     ErrorMessage { text: String },
     /// A new tile has arrived that the indicated client is waiting for.
     RelevantTilesArrived { client: u32 },
+    /// The files of the cache are deleted, see [`TileCache::clear_cache`].
+    CacheCleared,
 }
 
 /// The tiles to draw as a  result for a specific client.
@@ -52,6 +54,15 @@ pub struct TileCache {
     client_notifications: FxHashSet<u32>,
     /// Tiles for which a request is currently outstanding at the core.
     tiles_in_flight: FxHashSet<TilePosition>,
+    /// A clear requested before the initialization, with its refetch flag.
+    pending_clear: Option<bool>,
+    /// The refetch flag of the clear running at the core, if any.
+    running_clear: Option<bool>,
+    /// The clear has finished and still has to be reported.
+    cache_cleared: bool,
+    /// Tiles in flight when a refetching clear finished. Their answer may stem from
+    /// a file read before the deletion, so they get requested once more instead.
+    request_again: FxHashSet<TilePosition>,
 }
 
 impl TileCache {
@@ -69,6 +80,10 @@ impl TileCache {
             tile_error_msg: "".to_string(),
             client_notifications: FxHashSet::default(),
             tiles_in_flight: FxHashSet::default(),
+            pending_clear: None,
+            running_clear: None,
+            cache_cleared: false,
+            request_again: FxHashSet::default(),
         }
     }
 
@@ -98,6 +113,9 @@ impl TileCache {
             result.push(CacheUpdateMessage::RelevantTilesArrived { client });
         }
         self.client_notifications.clear();
+        if take(&mut self.cache_cleared) {
+            result.push(CacheUpdateMessage::CacheCleared);
+        }
         result
     }
 
@@ -119,7 +137,11 @@ impl TileCache {
         if !self.is_initialized {
             return;
         }
+        self.request_missing_tiles();
+    }
 
+    /// Requests all tiles without image data that are not in flight.
+    fn request_missing_tiles(&mut self) {
         let missing_pos = self
             .content_tiles
             .iter()
@@ -136,6 +158,20 @@ impl TileCache {
         }
     }
 
+    /// Deletes the files of the cache. With `refetch` the tiles in use get dropped
+    /// and loaded again once the files are gone, otherwise they stay in memory and
+    /// nothing gets written to disc any more. Before the initialization the clear
+    /// waits for it. [`CacheUpdateMessage::CacheCleared`] reports the end.
+    pub fn clear_cache(&mut self, refetch: bool) {
+        if !self.is_initialized {
+            // Of several early requests, one not refetching wins: it stops the writing.
+            self.pending_clear = Some(self.pending_clear.unwrap_or(true) && refetch);
+            return;
+        }
+        self.running_clear = Some(self.running_clear.unwrap_or(true) && refetch);
+        self.core.clear_cache(refetch);
+    }
+
     /// Gets called to process the messages, effectively those that have been pulled out the receiver
     pub fn process_caching_message(&mut self, message: CachingResultMessage) {
         match message {
@@ -144,7 +180,25 @@ impl TileCache {
             }
             CachingResultMessage::InitializationCompleted => {
                 self.is_initialized = true;
+                if let Some(refetch) = self.pending_clear.take() {
+                    self.clear_cache(refetch);
+                }
                 self.flush_pending_requests()
+            }
+            CachingResultMessage::CacheCleared => {
+                self.cache_cleared = true;
+                // The tiles are only requested again now, a download finishing
+                // earlier could have been deleted by the clear.
+                if self.running_clear.take() == Some(true) {
+                    for entry in self.content_tiles.values_mut() {
+                        entry.image = None;
+                    }
+                    self.client_notifications
+                        .extend(self.subscription_region.keys().copied());
+                    self.request_again
+                        .extend(self.tiles_in_flight.iter().copied());
+                    self.request_missing_tiles();
+                }
             }
             CachingResultMessage::TileData {
                 x,
@@ -154,8 +208,9 @@ impl TileCache {
                 decoded,
             } => {
                 let pos = TilePosition { x, y, zoom: level };
-                // The request is settled, no matter if anybody is still interested.
-                self.tiles_in_flight.remove(&pos);
+                if self.settle_request(pos) {
+                    return;
+                }
                 // Eventually we have a late arriver nobody is interested in anymore.
                 let Some(cache_entry) = self.content_tiles.get_mut(&pos) else {
                     return;
@@ -180,12 +235,32 @@ impl TileCache {
                 message,
             } => {
                 let pos = TilePosition { x, y, zoom: level };
-                self.tiles_in_flight.remove(&pos);
+                if self.settle_request(pos) {
+                    return;
+                }
                 if self.tile_error_msg.is_empty() {
                     self.tile_error_msg = message;
                 }
             }
         }
+    }
+
+    /// Settles the request for `pos`, no matter if anybody is still interested. Returns
+    /// true if the answer has to be ignored, because the tile is in `request_again`;
+    /// then it is requested anew if still in use.
+    fn settle_request(&mut self, pos: TilePosition) -> bool {
+        if !self.request_again.remove(&pos) {
+            self.tiles_in_flight.remove(&pos);
+            return false;
+        }
+        if self.content_tiles.contains_key(&pos) {
+            self.core
+                .request_tile(pos.zoom, pos.x, pos.y)
+                .expect("Inconsistent tile initialization state");
+        } else {
+            self.tiles_in_flight.remove(&pos);
+        }
+        true
     }
 
     /// The client present wants to completely unsubscribe.
@@ -340,5 +415,73 @@ mod tests {
         high_level.completely_unsubscribe(0);
         let client_images = high_level.get_all_images_for_client(0);
         assert!(client_images.is_empty());
+    }
+
+    /// Processes tile messages till `count` tiles have arrived.
+    async fn receive_tiles(
+        high_level: &mut TileCache,
+        receiver: &mut Receiver<CachingResultMessage>,
+        count: usize,
+    ) {
+        for _ in 0..count {
+            let message = receiver.recv().await.unwrap();
+            assert_matches!(message, CachingResultMessage::TileData { .. });
+            high_level.process_caching_message(message);
+        }
+    }
+
+    #[tokio::test]
+    async fn clear_cache_refetch_test() {
+        let test_rect = BoundingRectangle::new(&[
+            TilePosition {
+                x: 0,
+                y: 0,
+                zoom: 4,
+            },
+            TilePosition {
+                x: 2,
+                y: 2,
+                zoom: 4,
+            },
+        ]);
+        let low_level = generate_dummy_cache(tempfile::tempdir().unwrap(), 100_000);
+        let mut high_level = TileCache::new(low_level);
+        let mut receiver = high_level.get_receiver().unwrap();
+        // Requested before the initialization, so it waits for it.
+        high_level.clear_cache(true);
+        high_level.register_new_interest_area(0, test_rect);
+
+        let message = receiver.recv().await.unwrap();
+        assert_matches!(message, CachingResultMessage::InitializationCompleted);
+        high_level.process_caching_message(message);
+
+        // The tiles requested meanwhile may answer before or after the clear, all of
+        // them are requested again after it.
+        let mut cleared = false;
+        while !cleared || !high_level.tiles_in_flight.is_empty() {
+            let message = receiver.recv().await.unwrap();
+            match message {
+                CachingResultMessage::CacheCleared => cleared = true,
+                CachingResultMessage::TileData { .. } => {}
+                other => panic!("Unexpected {other:?}"),
+            }
+            high_level.process_caching_message(message);
+        }
+        assert_matches!(
+            high_level.drain_result_messages().last(),
+            Some(CacheUpdateMessage::CacheCleared)
+        );
+        assert_eq!(high_level.number_of_tiles_failed(), 0);
+        assert_eq!(high_level.get_all_images_for_client(0).len(), 9);
+
+        // A clear after the initialization drops the images and loads them again.
+        high_level.clear_cache(true);
+        let message = receiver.recv().await.unwrap();
+        assert_matches!(message, CachingResultMessage::CacheCleared);
+        high_level.process_caching_message(message);
+        assert!(high_level.get_all_images_for_client(0).is_empty());
+        receive_tiles(&mut high_level, &mut receiver, 9).await;
+        assert_eq!(high_level.get_all_images_for_client(0).len(), 9);
+        assert!(high_level.tiles_in_flight.is_empty());
     }
 }

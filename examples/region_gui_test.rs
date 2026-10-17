@@ -250,7 +250,7 @@ impl RegionApplication {
                         // The question mark starts the beginning of API tokens.
                         eprintln!("Map error: {}", text.split("?").next().unwrap_or_default());
                     }
-                    MapEvent::MapPositionClicked { .. } => {}
+                    MapEvent::MapPositionClicked { .. } | MapEvent::CacheCleared => {}
                 }
             }
             Message::Focus(key) => self.focus_all(key),

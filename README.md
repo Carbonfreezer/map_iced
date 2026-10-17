@@ -12,7 +12,8 @@ regions and paths as interactive annotations.
   OpenStreetMap, Mapbox (tilesets and satellite), Thunderforest, MapTiles API or a
   URL pattern of your own.
 - **A tile cache on disk** with a size limit, shared by all map widgets of the
-  application.
+  application, that can be cleared at runtime to reload outdated tiles or to remove
+  it for good.
 - **Way points** with image or cross markers, hover texts and flags whose direction
   arrows point to them when they are off screen.
 - **Regions**: circles, sectors and convex hulls, e.g. for a cordon or a forecast gas
@@ -110,8 +111,8 @@ is compiled in.
 > asks for a user agent that identifies the application, and OSM blocks user agents
 > that are shared by many installations. A blocked request returns an "Access
 > blocked" image instead of the tile, and the cache stores it like a normal tile. If
-> you were blocked, delete the cache folder (`cache/osm` for the examples) after
-> fixing the user agent.
+> you were blocked, fix the user agent and press "Clear cache" in `basic_gui_test`,
+> or delete the cache folder (`cache/osm` for the examples).
 
 ## License
 

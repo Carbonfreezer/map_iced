@@ -4,7 +4,7 @@
 //! It is the responsibility of the user to make sure that no two requests for the same
 //! tile type are in flight at the same time.
 
-use crate::tile_cache::file_util::{FileUtil, round_to_final_consumption};
+use crate::tile_cache::file_util::{FileUtil, LRU_TABLE_FILE, round_to_final_consumption};
 use crate::tile_cache::lru_list::LastRecentlyUsedList;
 use crate::tile_cache::tile_name_conversion::TileSpecification;
 use crate::tile_cache::web_requester::{Requester, RequesterError};
@@ -13,15 +13,13 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
+use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
 ///  The maximum channel size we currently allow for.
 const MAXIMUM_MESSAGE_CHANNEL: usize = 100;
-
-/// The filename for the LRU table.
-const LRU_TABLE_FILE: &str = "LRU.bin";
 
 /// The amount of idle seconds we use till saving.
 const AMOUNT_OF_SECONDS_TILL_SAVE: u8 = 5;
@@ -36,6 +34,10 @@ struct ShareableEntries {
     requester: Requester,
     /// Flags that the initialization is completed.
     initialization_completed: AtomicBool,
+    /// Whether downloaded tiles and the LRU table go to disc, switched off for good by
+    /// a clear without persisting afterwards. Writers hold it shared, the clear holds
+    /// it exclusively, so no file is written into a directory that is being deleted.
+    disc_writing: RwLock<bool>,
 }
 
 /// The different messages that come from the caching system,
@@ -45,6 +47,8 @@ pub enum CachingResultMessage {
     Error { message: String },
     /// The initialization request has been competed.
     InitializationCompleted,
+    /// The files of the cache are deleted, see [`CachingSystem::clear_cache`].
+    CacheCleared,
     /// The tile data, that has been retrieved.
     TileData {
         /// Zoom level.
@@ -98,6 +102,7 @@ impl Debug for CachingResultMessage {
         match self {
             CachingResultMessage::Error { message } => write!(f, "Caching error: {}", message),
             CachingResultMessage::InitializationCompleted => write!(f, "Initialization completed"),
+            CachingResultMessage::CacheCleared => write!(f, "Cache cleared"),
             CachingResultMessage::TileData {
                 level, x, y, data, ..
             } => {
@@ -155,6 +160,7 @@ impl CachingSystem {
             lru_list: Mutex::new(LastRecentlyUsedList::new(maximum_amount_of_data)),
             requester,
             initialization_completed: AtomicBool::new(false),
+            disc_writing: RwLock::new(true),
         };
 
         let arc_sharable_entry = Arc::new(sharable_entry);
@@ -260,6 +266,52 @@ impl CachingSystem {
             self.stream_sender.clone(),
             self.savings_counter.clone(),
         ));
+    }
+
+    /// Deletes all files of the cache and empties its bookkeeping. Starts an internal
+    /// tokio task for the work, which answers with [`CachingResultMessage::CacheCleared`].
+    /// With `persist_afterwards` false nothing gets written to disc any more for the
+    /// lifetime of this system, tiles are only delivered. Must not be called before
+    /// the initialization is completed, the startup scan would race the deletion.
+    pub fn clear_cache(&self, persist_afterwards: bool) {
+        debug_assert!(
+            self.cloneable_entry
+                .initialization_completed
+                .load(Ordering::Relaxed),
+            "CachingSystem::clear_cache before initialization"
+        );
+        tokio::spawn(Self::process_clear_cache(
+            self.cloneable_entry.clone(),
+            self.stream_sender.clone(),
+            persist_afterwards,
+        ));
+    }
+
+    /// Asynchronous part of [`Self::clear_cache`].
+    async fn process_clear_cache(
+        sharable_entry: Arc<ShareableEntries>,
+        sender: Sender<CachingResultMessage>,
+        persist_afterwards: bool,
+    ) {
+        let result = {
+            // Waits for the saves running, later ones wait for the deletion.
+            let mut disc_writing = sharable_entry.disc_writing.write().await;
+            *disc_writing &= persist_afterwards;
+            sharable_entry
+                .lru_list
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .reset();
+            sharable_entry.file_util.remove_cache_files().await
+        };
+        if let Err(text) = result {
+            let _ = sender
+                .send(CachingResultMessage::Error {
+                    message: "Error on clearing the cache: ".to_string() + text.as_str(),
+                })
+                .await;
+        }
+        let _ = sender.send(CachingResultMessage::CacheCleared).await;
     }
 
     /// Poses a request for a tile. Starts an internal tokio task for the work.
@@ -370,6 +422,10 @@ impl CachingSystem {
             })
             .await;
 
+        let disc_writing = sharable_entry.disc_writing.read().await;
+        if !*disc_writing {
+            return;
+        }
         let new_memory = round_to_final_consumption(raw_data.len() as u64);
         // Now we have to save the data on the disc.
         if let Err(text) = sharable_entry
@@ -397,6 +453,10 @@ impl CachingSystem {
         sharable_entry: &Arc<ShareableEntries>,
         sender: &Sender<CachingResultMessage>,
     ) {
+        let disc_writing = sharable_entry.disc_writing.read().await;
+        if !*disc_writing {
+            return;
+        }
         let raw_data = sharable_entry
             .lru_list
             .lock()
@@ -494,5 +554,47 @@ mod tests {
         }
         // Wait for the data written to disc.
         tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    /// Requests the tiles and waits for all of them to arrive.
+    async fn fetch_tiles(
+        cache: &CachingSystem,
+        receiver: &mut Receiver<CachingResultMessage>,
+        count: u32,
+    ) {
+        for y in 0..count {
+            cache.request_tile(2, 1, y).expect("Initialized");
+        }
+        for _ in 0..count {
+            let message = receiver.recv().await.unwrap();
+            assert_matches!(message, CachingResultMessage::TileData { level: 2, .. });
+        }
+        // Wait for the data written to disc.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn clear_cache_test() {
+        for persist_afterwards in [true, false] {
+            let dir = tempfile::tempdir().unwrap();
+            let util = FileUtil::new(&dir);
+            let mut cache = generate_dummy_cache(&dir, 100_000);
+            cache.initialize();
+            let mut receiver = cache.get_receiver().unwrap();
+            let message = receiver.recv().await.unwrap();
+            assert_eq!(message, CachingResultMessage::InitializationCompleted);
+            fetch_tiles(&cache, &mut receiver, 4).await;
+            assert_eq!(util.get_all_pngs_interpreted_as_u64().await.len(), 4);
+
+            cache.clear_cache(persist_afterwards);
+            let message = receiver.recv().await.unwrap();
+            assert_eq!(message, CachingResultMessage::CacheCleared);
+            assert!(util.get_all_pngs_interpreted_as_u64().await.is_empty());
+
+            // The tiles still arrive, but only go to disc if persisting.
+            fetch_tiles(&cache, &mut receiver, 3).await;
+            let expected = if persist_afterwards { 3 } else { 0 };
+            assert_eq!(util.get_all_pngs_interpreted_as_u64().await.len(), expected);
+        }
     }
 }

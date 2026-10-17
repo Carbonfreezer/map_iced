@@ -86,6 +86,23 @@ pub enum MapEvent {
         client_id: u32,
         position: LatitudeLongitude,
     },
+    /// The files of the tile cache are deleted, see [`MapWidgetSystem::clear_cache`].
+    /// A problem on the way is reported as [`MapEvent::Error`] instead.
+    CacheCleared,
+}
+
+/// What [`MapWidgetSystem::clear_cache`] does besides deleting the cached files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheClearing {
+    /// The tiles on screen are dropped and downloaded again, and the cache fills up
+    /// anew. Meant for broken tiles the server delivered, or for tiles that are
+    /// outdated after long use.
+    Refresh,
+    /// The tiles on screen stay as they are, and nothing gets written to disc any
+    /// more for the rest of the session; tiles are still downloaded and shown. Meant
+    /// for removing the cache before the program is no longer used: purge, wait for
+    /// [`MapEvent::CacheCleared`] and exit.
+    Purge,
 }
 
 /// The map widget system administrates all the widgets in combination with a
@@ -439,6 +456,7 @@ impl MapWidgetSystem {
     ///  The messages going into the caching system are processed here.
     fn process_caching_message(&mut self, message: CachingResultMessage) -> Option<MapEvent> {
         let mut final_message = "".to_string();
+        let mut cache_cleared = false;
         self.tile_cache.process_caching_message(message);
         for msg in self.tile_cache.drain_result_messages() {
             match msg {
@@ -450,9 +468,14 @@ impl MapWidgetSystem {
                     let new_tiles = self.tile_cache.get_all_images_for_client(client);
                     self.widget_collection[client as usize].set_drawing_tiles(new_tiles);
                 }
+                CacheUpdateMessage::CacheCleared => cache_cleared = true,
             }
         }
-        (!final_message.is_empty()).then_some(MapEvent::Error(final_message))
+        match (final_message.is_empty(), cache_cleared) {
+            (false, _) => Some(MapEvent::Error(final_message)),
+            (true, true) => Some(MapEvent::CacheCleared),
+            (true, false) => None,
+        }
     }
 
     /// Moves a widget to a new view and hands it what it needs to draw there.
@@ -822,6 +845,31 @@ impl MapWidgetSystem {
     /// ```
     pub fn retry_failed_tiles(&mut self) {
         self.tile_cache.retry_failed_tiles();
+    }
+
+    /// Deletes all files of the local tile cache, below the cache directory of the
+    /// configuration; files the cache has not written stay. `mode` decides what
+    /// happens with the tiles on screen, see [`CacheClearing`]. The deletion runs in
+    /// the background, [`MapEvent::CacheCleared`] reports its end.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::map_widget_system::{CacheClearing, MapWidgetSystem};
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// // E.g. behind a button, when the server delivered broken tiles.
+    /// system.clear_cache(CacheClearing::Refresh);
+    /// ```
+    pub fn clear_cache(&mut self, mode: CacheClearing) {
+        self.tile_cache
+            .clear_cache(matches!(mode, CacheClearing::Refresh));
     }
 
     /// Checks the number of failed tiles.

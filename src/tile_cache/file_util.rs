@@ -25,6 +25,9 @@ pub struct TileData {
 /// 4K Block size for files.
 const BLOCK_SIZE: u64 = 4 * 1024;
 
+/// The filename for the LRU table.
+pub const LRU_TABLE_FILE: &str = "LRU.bin";
+
 pub fn round_to_final_consumption(raw_size: u64) -> u64 {
     raw_size.div_ceil(BLOCK_SIZE) * BLOCK_SIZE
 }
@@ -114,6 +117,66 @@ impl FileUtil {
         for file in clean_list {
             let _ = remove_file(file).await;
         }
+    }
+
+    /// Checks if the file at `path` is one the cache has written: a tile, a temp file or the LRU table.
+    fn is_cache_file(path: &Path) -> bool {
+        let extension = path.extension().and_then(|e| e.to_str());
+        let stem = path.file_stem().and_then(|s| s.to_str());
+        match extension {
+            Some("png") => stem.is_some_and(|s| u64::from_str_radix(s, 16).is_ok()),
+            Some("tmp") => true,
+            _ => path.file_name().and_then(|n| n.to_str()) == Some(LRU_TABLE_FILE),
+        }
+    }
+
+    /// Removes all files the cache has written below the base directory, and the
+    /// subdirectories that are empty afterwards. Anything else stays, because the base
+    /// directory is configurable and may hold other things; the base directory itself
+    /// stays as well. Returns the first error, files gone in the meantime are none.
+    pub async fn remove_cache_files(&self) -> Result<(), String> {
+        let mut first_error: Option<String> = None;
+        let mut note_error = |err: std::io::Error| {
+            if err.kind() != std::io::ErrorKind::NotFound && first_error.is_none() {
+                first_error = Some(err.to_string());
+            }
+        };
+        let mut visited_dirs = Vec::new();
+        let mut pending = vec![self.base_path.clone()];
+
+        while let Some(dir) = pending.pop() {
+            let mut dir_scan = match read_dir(&dir).await {
+                Ok(scan) => scan,
+                Err(err) => {
+                    note_error(err);
+                    continue;
+                }
+            };
+
+            while let Ok(Some(entry)) = dir_scan.next_entry().await {
+                let Ok(file_type) = entry.file_type().await else {
+                    continue;
+                };
+                let path = entry.path();
+                if file_type.is_dir() {
+                    pending.push(path.clone());
+                    visited_dirs.push(path);
+                } else if file_type.is_file()
+                    && Self::is_cache_file(&path)
+                    && let Err(err) = remove_file(&path).await
+                {
+                    note_error(err);
+                }
+            }
+        }
+
+        // Children are visited after their parents, so the reverse order removes the
+        // deepest first. A directory that still holds something foreign stays.
+        for dir in visited_dirs.into_iter().rev() {
+            let _ = remove_dir(&dir).await;
+        }
+
+        first_error.map_or(Ok(()), Err)
     }
 
     /// Gets all png filenames recursively interpreted as u64. and returns also the accumulated size in files.
@@ -227,5 +290,39 @@ mod tests {
         util.remove_temps_from_base().await;
         let data = util.try_load_plain("Test.tmp").await;
         assert_eq!(data, None, "The fils should have gone by now");
+    }
+
+    #[tokio::test]
+    async fn remove_cache_files_test() {
+        let base = tempfile::tempdir().unwrap();
+        let util = FileUtil::new(&base);
+        for tile in [
+            TileSpecification::new(1, 0, 1),
+            TileSpecification::new(1, 1, 0),
+            TileSpecification::new(3, 2, 5),
+        ] {
+            util.safe_save(tile.filename(), &[1, 2, 3]).await.unwrap();
+        }
+        util.safe_save(LRU_TABLE_FILE, &[0; 8]).await.unwrap();
+        util.safe_save("Left.tmp", &[1]).await.unwrap();
+        util.safe_save("notes.txt", &[1]).await.unwrap();
+        util.safe_save("foreign/data.png", &[1]).await.unwrap();
+
+        util.remove_cache_files().await.unwrap();
+
+        assert!(util.get_all_pngs_interpreted_as_u64().await.is_empty());
+        assert_eq!(util.try_load_plain(LRU_TABLE_FILE).await, None);
+        assert_eq!(util.try_load_plain("Left.tmp").await, None);
+        assert!(util.try_load_plain("notes.txt").await.is_some());
+        assert!(util.try_load_plain("foreign/data.png").await.is_some());
+        assert!(
+            !base.path().join("1").exists(),
+            "Tile folders should be gone"
+        );
+        assert!(
+            !base.path().join("3").exists(),
+            "Tile folders should be gone"
+        );
+        assert!(base.path().exists(), "The base directory stays");
     }
 }
