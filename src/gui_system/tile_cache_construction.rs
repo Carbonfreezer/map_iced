@@ -6,6 +6,10 @@
 //! the way to go when the tile provider needs an API key: the key stays in a file next
 //! to the application instead of in the source code.
 //!
+//! Every [`TileSource`] follows the slippy map tile convention described there, so the
+//! tiles are pure raster images. map_iced only processes PNG data; vector tiles and
+//! other image formats are not supported.
+//!
 //! # The JSON file
 //!
 //! The file is one object with three entries, all of them required:
@@ -156,7 +160,8 @@ impl CachingDirectory {
 pub enum TileSource {
     /// Any provider that follows the convention: the tiles come from
     /// `<start_url>{z}/{x}/{y}.png<end_url>`, with `user_agent` as the HTTP user agent
-    /// and `copyright_text` shown on the map.
+    /// and `copyright_text` shown on the map. A missing trailing `/` on `start_url` is
+    /// added.
     ///
     /// ```
     /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
@@ -205,6 +210,10 @@ pub enum TileSource {
     MapTilesApi { api_key: String },
     /// A [Mapbox](https://www.mapbox.com) tileset, from
     /// `https://api.mapbox.com/v4/<tileset_id>/{z}/{x}/{y}.png?access_token=<api_key>`.
+    /// `tileset_id` has to name a raster tileset, such as `mapbox.satellite` or an
+    /// uploaded raster tileset. Vector tilesets like `mapbox.mapbox-streets-v8` deliver
+    /// no PNG tiles. Mapbox Studio styles use a different URL and are only reachable
+    /// through [`TileSource::FullyConstructed`].
     ///
     /// ```
     /// # use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
@@ -260,6 +269,11 @@ pub struct TileCacheConfig {
     source: TileSource,
 }
 
+/// The Mapbox tileset with the satellite imagery.
+const MAPBOX_SATELLITE_TILESET: &str = "mapbox.satellite";
+/// The attribution Mapbox asks for with its satellite imagery, which comes from Maxar.
+const MAPBOX_SATELLITE_COPYRIGHT: &str = "© Mapbox © OpenStreetMap © Maxar";
+
 pub(crate) struct QuadrupleInfo {
     start_url: String,
     end_url: String,
@@ -277,7 +291,11 @@ impl TileSource {
                 user_agent,
                 copyright_text,
             } => QuadrupleInfo {
-                start_url: start_url.clone(),
+                start_url: if start_url.ends_with('/') {
+                    start_url.clone()
+                } else {
+                    start_url.clone() + "/"
+                },
                 end_url: end_url.clone(),
                 user_agent: user_agent.clone(),
                 copyright_text: copyright_text.clone(),
@@ -302,13 +320,20 @@ impl TileSource {
                 start_url: "https://api.mapbox.com/v4/".to_string() + tileset_id + "/",
                 end_url: "?access_token=".to_string() + api_key,
                 user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
-                copyright_text: "© Mapbox © OpenStreetMap".to_string(),
+                copyright_text: if tileset_id == MAPBOX_SATELLITE_TILESET {
+                    MAPBOX_SATELLITE_COPYRIGHT
+                } else {
+                    "© Mapbox © OpenStreetMap"
+                }
+                .to_string(),
             },
             TileSource::MapBoxSatellite { api_key } => QuadrupleInfo {
-                start_url: "https://api.mapbox.com/v4/mapbox.satellite/".to_string(),
+                start_url: "https://api.mapbox.com/v4/".to_string()
+                    + MAPBOX_SATELLITE_TILESET
+                    + "/",
                 end_url: "?access_token=".to_string() + api_key,
                 user_agent: concat!("map-iced/", env!("CARGO_PKG_VERSION")).to_string(),
-                copyright_text: "© Mapbox © OpenStreetMap".to_string(),
+                copyright_text: MAPBOX_SATELLITE_COPYRIGHT.to_string(),
             },
             TileSource::Thunderforest { style, api_key } => QuadrupleInfo {
                 start_url: "https://api.thunderforest.com/".to_string() + style + "/",
@@ -466,5 +491,48 @@ mod tests {
         )
         .unwrap();
         assert!(config.source.get_quadruple().is_none());
+    }
+
+    fn fully_constructed_start_url(start_url: &str) -> String {
+        TileSource::FullyConstructed {
+            start_url: start_url.to_string(),
+            end_url: String::new(),
+            user_agent: "test".to_string(),
+            copyright_text: String::new(),
+        }
+        .get_quadruple()
+        .unwrap()
+        .start_url
+    }
+
+    #[test]
+    fn fully_constructed_gets_trailing_slash() {
+        assert_eq!(
+            fully_constructed_start_url("https://tiles.example.com/map"),
+            "https://tiles.example.com/map/"
+        );
+        assert_eq!(
+            fully_constructed_start_url("https://tiles.example.com/map/"),
+            "https://tiles.example.com/map/"
+        );
+    }
+
+    #[test]
+    fn mapbox_satellite_credits_maxar() {
+        let satellite = TileSource::MapBoxSatellite {
+            api_key: "key".to_string(),
+        };
+        let tileset = TileSource::MapBoxTiles {
+            tileset_id: MAPBOX_SATELLITE_TILESET.to_string(),
+            api_key: "key".to_string(),
+        };
+        for source in [satellite, tileset] {
+            let quadruple = source.get_quadruple().unwrap();
+            assert_eq!(quadruple.copyright_text, MAPBOX_SATELLITE_COPYRIGHT);
+            assert_eq!(
+                quadruple.start_url,
+                "https://api.mapbox.com/v4/mapbox.satellite/"
+            );
+        }
     }
 }
