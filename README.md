@@ -1,6 +1,7 @@
 # map_iced
 
 [![CI](https://github.com/Carbonfreezer/map_iced/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbonfreezer/map_iced/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A map widget for the [iced](https://iced.rs) GUI framework in Rust, with way points,
 regions and paths as interactive annotations.
