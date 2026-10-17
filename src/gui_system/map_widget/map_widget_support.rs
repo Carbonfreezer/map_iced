@@ -127,10 +127,7 @@ impl AnnotationInteractionState {
             // that invokes settle, that requests a redraw at some point in the future.
             Some(hit) => Some(Action::publish(MapInteractionCommand {
                 client_id,
-                command: SpecificInteractionCommand::AnnotationHovered(
-                    hit.target.key,
-                    hit.cursor,
-                ),
+                command: SpecificInteractionCommand::AnnotationHovered(hit.target.key, hit.cursor),
             })),
             // Nothing to wait for, but a description that is on screen has to go.
             None => was_visible.then(Action::request_redraw),

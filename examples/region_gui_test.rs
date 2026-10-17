@@ -37,8 +37,6 @@ const CONFIG_DATA: &str = include_str!("assets/osm.json");
 /// The icon for the chruch
 const ICON_CHURCH: &[u8] = include_bytes!("assets/Church.png");
 
-
-
 /// The two bicycle tracks, each with the colour of its line.
 const TRACKS: [(&[u8], Color); 2] = [
     (
@@ -124,18 +122,18 @@ impl RegionApplication {
 
         let waypoints = widget_system.get_waypoint_system_as_mut();
         for (name, position, symbol) in [
-            ("Trier Cathedral", DOME_POSITION, WaypointSymbol::image(ICON_CHURCH)),
+            (
+                "Trier Cathedral",
+                DOME_POSITION,
+                WaypointSymbol::image(ICON_CHURCH),
+            ),
             (
                 "Konz ambulance station",
                 LatitudeLongitude::new(49.7020, 6.5800),
                 WaypointSymbol::cross(FIRE_STATION_COLOR),
             ),
         ] {
-            let key = waypoints.add_way_point(
-                symbol,
-                position,
-                Some(name.to_string()),
-            );
+            let key = waypoints.add_way_point(symbol, position, Some(name.to_string()));
             entries.push(Entry {
                 name: name.to_string(),
                 key: key.into(),

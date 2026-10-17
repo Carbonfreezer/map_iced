@@ -1,6 +1,9 @@
 //! This system represents regions that can be selected and annotated and zoomed to.
 
-use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingClosedShape, RenderingInformation};
+use crate::annotation_system::annotation_support::{
+    Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle,
+    RenderingClosedShape, RenderingInformation,
+};
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use geo::{Area, BoundingRect, Closest, ClosestPoint as _, ConvexHull, MultiPoint, Polygon, point};

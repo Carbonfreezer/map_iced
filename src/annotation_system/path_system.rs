@@ -1,7 +1,9 @@
 //! This module administrates paths: series of connected positions, drawn as a line, typically
 //! from GPX tracks.
 
-use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingInformation};
+use crate::annotation_system::annotation_support::{
+    Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingInformation,
+};
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use geo::{Densify, Haversine, LineString};

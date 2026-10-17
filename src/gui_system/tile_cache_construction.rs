@@ -82,7 +82,10 @@ impl fmt::Display for TileCacheError {
                 write!(f, "the system has no cache directory")
             }
             TileCacheError::InvalidUserAgent(user_agent) => {
-                write!(f, "the user agent {user_agent:?} is no valid HTTP header value")
+                write!(
+                    f,
+                    "the user agent {user_agent:?} is no valid HTTP header value"
+                )
             }
             TileCacheError::HttpClient(message) => {
                 write!(f, "the HTTP client could not be set up: {message}")

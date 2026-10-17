@@ -1,7 +1,9 @@
 //! This module administrates the way points, A way point is a single isolated location on the map.
 //! This differentiates from the paths, where several points are interconnected with each other.
 
-use crate::annotation_system::annotation_support::{Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingInformation};
+use crate::annotation_system::annotation_support::{
+    Annotation, ClosestPoint, DirectionFlag, LabelPosition, MercatorRectangle, RenderingInformation,
+};
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_components::FocusTarget;
@@ -44,7 +46,9 @@ impl WaypointSymbol {
     /// let symbol = WaypointSymbol::image(ICON);
     /// ```
     pub fn image(data: impl Into<Bytes>) -> Self {
-        WaypointSymbol(InternalWaypointImage::Image(Handle::from_bytes(data.into())))
+        WaypointSymbol(InternalWaypointImage::Image(Handle::from_bytes(
+            data.into(),
+        )))
     }
 
     /// A cross drawn in `color`.

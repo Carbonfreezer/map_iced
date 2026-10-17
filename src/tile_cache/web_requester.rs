@@ -27,11 +27,7 @@ impl Requester {
     /// Generates a new web requester. The intro url is what should get prepended to the
     /// standard tile specification and the post part is what should get postpended. This
     /// is for instance the access token for Mapbox. The user agent is the one OSM asks for, the application name and a contact, e.g. `MyMapApp/1.0 (me@mydomain.org)`
-    pub fn new(
-        intro_url: &str,
-        post_url: &str,
-        user_agent: &str,
-    ) -> Result<Self, RequesterError> {
+    pub fn new(intro_url: &str, post_url: &str, user_agent: &str) -> Result<Self, RequesterError> {
         let user_agent_value = reqwest::header::HeaderValue::from_str(user_agent)
             .map_err(|_| RequesterError::InvalidUserAgent(user_agent.to_string()))?;
         let client = reqwest::Client::builder()

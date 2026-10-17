@@ -264,7 +264,6 @@ pub struct DirectionFlag {
     pub priority: u8,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
