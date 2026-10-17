@@ -1,7 +1,9 @@
 # map_iced
 
 [![CI](https://github.com/Carbonfreezer/map_iced/actions/workflows/ci.yml/badge.svg)](https://github.com/Carbonfreezer/map_iced/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![crates.io](https://img.shields.io/crates/v/map_iced.svg)](https://crates.io/crates/map_iced)
+[![docs.rs](https://docs.rs/map_iced/badge.svg)](https://docs.rs/map_iced)
+[![License](https://img.shields.io/crates/l/map_iced.svg)](LICENSE)
 
 A map widget for the [iced](https://iced.rs) GUI framework in Rust, with way points,
 regions and paths as interactive annotations.
@@ -39,11 +41,11 @@ map_iced.
 
 ## Getting started
 
-map_iced is not on crates.io yet. Add it from GitHub:
+Add map_iced and iced to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-map_iced = { git = "https://github.com/Carbonfreezer/map_iced" }
+map_iced = "0.1"
 iced = "0.14"
 ```
 
