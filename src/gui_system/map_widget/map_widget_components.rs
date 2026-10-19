@@ -5,6 +5,7 @@ use crate::gui_system::internal_math::MAXIMUM_ZOOM_LEVEL;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
 use crate::gui_system::map_widget::map_widget_core::{MapWidget, STANDARD_RECTANGLE};
 use crate::gui_system::map_widget::map_widget_support::AnnotationInteractionState;
+use crate::gui_system::map_widget_system::MapWidgetSystem;
 use iced::advanced::image::Image;
 use iced::mouse::{Cursor, Interaction, ScrollDelta};
 use iced::widget::canvas::Geometry;
@@ -74,6 +75,42 @@ pub enum FocusTarget {
 impl From<LatitudeLongitude> for FocusTarget {
     fn from(position: LatitudeLongitude) -> Self {
         FocusTarget::Position(position)
+    }
+}
+
+impl FocusTarget {
+    /// The area within `radius_meter` around `center`, e.g. 200 m around a vehicle
+    /// to keep in view. The circle covers the share
+    /// [`MapWidgetSystem::DEFAULT_FOCUS_FILL`] of the widget's shorter side, so a bit
+    /// more than the radius stays visible to every side.
+    ///
+    /// To follow a moving vehicle, call [`MapWidgetSystem::jump_to`] with each new
+    /// position. [`MapWidgetSystem::animate_to`] starts its pan and zoom anew on every
+    /// call, which suits single moves rather than a stream of them.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::{FocusTarget, MapWidgetSystem};
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let widget = system.request_new_widget();
+    /// // The latest position of the car, with 200 m of its surroundings.
+    /// let car = LatitudeLongitude::new(49.7499, 6.6371);
+    /// system.jump_to(widget, FocusTarget::around(car, 200.0));
+    /// ```
+    pub fn around(center: LatitudeLongitude, radius_meter: f64) -> Self {
+        FocusTarget::Area {
+            bounds: MercatorRectangle::create_around(center, radius_meter, 0.0),
+            fill: MapWidgetSystem::DEFAULT_FOCUS_FILL,
+        }
     }
 }
 

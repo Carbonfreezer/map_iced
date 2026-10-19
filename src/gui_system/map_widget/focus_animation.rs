@@ -241,6 +241,7 @@ pub(crate) fn resolve_target(
 mod tests {
     use super::*;
     use crate::annotation_system::annotation_support::MercatorRectangle;
+    use crate::gui_system::map_widget_system::MapWidgetSystem;
 
     /// The start view of the examples, with the viewport measured there.
     fn trier() -> FocalPoint {
@@ -355,6 +356,20 @@ mod tests {
         assert!(width < VIEW.width as f64 * 0.8);
         // The centre is the mercator centre, which lies north of the mean latitude.
         assert!(end.position.latitude > 49.75);
+    }
+
+    #[test]
+    fn circle_fills_the_shorter_side() {
+        // Mercator is conformal, so the box of a small circle is square on screen, and
+        // the height is the binding side of VIEW.
+        let target = FocusTarget::around(LatitudeLongitude::new(49.75, 6.63), 200.0);
+        let end = resolve_target(&target, trier(), Some(VIEW));
+        let (width, height) = extent_in_pixels(&target, &end);
+        let expected = VIEW.height as f64 * MapWidgetSystem::DEFAULT_FOCUS_FILL as f64;
+        assert!((height - expected).abs() < 0.5, "height {height}");
+        assert!((width - height).abs() < 0.5, "width {width}");
+        assert!((end.position.latitude - 49.75).abs() < 1e-6);
+        assert!((end.position.longitude - 6.63).abs() < 1e-9);
     }
 
     #[test]

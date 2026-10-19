@@ -192,11 +192,11 @@ impl MercatorRectangle {
     /// ```
     /// use map_iced::annotation_system::annotation_support::MercatorRectangle;
     /// use map_iced::gui_system::LatitudeLongitude;
-    /// use map_iced::gui_system::map_widget_system::FocusTarget;
+    /// use map_iced::gui_system::map_widget_system::{FocusTarget, MapWidgetSystem};
     /// // The area of an operation, to focus a widget on it.
     /// let positions = [LatitudeLongitude::new(49.70, 6.60), LatitudeLongitude::new(49.80, 6.70)];
     /// let bounds = MercatorRectangle::create_from_position_array(positions.into_iter(), 0.0).expect("not empty");
-    /// let target = FocusTarget::Area { bounds, fill: 0.9 };
+    /// let target = FocusTarget::Area { bounds, fill: MapWidgetSystem::DEFAULT_FOCUS_FILL };
     ///
     /// assert!(MercatorRectangle::create_from_position_array(std::iter::empty(), 0.0).is_none());
     /// ```
@@ -219,6 +219,33 @@ impl MercatorRectangle {
                 ..rect
             },
         ))
+    }
+
+    /// Creates the mercator rectangle that encloses the circle with `radius_meter`
+    /// around `center`, e.g. the surroundings of a vehicle to keep in view. The circle
+    /// is measured on the sphere, so the rectangle stays tight at high latitudes, where
+    /// it spans more degrees of longitude. A circle over a pole spans all longitudes.
+    ///
+    /// # Example
+    /// ```
+    /// use map_iced::annotation_system::annotation_support::MercatorRectangle;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// let trier = LatitudeLongitude::new(49.75, 6.63);
+    /// let bounds = MercatorRectangle::create_around(trier, 200.0, 0.0);
+    /// // The centre stays where it is; 200 m are about 0.0018 degrees of latitude.
+    /// assert!((bounds.get_center().longitude - 6.63).abs() < 1e-9);
+    /// assert!((bounds.get_center().latitude - 49.75).abs() < 1e-6);
+    /// ```
+    pub fn create_around(
+        center: LatitudeLongitude,
+        radius_meter: f64,
+        pixel_padding: f64,
+    ) -> MercatorRectangle {
+        Self::create_from_position_array(
+            center.circle_extremes(radius_meter).into_iter(),
+            pixel_padding,
+        )
+        .expect("Four extreme points")
     }
 
     /// The centre of the rectangle, by default the centre of an annotation.

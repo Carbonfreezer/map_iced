@@ -110,6 +110,46 @@ impl LatitudeLongitude {
             .collect()
     }
 
+    /// The four extreme points of the circle around the position with the radius
+    /// indicated in meters: north, west, south and east, in the order of
+    /// [`Self::create_circle_around`]. Their bounding box encloses the circle, in degrees
+    /// and in mercator alike, since mercator maps latitude and longitude separately and
+    /// monotonically.
+    ///
+    /// North and south lie due north and south. West and east do not lie at the
+    /// bearings 270° and 90°: on a sphere, the point furthest east is where a meridian
+    /// touches the circle, which is `asin(sin δ / cos φ)` east of the centre, at the
+    /// latitude `asin(sin φ / cos δ)`, with δ the angular radius and φ the latitude of
+    /// the centre. A circle that reaches over a pole has no such point; it spans all
+    /// longitudes, and west and east are put on the map edges. Points beyond a pole or
+    /// the date line get clamped by [`Self::new`].
+    pub(crate) fn circle_extremes(&self, radius_meter: f64) -> [LatitudeLongitude; 4] {
+        let angular_distance = radius_meter / EARTH_RADIUS;
+        let latitude = self.latitude.to_radians();
+        let north =
+            LatitudeLongitude::new((latitude + angular_distance).to_degrees(), self.longitude);
+        let south =
+            LatitudeLongitude::new((latitude - angular_distance).to_degrees(), self.longitude);
+        let (sin_distance, cos_distance) = angular_distance.sin_cos();
+        // Over a pole, also for any circle wider than a quarter of the earth.
+        if angular_distance >= PI * 0.5 || sin_distance >= latitude.cos() {
+            return [
+                north,
+                LatitudeLongitude::new(self.latitude, -BOUNDARY_LONGITUDE),
+                south,
+                LatitudeLongitude::new(self.latitude, BOUNDARY_LONGITUDE),
+            ];
+        }
+        let long_diff = (sin_distance / latitude.cos()).asin().to_degrees();
+        let side_latitude = (latitude.sin() / cos_distance).asin().to_degrees();
+        [
+            north,
+            LatitudeLongitude::new(side_latitude, self.longitude - long_diff),
+            south,
+            LatitudeLongitude::new(side_latitude, self.longitude + long_diff),
+        ]
+    }
+
     /// The points reached by walking `radius_meter` from here along a great circle in
     /// each of the `bearings`, given in radians clockwise from north. That stays correct
     /// near the poles, where a squeezed circle breaks down.
@@ -233,6 +273,26 @@ mod tests {
         }
 
         #[test]
+        fn circle_extremes_are_on_the_circle_and_enclose_it(latitude in -80.0f64..80.0, longitude in -177.0f64..177.0, radius in 100.0 .. 50_000.0) {
+            // The same margins as above keep the circle off the map edges.
+            let centre = LatitudeLongitude::new(latitude, longitude);
+            let extremes = centre.circle_extremes(radius);
+            for point in &extremes {
+                let distance = centre.get_distance_to(*point);
+                prop_assert!((distance - radius).abs() < radius * 1e-6, "{distance} vs {radius}");
+            }
+            let [north, west, south, east] = extremes;
+            // A dense ring stays inside the box, with a margin for rounding.
+            let epsilon = 1e-9;
+            for point in centre.create_circle_around(radius, 720) {
+                prop_assert!(point.latitude <= north.latitude + epsilon);
+                prop_assert!(point.latitude >= south.latitude - epsilon);
+                prop_assert!(point.longitude >= west.longitude - epsilon);
+                prop_assert!(point.longitude <= east.longitude + epsilon);
+            }
+        }
+
+        #[test]
         fn antipodal_distance_is_half_the_circumference(latitude in -BOUNDARY_LATITUDE..BOUNDARY_LATITUDE, longitude in -BOUNDARY_LONGITUDE..0.0) {
             // The longitude range keeps the antipode inside -180 .. 180, where new would clamp it.
             // Near h = 1 the haversine is ill-conditioned: asin(1 - e) is about pi/2 - sqrt(2e),
@@ -267,5 +327,32 @@ mod tests {
         let antipode = LatitudeLongitude::new(-57.36396001600441, 115.34268263197147);
         let distance = point.get_distance_to(antipode);
         assert!((distance - PI * EARTH_RADIUS).abs() < 1.0, "{distance}");
+    }
+
+    #[test]
+    fn circle_extremes_reach_further_east_than_the_bearing_east() {
+        // 500 km at 70°: the point at the bearing 90° lies about 0.28° short of the
+        // easternmost one, which sits half a degree north of the centre.
+        let centre = LatitudeLongitude::new(70.0, 10.0);
+        let [_, _, _, east] = centre.circle_extremes(500_000.0);
+        let bearing_east = centre
+            .destinations(500_000.0, std::iter::once(PI * 0.5))
+            .next()
+            .expect("one bearing");
+        assert!(
+            east.longitude > bearing_east.longitude + 0.2,
+            "{east:?} vs {bearing_east:?}"
+        );
+        assert!(east.latitude > centre.latitude);
+    }
+
+    #[test]
+    fn circle_over_the_pole_spans_all_longitudes() {
+        let [north, west, south, east] =
+            LatitudeLongitude::new(84.0, 10.0).circle_extremes(1_000_000.0);
+        assert_eq!(north.latitude, BOUNDARY_LATITUDE);
+        assert_eq!(west.longitude, -BOUNDARY_LONGITUDE);
+        assert_eq!(east.longitude, BOUNDARY_LONGITUDE);
+        assert!(south.latitude < 84.0);
     }
 }
