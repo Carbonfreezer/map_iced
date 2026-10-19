@@ -106,82 +106,6 @@ impl WaypointSystem {
         })
     }
 
-    /// The position of the way point, as handed to [`Self::add_way_point`] or
-    /// [`Self::update_waypoint_position`].
-    ///
-    /// # Example
-    /// ```
-    /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::LatitudeLongitude;
-    /// let mut system = WaypointSystem::default();
-    /// let dom = LatitudeLongitude::new(49.7554, 6.6436);
-    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), dom, None);
-    /// assert_eq!(system.position(key), Ok(dom));
-    /// ```
-    pub fn position(&self, key: WaypointKey) -> Result<LatitudeLongitude, WaypointError> {
-        Ok(self.get(key)?.mercator_rectangle.get_center())
-    }
-
-    /// The symbol the way point is drawn with.
-    ///
-    /// # Example
-    /// ```
-    /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::LatitudeLongitude;
-    /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0), None);
-    /// // E.g. to give a second way point the same look.
-    /// let symbol = system.symbol(key).expect("present");
-    /// system.add_way_point(symbol, LatitudeLongitude::new(50.1, 7.0), None);
-    /// ```
-    pub fn symbol(&self, key: WaypointKey) -> Result<WaypointSymbol, WaypointError> {
-        Ok(WaypointSymbol(self.get(key)?.image.clone()))
-    }
-
-    /// The description of the way point, `None` if it has none.
-    ///
-    /// # Example
-    /// ```
-    /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::LatitudeLongitude;
-    /// let mut system = WaypointSystem::default();
-    /// let position = LatitudeLongitude::new(49.7499, 6.6371);
-    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), position, Some("Porta Nigra".to_string()));
-    /// assert_eq!(system.description(key), Ok(Some("Porta Nigra")));
-    /// ```
-    pub fn description(&self, key: WaypointKey) -> Result<Option<&str>, WaypointError> {
-        Ok(self.get(key)?.description.as_deref())
-    }
-
-    /// The flag of the way point, `None` if it is not flagged, see [`Self::set_flag`].
-    ///
-    /// # Example
-    /// ```
-    /// use iced::Color;
-    /// use map_iced::annotation_system::annotation_support::DirectionFlag;
-    /// use map_iced::annotation_system::waypoint_system::{WaypointSymbol, WaypointSystem};
-    /// use map_iced::gui_system::LatitudeLongitude;
-    /// let mut system = WaypointSystem::default();
-    /// let key = system.add_way_point(WaypointSymbol::cross(Color::WHITE), LatitudeLongitude::new(50.0, 7.0), None);
-    /// assert_eq!(system.flag(key), Ok(None));
-    /// let flag = DirectionFlag { color: Color::from_rgb(1.0, 0.0, 0.0), priority: 3 };
-    /// system.set_flag(key, Some(flag)).expect("present");
-    /// assert_eq!(system.flag(key), Ok(Some(flag)));
-    /// ```
-    pub fn flag(&self, key: WaypointKey) -> Result<Option<DirectionFlag>, WaypointError> {
-        Ok(self.get(key)?.flag)
-    }
-
-    /// The stored way point, or the error for a missing key.
-    fn get(&self, key: WaypointKey) -> Result<&WaypointInfo, WaypointError> {
-        self.waypoint_collection
-            .get(key)
-            .ok_or(WaypointError::KeyNotContained)
-    }
-
     /// Sets the position of an existing way point.
     ///
     /// # Example
@@ -383,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn getters_follow_the_updates() {
+    fn updates_reach_the_stored_way_point() {
         let mut system = WaypointSystem::default();
         let key = system.add_way_point(
             WaypointSymbol::cross(Color::WHITE),
@@ -398,17 +322,13 @@ mod tests {
         system
             .update_waypoint_description(key, Some("Moved".to_string()))
             .unwrap();
-        assert_eq!(system.position(key), Ok(moved));
-        let Ok(WaypointSymbol(InternalWaypointImage::Cross(color))) = system.symbol(key) else {
+        let stored = &system.waypoint_collection[key];
+        let center = stored.mercator_rectangle.get_center();
+        assert!((center.latitude - 51.0).abs() < 1e-9 && (center.longitude - 8.0).abs() < 1e-9);
+        let InternalWaypointImage::Cross(color) = stored.image else {
             panic!("a cross is expected");
         };
         assert_eq!(color, Color::BLACK);
-        assert_eq!(system.description(key), Ok(Some("Moved")));
-
-        system.delete_waypoint(key).unwrap();
-        assert_eq!(system.position(key), Err(WaypointError::KeyNotContained));
-        assert!(system.symbol(key).is_err());
-        assert_eq!(system.description(key), Err(WaypointError::KeyNotContained));
-        assert_eq!(system.flag(key), Err(WaypointError::KeyNotContained));
+        assert_eq!(stored.description.as_deref(), Some("Moved"));
     }
 }

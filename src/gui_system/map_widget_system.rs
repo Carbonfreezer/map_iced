@@ -271,8 +271,9 @@ impl MapWidgetSystem {
     }
 
     /// Mutable access to the way point system, to add, change and delete way points.
-    /// Every widget is reset with it, so that the changes show; for queries use
-    /// [`Self::waypoints`], which has no such cost.
+    /// Every widget is reset with it, so that the changes show. There is no read-only
+    /// counterpart: a way point is nothing but what the app handed in, see the
+    /// [annotation system](crate::annotation_system).
     ///
     /// # Example
     /// ```
@@ -428,7 +429,7 @@ impl MapWidgetSystem {
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
     /// let key = system.regions_mut().add_region(circle, style, None).expect("a valid circle");
-    /// assert!(matches!(system.regions().shape(key), Ok(RegionShape::Circle { .. })));
+    /// assert_eq!(system.regions().center(key), Ok(LatitudeLongitude::new(49.75, 6.63)));
     /// ```
     pub fn regions(&self) -> &RegionSystem {
         &self.annotation_system.region_system
@@ -452,38 +453,12 @@ impl MapWidgetSystem {
     /// # let _guard = runtime.enter();
     /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
-    /// let key = system.paths_mut().add_path(track.clone(), Color::BLACK, None).expect("two positions");
-    /// assert_eq!(system.paths().positions(key), Ok(track.as_slice()));
+    /// let key = system.paths_mut().add_path(track, Color::BLACK, None).expect("two positions");
+    /// let location = system.paths().closest_point_on_path(key, LatitudeLongitude::new(49.76, 6.64)).expect("present");
+    /// assert!(location.distance_from_start_meter > 1_000.0);
     /// ```
     pub fn paths(&self) -> &PathSystem {
         &self.annotation_system.path_system
-    }
-
-    /// Read-only access to the way point system, to query things without the widget
-    /// reset that comes with [`Self::waypoints_mut`], e.g. the way point behind a
-    /// [`MapEvent::AnnotationSelected`].
-    ///
-    /// # Example
-    /// ```
-    /// use iced::Color;
-    /// use map_iced::annotation_system::waypoint_system::WaypointSymbol;
-    /// use map_iced::gui_system::LatitudeLongitude;
-    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
-    /// # let cache = tempfile::tempdir().unwrap();
-    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
-    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
-    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
-    /// #     30_000,
-    /// # );
-    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
-    /// # let _guard = runtime.enter();
-    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
-    /// let porta_nigra = LatitudeLongitude::new(49.7499, 6.6371);
-    /// let key = system.waypoints_mut().add_way_point(WaypointSymbol::cross(Color::WHITE), porta_nigra, None);
-    /// assert_eq!(system.waypoints().position(key), Ok(porta_nigra));
-    /// ```
-    pub fn waypoints(&self) -> &WaypointSystem {
-        &self.annotation_system.waypoint_system
     }
 
     /// Renamed to [`Self::waypoints_mut`].

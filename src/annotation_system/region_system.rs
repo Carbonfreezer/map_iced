@@ -349,7 +349,8 @@ impl RegionSystem {
     }
 
     /// The current shape of the region, as handed to [`Self::add_region`] or
-    /// [`Self::update_shape`].
+    /// [`Self::update_shape`]. Deprecated, as the app keeps what it hands in; the
+    /// region system only answers what it computes, like [`Self::center`].
     ///
     /// # Example
     /// ```
@@ -360,8 +361,10 @@ impl RegionSystem {
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
     /// let key = system.add_region(circle, style, None).expect("a valid circle");
+    /// # #[allow(deprecated)]
     /// assert!(matches!(system.shape(key), Ok(RegionShape::Circle { .. })));
     /// ```
+    #[deprecated(since = "0.2.0", note = "keep the shape on the app side")]
     pub fn shape(&self, key: RegionKey) -> Result<&RegionShape, RegionError> {
         Ok(&self
             .region_collection
@@ -653,12 +656,12 @@ mod tests {
         let reported = system.region_collection[key].get_center();
         assert_eq!((reported.latitude, reported.longitude), (49.75, 6.63));
         assert!(matches!(
-            system.shape(key),
-            Ok(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0
+            system.region_collection.get(key).map(|region| &region.shape),
+            Some(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0
         ));
 
         system.delete_region(key).expect("present");
-        assert!(system.shape(key).is_err());
+        assert!(system.region_collection.get(key).is_none());
     }
 
     #[test]
@@ -688,8 +691,8 @@ mod tests {
         assert_eq!(region.bounds.min_max_long.1, 6.63);
         assert_eq!(region.description.as_deref(), Some("plume"));
         assert!(matches!(
-            system.shape(key),
-            Ok(RegionShape::Sector { heading_degree, .. }) if *heading_degree == 270.0
+            system.region_collection.get(key).map(|region| &region.shape),
+            Some(RegionShape::Sector { heading_degree, .. }) if *heading_degree == 270.0
         ));
 
         // Another kind of shape is fine too, and reports its own centre.
@@ -740,7 +743,7 @@ mod tests {
             ring_before
         );
         assert!(
-            matches!(system.shape(key), Ok(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0)
+            matches!(system.region_collection.get(key).map(|region| &region.shape), Some(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0)
         );
 
         system.delete_region(key).expect("present");

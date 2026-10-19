@@ -259,7 +259,8 @@ impl PathSystem {
     }
 
     /// The positions of the path, as handed to [`Self::add_path`] or
-    /// [`Self::update_positions`].
+    /// [`Self::update_positions`]. Deprecated, as the app keeps what it hands in; the
+    /// path system only answers what it computes, like [`Self::closest_point_on_path`].
     ///
     /// # Example
     /// ```
@@ -269,8 +270,10 @@ impl PathSystem {
     /// let mut system = PathSystem::default();
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
     /// let key = system.add_path(track.clone(), Color::BLACK, None).expect("two positions");
+    /// # #[allow(deprecated)]
     /// assert_eq!(system.positions(key), Ok(track.as_slice()));
     /// ```
+    #[deprecated(since = "0.2.0", note = "keep the positions on the app side")]
     pub fn positions(&self, key: PathKey) -> Result<&[LatitudeLongitude], PathError> {
         Ok(&self
             .path_collection
@@ -551,6 +554,6 @@ mod tests {
             system.update_positions(key, vec![LatitudeLongitude::new(50.0, 7.0)]),
             Err(PathError::TooFewPositions)
         );
-        assert_eq!(system.positions(key).map(<[_]>::len), Ok(2));
+        assert_eq!(system.path_collection[key].geometry.positions.len(), 2);
     }
 }

@@ -1,5 +1,10 @@
 //! This module contains the annotation system, that is in charge of administrating the [way points](waypoint_system),
 //! the [paths](path_system) and the [regions](region_system).
+//!
+//! The app stays the single source of truth for what it hands in: positions, shapes,
+//! symbols, colors, descriptions and flags are not handed back. The systems only
+//! answer what they compute themselves, like the center of a region or the closest
+//! point on a path.
 
 pub(crate) mod annotation_compound;
 pub mod annotation_support;
