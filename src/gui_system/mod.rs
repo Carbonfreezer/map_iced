@@ -11,5 +11,6 @@ pub(crate) mod map_widget;
 pub mod map_widget_system;
 pub mod tile_cache_construction;
 
+#[doc(inline)]
 pub use distance_units::DistanceUnits;
 pub use latitude_longitude::LatitudeLongitude;
