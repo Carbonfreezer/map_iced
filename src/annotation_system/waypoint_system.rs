@@ -6,7 +6,7 @@ use crate::annotation_system::annotation_support::{
 };
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget::map_widget_components::FocusTarget;
+use crate::gui_system::map_widget::focus::FocusTarget;
 /// Re-exported so that callers who already hold a `Bytes` for [`WaypointSymbol::image`]
 /// do not have to depend on `bytes` themselves and keep its version in step with ours.
 /// Everyone else passes a `Vec<u8>` or `&'static [u8]`.

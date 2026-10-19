@@ -12,10 +12,10 @@ use crate::gui_system::internal_math::{
 use crate::gui_system::map_widget::direction_arrow::{
     PlacedArrow, arrow_hit, attached_arrow, draw_arrow, radar_arrow, symbol_visible,
 };
-use crate::gui_system::map_widget::focus_animation::{FocusAnimation, resolve_target};
+use crate::gui_system::map_widget::focus::{FocalPoint, FocusRequest, FocusTarget, resolve_target};
+use crate::gui_system::map_widget::focus_animation::FocusAnimation;
 use crate::gui_system::map_widget::map_widget_components::{
-    FONT_SIZE, FocalPoint, FocusTarget, MapInteractionCommand, SpecificInteractionCommand,
-    TEXT_COLOR,
+    FONT_SIZE, MapInteractionCommand, SpecificInteractionCommand, TEXT_COLOR,
 };
 use crate::gui_system::map_widget::map_widget_support::{
     AnnotationInteractionState, HALO_COLOR, HoverHit, HoverTarget, fill_text_with_halo,
@@ -62,16 +62,14 @@ pub(crate) struct MapWidget {
     annotation_info: HashmapStable,
     /// The direction arrows of the current view, see [`Self::place_arrows`].
     arrows: Vec<PlacedArrow>,
-    /// Flags that we want to have a focal reset, usually because of annotation changes from the outside.
-    pub(crate) request_focal_reset: bool,
+    /// The view still to be published, a hard focus or a republish of the current
+    /// one after annotation changes from the outside.
+    pub(crate) focus_request: FocusRequest,
     /// The soft focus currently running, if any.
     pub(crate) animation: Option<FocusAnimation>,
     /// Counts the animations started, so that a frame published for an animation
     /// that has been replaced or cancelled in the meantime can be recognised.
     pub(crate) animation_generation: u64,
-    /// An area focus that came in before the first layout, when the widget had no
-    /// size to fit it into. Resolved by [`Self::focal_point_to_publish`] with the bounds.
-    pending_target: Option<FocusTarget>,
 }
 
 /// The rectangle that covers one tile.
@@ -104,10 +102,9 @@ impl MapWidget {
             distance_units,
             annotation_info: Default::default(),
             arrows: vec![],
-            request_focal_reset: true,
+            focus_request: FocusRequest::Republish,
             animation: None,
             animation_generation: 0,
-            pending_target: None,
         }
     }
 
@@ -122,39 +119,32 @@ impl MapWidget {
         self.position_converter.as_ref()
     }
 
-    /// The hard focus: jumps to `focal_point` and cancels a running soft focus. The
-    /// new view is applied with the next event, the widget needs its bounds for it.
-    pub(crate) fn set_focal_point(&mut self, focal_point: FocalPoint) {
-        self.cancel_animation();
-        self.pending_target = None;
-        self.focal_point = focal_point;
-        self.request_focal_reset = true;
-    }
-
     /// The size the widget was last laid out with, `None` before the first layout.
     pub(crate) fn view_size(&self) -> Option<Size> {
         self.position_converter.as_ref().map(|c| c.drawing_size())
     }
 
-    /// The hard focus on a [`FocusTarget`], resolved with [`resolve_target`]. Before
-    /// the first layout an area is only centred and kept, to be fitted once the size
-    /// is known; that makes an area focus right after creating the widget work.
+    /// The hard focus on a [`FocusTarget`]: cancels a running soft focus and keeps
+    /// the target until the next view is published, see [`FocusRequest`]. That makes
+    /// an area focus right after creating the widget work.
     pub(crate) fn jump_to(&mut self, target: &FocusTarget) {
-        let view_size = self.view_size();
-        self.set_focal_point(resolve_target(target, self.focal_point, view_size));
-        if view_size.is_none() && matches!(target, FocusTarget::Area { .. }) {
-            self.pending_target = Some(target.clone());
-        }
+        self.cancel_animation();
+        self.focus_request = FocusRequest::Target(target.clone());
     }
 
-    /// The soft focus, see [`FocusAnimation`] for the path it takes. A widget that
-    /// has never been laid out has no size to plan with, it jumps instead.
+    /// The soft focus, see [`FocusAnimation`] for the path it takes. A hard focus
+    /// still waiting to be published is where it starts, so that a cut followed by a
+    /// move plays as such. A widget that has never been laid out has no size to plan
+    /// with, it jumps instead.
     pub(crate) fn animate_to(&mut self, target: &FocusTarget) {
         let Some(view_size) = self.view_size() else {
             self.jump_to(target);
             return;
         };
-        let end = resolve_target(target, self.focal_point, Some(view_size));
+        // A republish is dropped with it, the animation frames apply their views.
+        let request = std::mem::replace(&mut self.focus_request, FocusRequest::None);
+        self.focal_point = request.focal_point(self.focal_point, view_size);
+        let end = resolve_target(target, self.focal_point, view_size);
         self.animation_generation += 1;
         self.animation = Some(FocusAnimation::new(
             self.focal_point,
@@ -175,15 +165,10 @@ impl MapWidget {
         self.animation = None;
     }
 
-    /// The view to publish with `bounds`: the current one, or a waiting area focus
-    /// fitted into them. Resolved here rather than when applying, because every
-    /// event before the first application publishes again, and a later message with
-    /// the unfitted view would undo the fit.
+    /// The view to publish with `bounds`, see [`FocusRequest::focal_point`].
     pub(crate) fn focal_point_to_publish(&self, bounds: Rectangle) -> FocalPoint {
-        match &self.pending_target {
-            Some(target) => resolve_target(target, self.focal_point, Some(bounds.size())),
-            None => self.focal_point,
-        }
+        self.focus_request
+            .focal_point(self.focal_point, bounds.size())
     }
 
     /// Rebuilds the converter for a new view and reports the tiles it needs.
@@ -192,10 +177,9 @@ impl MapWidget {
         focal_point: FocalPoint,
         bounds: Rectangle,
     ) -> Option<BoundingRectangle> {
-        self.request_focal_reset = false;
         // The published point already has a waiting target resolved, see
         // `focal_point_to_publish`.
-        self.pending_target = None;
+        self.focus_request = FocusRequest::None;
         let (converter, rectangle) = DrawingPositionConverter::new(
             &focal_point.position,
             focal_point.continuous_zoom_level,
@@ -223,7 +207,7 @@ impl MapWidget {
     /// Does an invalidation by requesting a reset of the focal point. This is
     /// relevant, if annotations change.
     pub(crate) fn request_focal_reset(&mut self) {
-        self.request_focal_reset = true;
+        self.focus_request.republish();
     }
 
     /// Called from the map widget system to set the annotation information:
@@ -593,7 +577,7 @@ mod tests {
         let dom = LatitudeLongitude::new(49.7554, 6.6436);
         let target = FocusTarget::around(dom, 1_000.0);
         widget.jump_to(&target);
-        // Only centred so far, the zoom level is still the start one.
+        // Nothing resolved yet, the view is still the start one.
         assert_eq!(widget.focal_point.continuous_zoom_level, 12.0);
 
         // Every event before the first application publishes, here two of them, and
@@ -603,7 +587,7 @@ mod tests {
         let second = widget.focal_point_to_publish(bounds(size.width, size.height));
         widget.apply_focal_point(first, bounds(size.width, size.height));
         widget.apply_focal_point(second, bounds(size.width, size.height));
-        let expected = resolve_target(&target, trier(), Some(size));
+        let expected = resolve_target(&target, trier(), size);
         assert_eq!(
             widget.focal_point.continuous_zoom_level,
             expected.continuous_zoom_level
@@ -641,5 +625,32 @@ mod tests {
         widget.jump_to(&FocusTarget::Position(trier().position));
         let published = widget.focal_point_to_publish(bounds(594.0, 492.0));
         assert_eq!(published.continuous_zoom_level, 12.0);
+    }
+
+    #[test]
+    fn annotation_reset_keeps_a_waiting_target() {
+        let mut widget = MapWidget::new(0, String::new(), trier(), DistanceUnits::Metric);
+        widget.jump_to(&FocusTarget::around(trier().position, 1_000.0));
+        widget.request_focal_reset();
+        let published = widget.focal_point_to_publish(bounds(594.0, 492.0));
+        assert_ne!(published.continuous_zoom_level, 12.0);
+    }
+
+    #[test]
+    fn animation_starts_from_a_waiting_cut() {
+        let mut widget = MapWidget::new(0, String::new(), trier(), DistanceUnits::Metric);
+        widget.apply_focal_point(trier(), bounds(594.0, 492.0));
+        // Cut to Mertert, then move on to Köln.
+        let mertert = LatitudeLongitude::new(49.7031, 6.4797);
+        let koeln = LatitudeLongitude::new(50.9413, 6.9583);
+        let earlier = Instant::now();
+        widget.jump_to(&FocusTarget::Position(mertert));
+        widget.animate_to(&FocusTarget::Position(koeln));
+        assert!(!widget.focus_request.is_pending());
+        let animation = widget.animation.as_ref().expect("animation started");
+        let (begin, finished) = animation.sample(earlier);
+        assert!(!finished);
+        assert!((begin.position.latitude - mertert.latitude).abs() < 1e-9);
+        assert!((begin.position.longitude - mertert.longitude).abs() < 1e-9);
     }
 }

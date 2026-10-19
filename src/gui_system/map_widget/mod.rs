@@ -1,6 +1,7 @@
 //! This module contains all the sub modules related to a single widget.
 
 mod direction_arrow;
+pub(crate) mod focus;
 mod focus_animation;
 pub(crate) mod map_widget_components;
 pub(crate) mod map_widget_core;

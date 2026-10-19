@@ -8,11 +8,12 @@
 //! at high zoom would sweep thousands of tiles nobody can load in time, zooming out
 //! keeps the overlap between consecutive frames high.
 //!
-//! Where the focus ends is set by a [`FocusTarget`], see [`resolve_target`].
+//! Where the focus ends is set by a [`FocusTarget`](super::focus::FocusTarget), see
+//! [`resolve_target`](super::focus::resolve_target).
 
 use crate::gui_system::internal_math::{MAXIMUM_ZOOM_LEVEL, TILE_SIZE_PIXEL, TileCoordinates};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget::map_widget_components::{FocalPoint, FocusTarget};
+use crate::gui_system::map_widget::focus::FocalPoint;
 use iced::Size;
 use iced::time::{Duration, Instant};
 
@@ -25,10 +26,6 @@ const ZOOM_DURATION_PER_LEVEL: Duration = Duration::from_millis(150);
 /// How many zoom levels we go out beyond the point where the target just touches
 /// the edge of the frame, so that it does not sit exactly on that edge.
 const FIT_MARGIN: f32 = 0.25;
-
-/// The closest an area focus zooms in. A tiny region, or one of a single point,
-/// would otherwise end up at the maximum zoom level with no surroundings left.
-const MAXIMUM_AREA_ZOOM_LEVEL: f32 = 17.0;
 
 /// Below this difference two zoom levels count as the same, no zoom phase needed.
 const ZOOM_EPSILON: f32 = 1e-3;
@@ -146,7 +143,7 @@ impl FocusAnimation {
 
 /// The pixel offset from `from` to `target` at the zoom level of `from`, not
 /// clipped against anything.
-fn pixel_offset(from: &FocalPoint, target: &LatitudeLongitude) -> (f64, f64) {
+pub(super) fn pixel_offset(from: &FocalPoint, target: &LatitudeLongitude) -> (f64, f64) {
     let scale = TILE_SIZE_PIXEL as f64 * f64::exp2(from.continuous_zoom_level as f64);
     let a = from.position.get_tile_coordinates(0);
     let b = target.get_tile_coordinates(0);
@@ -178,70 +175,9 @@ fn zoom_out_level(from: &FocalPoint, target: &LatitudeLongitude, view_size: Size
     Some(zoom.clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32))
 }
 
-/// Where a focus on `target` ends, for a widget showing `current` at `view_size`
-/// pixels. Without a size, an area is only centred and keeps the zoom level.
-///
-/// An area is fitted per axis: each axis gives the level at which the area's extent
-/// plus its pixel padding is `fill` of the widget's width or height, and the smaller
-/// level is binding, so an elongated area fits as well. The centre is taken in
-/// mercator space, where it is the visual centre of the area on the map. An area
-/// built from nothing has no position, the view stays where it is then.
-pub(crate) fn resolve_target(
-    target: &FocusTarget,
-    current: FocalPoint,
-    view_size: Option<Size>,
-) -> FocalPoint {
-    let (bounds, fill) = match target {
-        FocusTarget::Position(position) => {
-            return FocalPoint {
-                position: *position,
-                ..current
-            };
-        }
-        FocusTarget::Area { bounds, fill } => (bounds, *fill as f64),
-    };
-
-    let top_left =
-        LatitudeLongitude::new(bounds.min_max_lat.1, bounds.min_max_long.0).get_tile_coordinates(0);
-    let bottom_right =
-        LatitudeLongitude::new(bounds.min_max_lat.0, bounds.min_max_long.1).get_tile_coordinates(0);
-    let position = TileCoordinates {
-        x: (top_left.x + bottom_right.x) * 0.5,
-        y: (top_left.y + bottom_right.y) * 0.5,
-        zoom: 0,
-    }
-    .into();
-    let Some(view_size) = view_size else {
-        return FocalPoint {
-            position,
-            ..current
-        };
-    };
-
-    // The extent in pixels at zoom level 0, the padding does not scale with zoom.
-    let padding = 2.0 * bounds.pixel_padding;
-    let level = |extent: f64, view_extent: f64| {
-        let available = (view_extent * fill - padding).max(1.0);
-        let extent = extent * TILE_SIZE_PIXEL as f64;
-        if extent <= 0.0 {
-            f64::INFINITY
-        } else {
-            f64::log2(available / extent)
-        }
-    };
-    let zoom = level(bottom_right.x - top_left.x, view_size.width as f64)
-        .min(level(bottom_right.y - top_left.y, view_size.height as f64));
-    FocalPoint {
-        position,
-        continuous_zoom_level: (zoom as f32).clamp(0.0, MAXIMUM_AREA_ZOOM_LEVEL),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::annotation_system::annotation_support::MercatorRectangle;
-    use crate::gui_system::map_widget_system::MapWidgetSystem;
 
     /// The start view of the examples, with the viewport measured there.
     fn trier() -> FocalPoint {
@@ -300,87 +236,6 @@ mod tests {
         assert!(finished);
         assert!((end.position.latitude - koeln.latitude).abs() < 1e-9);
         assert!((end.position.longitude - koeln.longitude).abs() < 1e-9);
-        assert_eq!(end.continuous_zoom_level, 12.0);
-    }
-
-    /// An area around Trier, `half_lat` and `half_long` degrees to each side.
-    fn area(half_lat: f64, half_long: f64, fill: f32) -> FocusTarget {
-        FocusTarget::Area {
-            bounds: MercatorRectangle {
-                min_max_lat: (49.75 - half_lat, 49.75 + half_lat),
-                min_max_long: (6.63 - half_long, 6.63 + half_long),
-                pixel_padding: 0.0,
-            },
-            fill,
-        }
-    }
-
-    /// The extent of `target` in pixels at the zoom level of `view`.
-    fn extent_in_pixels(target: &FocusTarget, view: &FocalPoint) -> (f64, f64) {
-        let FocusTarget::Area { bounds, .. } = target else {
-            panic!("an area is expected");
-        };
-        let corner = |lat, long| LatitudeLongitude::new(lat, long);
-        let at_view = FocalPoint {
-            position: corner(bounds.min_max_lat.1, bounds.min_max_long.0),
-            ..*view
-        };
-        let (dx, dy) = pixel_offset(
-            &at_view,
-            &corner(bounds.min_max_lat.0, bounds.min_max_long.1),
-        );
-        (dx.abs(), dy.abs())
-    }
-
-    #[test]
-    fn wide_area_fits_the_width() {
-        let target = area(0.01, 1.0, 0.8);
-        let end = resolve_target(&target, trier(), Some(VIEW));
-        let (width, height) = extent_in_pixels(&target, &end);
-        assert!(
-            (width - VIEW.width as f64 * 0.8).abs() < 0.5,
-            "width {width}"
-        );
-        assert!(height < VIEW.height as f64 * 0.8);
-    }
-
-    #[test]
-    fn tall_area_fits_the_height() {
-        let target = area(1.0, 0.01, 0.8);
-        let end = resolve_target(&target, trier(), Some(VIEW));
-        let (width, height) = extent_in_pixels(&target, &end);
-        assert!(
-            (height - VIEW.height as f64 * 0.8).abs() < 0.5,
-            "height {height}"
-        );
-        assert!(width < VIEW.width as f64 * 0.8);
-        // The centre is the mercator centre, which lies north of the mean latitude.
-        assert!(end.position.latitude > 49.75);
-    }
-
-    #[test]
-    fn circle_fills_the_shorter_side() {
-        // Mercator is conformal, so the box of a small circle is square on screen, and
-        // the height is the binding side of VIEW.
-        let target = FocusTarget::around(LatitudeLongitude::new(49.75, 6.63), 200.0);
-        let end = resolve_target(&target, trier(), Some(VIEW));
-        let (width, height) = extent_in_pixels(&target, &end);
-        let expected = VIEW.height as f64 * MapWidgetSystem::DEFAULT_FOCUS_FILL as f64;
-        assert!((height - expected).abs() < 0.5, "height {height}");
-        assert!((width - height).abs() < 0.5, "width {width}");
-        assert!((end.position.latitude - 49.75).abs() < 1e-6);
-        assert!((end.position.longitude - 6.63).abs() < 1e-9);
-    }
-
-    #[test]
-    fn tiny_area() {
-        let point = resolve_target(&area(0.0, 0.0, 0.8), trier(), Some(VIEW));
-        assert_eq!(point.continuous_zoom_level, MAXIMUM_AREA_ZOOM_LEVEL);
-    }
-
-    #[test]
-    fn area_without_size_is_only_centred() {
-        let end = resolve_target(&area(1.0, 1.0, 0.8), trier(), None);
         assert_eq!(end.continuous_zoom_level, 12.0);
     }
 

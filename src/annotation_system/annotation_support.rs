@@ -5,7 +5,7 @@ use crate::annotation_system::region_system::RegionKey;
 use crate::annotation_system::waypoint_system::WaypointKey;
 use crate::gui_system::internal_math::MercatorPoint;
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget::map_widget_components::FocusTarget;
+use crate::gui_system::map_widget::focus::FocusTarget;
 use iced::Color;
 use iced::advanced::image::Handle;
 use std::fmt::Debug;

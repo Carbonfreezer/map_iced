@@ -10,8 +10,9 @@ use crate::gui_system::distance_units::DistanceUnits;
 use crate::gui_system::hashmap_stable::HashmapStable;
 use crate::gui_system::high_level_tile_cache::{CacheUpdateMessage, TileCache};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
+use crate::gui_system::map_widget::focus::FocalPoint;
 use crate::gui_system::map_widget::map_widget_components::{
-    AnnotationOverlay, FocalPoint, SpecificInteractionCommand,
+    AnnotationOverlay, SpecificInteractionCommand,
 };
 use crate::gui_system::map_widget::map_widget_core::MapWidget;
 use crate::gui_system::tile_cache_construction::{TileCacheConfig, TileCacheError};
@@ -20,9 +21,8 @@ use iced::widget::{canvas, stack};
 use iced::{Element, Fill, Rectangle, Task};
 use tokio_stream::wrappers::ReceiverStream;
 
-pub use crate::gui_system::map_widget::map_widget_components::{
-    FocusTarget, MapInteractionCommand,
-};
+pub use crate::gui_system::map_widget::focus::FocusTarget;
+pub use crate::gui_system::map_widget::map_widget_components::MapInteractionCommand;
 
 /// The messages dealing with the widgets these are messages from the
 /// caching system and messages dealing with map interaction.
@@ -754,7 +754,9 @@ impl MapWidgetSystem {
     /// targets are reached by a pan, far ones by zooming out, panning and zooming in.
     /// User panning and zooming is suspended meanwhile, and
     /// [`MapEvent::FocusReached`] reports the arrival. A widget that has not been laid
-    /// out yet has no view to animate from, it does a [`Self::jump_to`] instead.
+    /// out yet has no view to animate from, it does a [`Self::jump_to`] instead. A
+    /// [`Self::jump_to`] right before starts the animation from its view, so a cut
+    /// followed by a move plays as such.
     ///
     /// # Example
     /// ```
