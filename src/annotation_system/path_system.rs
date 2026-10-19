@@ -59,8 +59,6 @@ pub struct PathLocation {
 /// their view, and a track can have tens of thousands of positions.
 #[derive(Debug)]
 struct PathGeometry {
-    /// The positions as handed over.
-    positions: Vec<LatitudeLongitude>,
     /// The positions with the points inserted on long segments, these get drawn.
     dense_positions: Vec<LatitudeLongitude>,
     /// `dense_positions` in Mercator space, for the hit test.
@@ -110,7 +108,6 @@ impl PathGeometry {
         )
         .expect("a path has at least two positions");
         let mut geometry = Self {
-            positions,
             dense_positions,
             mercator,
             distance_to_vertex,
@@ -223,7 +220,7 @@ pub struct PathSystem {
 impl PathSystem {
     /// Adds a path through the positions, in this order, drawn as a line in `color`.
     /// Segments longer than 10 km get points inserted along the great circle for
-    /// drawing, [`Self::positions`] still gives the positions as handed over.
+    /// drawing.
     ///
     /// # Example
     /// ```
@@ -256,31 +253,6 @@ impl PathSystem {
             flag: None,
         };
         Ok(self.path_collection.insert(path))
-    }
-
-    /// The positions of the path, as handed to [`Self::add_path`] or
-    /// [`Self::update_positions`]. Deprecated, as the app keeps what it hands in; the
-    /// path system only answers what it computes, like [`Self::closest_point_on_path`].
-    ///
-    /// # Example
-    /// ```
-    /// use iced::Color;
-    /// use map_iced::annotation_system::path_system::PathSystem;
-    /// use map_iced::gui_system::LatitudeLongitude;
-    /// let mut system = PathSystem::default();
-    /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
-    /// let key = system.add_path(track.clone(), Color::BLACK, None).expect("two positions");
-    /// # #[allow(deprecated)]
-    /// assert_eq!(system.positions(key), Ok(track.as_slice()));
-    /// ```
-    #[deprecated(since = "0.2.0", note = "keep the positions on the app side")]
-    pub fn positions(&self, key: PathKey) -> Result<&[LatitudeLongitude], PathError> {
-        Ok(&self
-            .path_collection
-            .get(key)
-            .ok_or(PathError::KeyNotContained)?
-            .geometry
-            .positions)
     }
 
     /// The point on the path closest to `position`, and how far along the path it lies
@@ -486,7 +458,6 @@ mod tests {
         // about L² · tan(50°) / (8 · R), some 12 km or 0.107 degrees.
         let path = geometry(&[(50.0, 0.0), (50.0, 10.0)]);
         assert!(path.dense_positions.len() > 70);
-        assert_eq!(path.positions.len(), 2);
         let middle = path.dense_positions[path.dense_positions.len() / 2];
         assert!((middle.latitude - 50.107).abs() < 0.002, "{middle:?}");
         // The bounds cover the bulge, not only the end points.
@@ -496,26 +467,32 @@ mod tests {
         }
         // The densified length is the great circle length of the original segment.
         let total = *path.distance_to_vertex.last().expect("not empty");
-        let direct = path.positions[0].get_distance_to(path.positions[1]);
+        let direct =
+            LatitudeLongitude::new(50.0, 0.0).get_distance_to(LatitudeLongitude::new(50.0, 10.0));
         assert!((total - direct).abs() < 1.0, "{total} vs {direct}");
     }
 
     #[test]
     fn short_segments_stay_as_they_are() {
-        let path = geometry(&[(49.75, 6.63), (49.755, 6.64), (49.76, 6.645)]);
-        assert_eq!(path.dense_positions, path.positions);
+        let points = [(49.75, 6.63), (49.755, 6.64), (49.76, 6.645)];
+        let path = geometry(&points);
+        let expected: Vec<_> = points
+            .iter()
+            .map(|&(lat, long)| LatitudeLongitude::new(lat, long))
+            .collect();
+        assert_eq!(path.dense_positions, expected);
     }
 
     #[test]
     fn locate_measures_along_the_path() {
-        // An L shape: east, then north.
+        // An L shape: east, then north, short enough to stay as it is.
         let path = geometry(&[(50.0, 7.0), (50.0, 7.01), (50.01, 7.01)]);
-        let first_leg = path.positions[0].get_distance_to(path.positions[1]);
+        let first_leg = path.dense_positions[0].get_distance_to(path.dense_positions[1]);
 
         // East of the second leg, halfway up: projects onto the second leg.
         let location = path.locate(LatitudeLongitude::new(50.005, 7.02));
         assert!((location.position.longitude - 7.01).abs() < 1e-9);
-        let up = path.positions[1].get_distance_to(location.position);
+        let up = path.dense_positions[1].get_distance_to(location.position);
         assert!((location.distance_from_start_meter - (first_leg + up)).abs() < 1e-6);
 
         // Before the start: clamps onto the first position.
@@ -554,6 +531,10 @@ mod tests {
             system.update_positions(key, vec![LatitudeLongitude::new(50.0, 7.0)]),
             Err(PathError::TooFewPositions)
         );
-        assert_eq!(system.path_collection[key].geometry.positions.len(), 2);
+        // The old path is still in place.
+        assert_eq!(
+            system.path_collection[key].geometry.dense_positions.last(),
+            Some(&LatitudeLongitude::new(50.0, 7.1))
+        );
     }
 }

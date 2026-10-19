@@ -461,36 +461,6 @@ impl MapWidgetSystem {
         &self.annotation_system.path_system
     }
 
-    /// Renamed to [`Self::waypoints_mut`].
-    #[deprecated(since = "0.2.0", note = "renamed to `waypoints_mut`")]
-    pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
-        self.waypoints_mut()
-    }
-
-    /// Renamed to [`Self::regions_mut`].
-    #[deprecated(since = "0.2.0", note = "renamed to `regions_mut`")]
-    pub fn get_region_system_as_mut(&mut self) -> &mut RegionSystem {
-        self.regions_mut()
-    }
-
-    /// Renamed to [`Self::paths_mut`].
-    #[deprecated(since = "0.2.0", note = "renamed to `paths_mut`")]
-    pub fn get_path_system_as_mut(&mut self) -> &mut PathSystem {
-        self.paths_mut()
-    }
-
-    /// Renamed to [`Self::regions`].
-    #[deprecated(since = "0.2.0", note = "renamed to `regions`")]
-    pub fn get_region_system(&self) -> &RegionSystem {
-        self.regions()
-    }
-
-    /// Renamed to [`Self::paths`].
-    #[deprecated(since = "0.2.0", note = "renamed to `paths`")]
-    pub fn get_path_system(&self) -> &PathSystem {
-        self.paths()
-    }
-
     ///  The messages going into the caching system are processed here.
     fn process_caching_message(&mut self, message: CachingResultMessage) -> Option<MapEvent> {
         let mut final_message = "".to_string();

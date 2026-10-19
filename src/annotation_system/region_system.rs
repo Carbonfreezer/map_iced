@@ -35,8 +35,6 @@ pub(crate) struct Region {
     /// targeted by the direction arrow: the apex of a sector, the centre of a circle,
     /// the centre of the bounds otherwise.
     center: LatitudeLongitude,
-    /// The shape the region was built from, everything else here is derived from it.
-    shape: RegionShape,
     /// The ring as polygon in Mercator space for the hit test, see
     /// [`Annotation::closest_point`].
     mercator_polygon: Polygon,
@@ -130,8 +128,9 @@ pub struct RegionStyle {
     pub border: Color,
 }
 
-/// The shape of a region, as it was handed to [`RegionSystem::add_region`]. The region
-/// keeps it, so it can be asked for later with [`RegionSystem::shape`].
+/// The shape of a region, as it is handed to [`RegionSystem::add_region`] or
+/// [`RegionSystem::update_shape`]. The region is built from it, the shape itself is
+/// not kept.
 ///
 /// All rings built from it run counter-clockwise with longitude as x and latitude as
 /// y, see `RenderingClosedShape`.
@@ -309,7 +308,6 @@ impl RegionSystem {
         let region = Region {
             center: outline.center,
             bounds: outline.bounds,
-            shape,
             mercator_polygon: outline.mercator_polygon,
             rendering_info: RenderingClosedShape {
                 positions_ccw: outline.positions_ccw,
@@ -348,31 +346,6 @@ impl RegionSystem {
             .center)
     }
 
-    /// The current shape of the region, as handed to [`Self::add_region`] or
-    /// [`Self::update_shape`]. Deprecated, as the app keeps what it hands in; the
-    /// region system only answers what it computes, like [`Self::center`].
-    ///
-    /// # Example
-    /// ```
-    /// use iced::Color;
-    /// use map_iced::annotation_system::region_system::{RegionShape, RegionStyle, RegionSystem};
-    /// use map_iced::gui_system::LatitudeLongitude;
-    /// let mut system = RegionSystem::default();
-    /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
-    /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
-    /// let key = system.add_region(circle, style, None).expect("a valid circle");
-    /// # #[allow(deprecated)]
-    /// assert!(matches!(system.shape(key), Ok(RegionShape::Circle { .. })));
-    /// ```
-    #[deprecated(since = "0.2.0", note = "keep the shape on the app side")]
-    pub fn shape(&self, key: RegionKey) -> Result<&RegionShape, RegionError> {
-        Ok(&self
-            .region_collection
-            .get(key)
-            .ok_or(RegionError::KeyNotContained)?
-            .shape)
-    }
-
     /// Gives the region a new shape, of any kind. Key, style, description and flag stay,
     /// so the region keeps being the same thing for the application and keeps a
     /// selection in the widgets, like a gas plume whose forecast is renewed every hour.
@@ -407,7 +380,6 @@ impl RegionSystem {
         region.bounds = outline.bounds;
         region.mercator_polygon = outline.mercator_polygon;
         region.rendering_info.positions_ccw = outline.positions_ccw;
-        region.shape = shape;
         Ok(())
     }
 
@@ -643,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn circle_reports_its_own_centre_and_shape() {
+    fn circle_reports_its_own_centre() {
         let mut system = RegionSystem::default();
         let center = LatitudeLongitude::new(49.75, 6.63);
         let shape = RegionShape::Circle {
@@ -655,10 +627,6 @@ mod tests {
             .expect("a valid circle");
         let reported = system.region_collection[key].get_center();
         assert_eq!((reported.latitude, reported.longitude), (49.75, 6.63));
-        assert!(matches!(
-            system.region_collection.get(key).map(|region| &region.shape),
-            Some(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0
-        ));
 
         system.delete_region(key).expect("present");
         assert!(system.region_collection.get(key).is_none());
@@ -690,10 +658,6 @@ mod tests {
         assert!(!hits(region, east));
         assert_eq!(region.bounds.min_max_long.1, 6.63);
         assert_eq!(region.description.as_deref(), Some("plume"));
-        assert!(matches!(
-            system.region_collection.get(key).map(|region| &region.shape),
-            Some(RegionShape::Sector { heading_degree, .. }) if *heading_degree == 270.0
-        ));
 
         // Another kind of shape is fine too, and reports its own centre.
         let points = vec![
@@ -742,9 +706,11 @@ mod tests {
                 .len(),
             ring_before
         );
-        assert!(
-            matches!(system.region_collection.get(key).map(|region| &region.shape), Some(RegionShape::Circle { radius_meter, .. }) if *radius_meter == 10_000.0)
-        );
+        // Still the 10 km circle: about 5.6 km north is inside.
+        assert!(hits(
+            &system.region_collection[key],
+            LatitudeLongitude::new(49.80, 6.63)
+        ));
 
         system.delete_region(key).expect("present");
         let valid = RegionShape::Circle {
