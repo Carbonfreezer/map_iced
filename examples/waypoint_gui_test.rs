@@ -2,6 +2,7 @@
 //! about; the checkbox registers one with the map system or takes it out again, and
 //! the row of a way point that was picked on a map is written in the accent colour.
 //!
+//! Both maps start on the Trier Dom, showing a kilometre around it.
 //! The focus button moves both maps to the way point, the left one with a hard jump
 //! and the right one with the soft, animated focus. Mertert lies outside the start
 //! view but close enough to be reached by a pan, Köln and Montréal need a zoom out.
@@ -100,6 +101,12 @@ impl WaypointApplication {
             widget_system.request_new_widget(),
             widget_system.request_new_widget(),
         ];
+        // Both maps start on the Dom with a kilometre around it.
+        let (_, latitude, longitude, _) = CATALOGUE[0];
+        let start = FocusTarget::around(LatitudeLongitude::new(latitude, longitude), 1_000.0);
+        for id in widget_ids {
+            widget_system.jump_to(id, start.clone());
+        }
         let entries = CATALOGUE
             .iter()
             .map(|(name, latitude, longitude, flag)| WaypointEntry {

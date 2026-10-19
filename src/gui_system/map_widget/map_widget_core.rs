@@ -69,6 +69,9 @@ pub(crate) struct MapWidget {
     /// Counts the animations started, so that a frame published for an animation
     /// that has been replaced or cancelled in the meantime can be recognised.
     pub(crate) animation_generation: u64,
+    /// An area focus that came in before the first layout, when the widget had no
+    /// size to fit it into. Resolved by [`Self::focal_point_to_publish`] with the bounds.
+    pending_target: Option<FocusTarget>,
 }
 
 /// The rectangle that covers one tile.
@@ -104,6 +107,7 @@ impl MapWidget {
             request_focal_reset: true,
             animation: None,
             animation_generation: 0,
+            pending_target: None,
         }
     }
 
@@ -122,6 +126,7 @@ impl MapWidget {
     /// new view is applied with the next event, the widget needs its bounds for it.
     pub(crate) fn set_focal_point(&mut self, focal_point: FocalPoint) {
         self.cancel_animation();
+        self.pending_target = None;
         self.focal_point = focal_point;
         self.request_focal_reset = true;
     }
@@ -131,9 +136,15 @@ impl MapWidget {
         self.position_converter.as_ref().map(|c| c.drawing_size())
     }
 
-    /// The hard focus on a [`FocusTarget`], resolved with [`resolve_target`].
+    /// The hard focus on a [`FocusTarget`], resolved with [`resolve_target`]. Before
+    /// the first layout an area is only centred and kept, to be fitted once the size
+    /// is known; that makes an area focus right after creating the widget work.
     pub(crate) fn jump_to(&mut self, target: &FocusTarget) {
-        self.set_focal_point(resolve_target(target, self.focal_point, self.view_size()));
+        let view_size = self.view_size();
+        self.set_focal_point(resolve_target(target, self.focal_point, view_size));
+        if view_size.is_none() && matches!(target, FocusTarget::Area { .. }) {
+            self.pending_target = Some(target.clone());
+        }
     }
 
     /// The soft focus, see [`FocusAnimation`] for the path it takes. A widget that
@@ -164,6 +175,17 @@ impl MapWidget {
         self.animation = None;
     }
 
+    /// The view to publish with `bounds`: the current one, or a waiting area focus
+    /// fitted into them. Resolved here rather than when applying, because every
+    /// event before the first application publishes again, and a later message with
+    /// the unfitted view would undo the fit.
+    pub(crate) fn focal_point_to_publish(&self, bounds: Rectangle) -> FocalPoint {
+        match &self.pending_target {
+            Some(target) => resolve_target(target, self.focal_point, Some(bounds.size())),
+            None => self.focal_point,
+        }
+    }
+
     /// Rebuilds the converter for a new view and reports the tiles it needs.
     pub fn apply_focal_point(
         &mut self,
@@ -171,6 +193,9 @@ impl MapWidget {
         bounds: Rectangle,
     ) -> Option<BoundingRectangle> {
         self.request_focal_reset = false;
+        // The published point already has a waiting target resolved, see
+        // `focal_point_to_publish`.
+        self.pending_target = None;
         let (converter, rectangle) = DrawingPositionConverter::new(
             &focal_point.position,
             focal_point.continuous_zoom_level,
@@ -538,5 +563,83 @@ impl MapWidget {
                 draw_scale_bar(frame, bounds.size(), &bar);
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui_system::LatitudeLongitude;
+
+    fn trier() -> FocalPoint {
+        FocalPoint {
+            position: LatitudeLongitude::new(49.75, 6.63),
+            continuous_zoom_level: 12.0,
+        }
+    }
+
+    fn bounds(width: f32, height: f32) -> Rectangle {
+        Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width,
+            height,
+        }
+    }
+
+    #[test]
+    fn area_focus_before_the_first_layout_waits_for_the_size() {
+        let mut widget = MapWidget::new(0, String::new(), trier(), DistanceUnits::Metric);
+        let dom = LatitudeLongitude::new(49.7554, 6.6436);
+        let target = FocusTarget::around(dom, 1_000.0);
+        widget.jump_to(&target);
+        // Only centred so far, the zoom level is still the start one.
+        assert_eq!(widget.focal_point.continuous_zoom_level, 12.0);
+
+        // Every event before the first application publishes, here two of them, and
+        // both carry the fitted view.
+        let size = Size::new(594.0, 492.0);
+        let first = widget.focal_point_to_publish(bounds(size.width, size.height));
+        let second = widget.focal_point_to_publish(bounds(size.width, size.height));
+        widget.apply_focal_point(first, bounds(size.width, size.height));
+        widget.apply_focal_point(second, bounds(size.width, size.height));
+        let expected = resolve_target(&target, trier(), Some(size));
+        assert_eq!(
+            widget.focal_point.continuous_zoom_level,
+            expected.continuous_zoom_level
+        );
+        assert_ne!(expected.continuous_zoom_level, 12.0);
+
+        // Resolved once: what gets published next is the view as it is.
+        let published = widget.focal_point_to_publish(bounds(size.width, size.height));
+        assert_eq!(
+            published.continuous_zoom_level,
+            widget.focal_point.continuous_zoom_level
+        );
+    }
+
+    #[test]
+    fn radius_changes_the_fitted_zoom() {
+        let size = Size::new(594.0, 492.0);
+        let fitted_zoom = |radius| {
+            let mut widget = MapWidget::new(0, String::new(), trier(), DistanceUnits::Metric);
+            widget.jump_to(&FocusTarget::around(trier().position, radius));
+            widget
+                .focal_point_to_publish(bounds(size.width, size.height))
+                .continuous_zoom_level
+        };
+        // A tenth of the radius is about 3.3 levels closer, still below the cap.
+        let wide = fitted_zoom(1_000.0);
+        let close = fitted_zoom(150.0);
+        assert!(close - wide > 2.5, "{wide} vs {close}");
+    }
+
+    #[test]
+    fn position_focus_drops_a_waiting_area() {
+        let mut widget = MapWidget::new(0, String::new(), trier(), DistanceUnits::Metric);
+        widget.jump_to(&FocusTarget::around(trier().position, 1_000.0));
+        widget.jump_to(&FocusTarget::Position(trier().position));
+        let published = widget.focal_point_to_publish(bounds(594.0, 492.0));
+        assert_eq!(published.continuous_zoom_level, 12.0);
     }
 }

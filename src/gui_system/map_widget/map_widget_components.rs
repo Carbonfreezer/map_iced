@@ -161,7 +161,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         cursor: Cursor,
     ) -> Option<Action<MapInteractionCommand>> {
         if self.request_focal_reset {
-            return self.publish(self.focal_point, bounds);
+            return self.publish(self.focal_point_to_publish(bounds), bounds);
         }
 
         if let Some(animation) = &self.animation {
@@ -202,7 +202,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
         // iced delivers that event before the relayout, so it still carries the old
         // bounds. The `RedrawRequested` following the relayout brings the new ones.
         if self.view_size() != Some(bounds.size()) {
-            return self.publish(self.focal_point, bounds);
+            return self.publish(self.focal_point_to_publish(bounds), bounds);
         }
 
         match event {

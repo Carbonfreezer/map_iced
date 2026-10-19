@@ -661,7 +661,9 @@ impl MapWidgetSystem {
 
     /// The hard focus on a [`FocusTarget`]: a position keeps the zoom level, an area
     /// is fitted into the widget. A soft focus still running on that widget is
-    /// cancelled.
+    /// cancelled. Right after [`Self::request_new_widget`] the widget has no size yet;
+    /// an area is then fitted with the first layout, so a start view can be set up
+    /// this way.
     ///
     /// # Example
     /// ```
@@ -688,7 +690,8 @@ impl MapWidgetSystem {
     /// level the widget started with, an area at the level that fits it. Close
     /// targets are reached by a pan, far ones by zooming out, panning and zooming in.
     /// User panning and zooming is suspended meanwhile, and
-    /// [`MapEvent::FocusReached`] reports the arrival.
+    /// [`MapEvent::FocusReached`] reports the arrival. A widget that has not been laid
+    /// out yet has no view to animate from, it does a [`Self::jump_to`] instead.
     ///
     /// # Example
     /// ```
