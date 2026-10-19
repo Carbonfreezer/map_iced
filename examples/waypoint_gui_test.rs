@@ -160,7 +160,7 @@ impl WaypointApplication {
                         match entry.key {
                             Some(AnnotationKey::Waypoint(waypoint_key)) => {
                                 self.widget_system
-                                    .get_waypoint_system_as_mut()
+                                    .waypoints_mut()
                                     .update_waypoint_position(waypoint_key, position)
                                     .expect("Key should be present");
                                 entry.position = position;
@@ -180,19 +180,16 @@ impl WaypointApplication {
 
                 match (checked, key) {
                     (true, None) => {
-                        let key = self
-                            .widget_system
-                            .get_waypoint_system_as_mut()
-                            .add_way_point(
-                                WaypointSymbol::image(ICON_DATA),
-                                position,
-                                Some(name.to_string()),
-                            );
+                        let key = self.widget_system.waypoints_mut().add_way_point(
+                            WaypointSymbol::image(ICON_DATA),
+                            position,
+                            Some(name.to_string()),
+                        );
                         self.entries[index].key = Some(key.into());
                     }
                     (false, Some(AnnotationKey::Waypoint(key))) => {
                         self.widget_system
-                            .get_waypoint_system_as_mut()
+                            .waypoints_mut()
                             .delete_waypoint(key)
                             .expect("Key not stored");
                         self.entries[index].key = None;
@@ -230,7 +227,7 @@ impl WaypointApplication {
                 match key {
                     AnnotationKey::Waypoint(key) => {
                         self.widget_system
-                            .get_waypoint_system_as_mut()
+                            .waypoints_mut()
                             .set_flag(key, flagged.then_some(flag))
                             .expect("Should be present");
                     }

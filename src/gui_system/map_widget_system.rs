@@ -270,7 +270,9 @@ impl MapWidgetSystem {
         }
     }
 
-    /// Gets a mutable access for the way point system to modify things.
+    /// Mutable access to the way point system, to add, change and delete way points.
+    /// Every widget is reset with it, so that the changes show; for queries use
+    /// [`Self::waypoints`], which has no such cost.
     ///
     /// # Example
     /// ```
@@ -287,18 +289,20 @@ impl MapWidgetSystem {
     /// # let runtime = tokio::runtime::Runtime::new().unwrap();
     /// # let _guard = runtime.enter();
     /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
-    /// let key = system.get_waypoint_system_as_mut().add_way_point(
+    /// let key = system.waypoints_mut().add_way_point(
     ///     WaypointSymbol::cross(Color::from_rgb(1.0, 0.0, 0.0)),
     ///     LatitudeLongitude::new(49.7499, 6.6371),
     ///     Some("Porta Nigra".to_string()),
     /// );
     /// ```
-    pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
+    pub fn waypoints_mut(&mut self) -> &mut WaypointSystem {
         self.reset_all_widgets();
         self.annotation_system.waypoint_system()
     }
 
-    /// Gets a mutable access for the region system to modify things.
+    /// Mutable access to the region system, to add, change and delete regions. Every
+    /// widget is reset with it, so that the changes show; for queries use
+    /// [`Self::regions`], which has no such cost.
     ///
     /// # Example
     /// ```
@@ -317,15 +321,17 @@ impl MapWidgetSystem {
     /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
     /// let style = RegionStyle { fill: Color::from_rgba(1.0, 0.0, 0.0, 0.3), border: Color::from_rgb(1.0, 0.0, 0.0) };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
-    /// let key = system.get_region_system_as_mut().add_region(circle, style, None);
+    /// let key = system.regions_mut().add_region(circle, style, None);
     /// assert!(key.is_ok());
     /// ```
-    pub fn get_region_system_as_mut(&mut self) -> &mut RegionSystem {
+    pub fn regions_mut(&mut self) -> &mut RegionSystem {
         self.reset_all_widgets();
         self.annotation_system.region_system()
     }
 
-    /// Gets a mutable access for the path system to modify things.
+    /// Mutable access to the path system, to add, change and delete paths. Every
+    /// widget is reset with it, so that the changes show; for queries use
+    /// [`Self::paths`], which has no such cost.
     ///
     /// # Example
     /// ```
@@ -342,16 +348,16 @@ impl MapWidgetSystem {
     /// # let _guard = runtime.enter();
     /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
-    /// let key = system.get_path_system_as_mut().add_path(track, Color::BLACK, None);
+    /// let key = system.paths_mut().add_path(track, Color::BLACK, None);
     /// assert!(key.is_ok());
     /// ```
-    pub fn get_path_system_as_mut(&mut self) -> &mut PathSystem {
+    pub fn paths_mut(&mut self) -> &mut PathSystem {
         self.reset_all_widgets();
         self.annotation_system.path_system()
     }
 
     /// Sets the description of the annotation `key`, whatever its kind. Unlike the
-    /// update methods behind [`Self::get_waypoint_system_as_mut`] and its siblings,
+    /// update methods behind [`Self::waypoints_mut`] and its siblings,
     /// this does not reset the widgets: they only swap their copy of the one
     /// annotation and keep everything drawn. That makes it cheap enough to answer
     /// every [`MapEvent::AnnotationHovered`], e.g. with the distance along a track.
@@ -372,16 +378,16 @@ impl MapWidgetSystem {
     /// # let _guard = runtime.enter();
     /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
     /// let track = vec![LatitudeLongitude::new(50.0, 7.0), LatitudeLongitude::new(50.0, 7.1)];
-    /// let path_key = system.get_path_system_as_mut().add_path(track, Color::BLACK, None).expect("two positions");
+    /// let path_key = system.paths_mut().add_path(track, Color::BLACK, None).expect("two positions");
     /// let key = AnnotationKey::from(path_key);
     ///
     /// // As the answer to a MapEvent::AnnotationHovered with this hover point.
     /// let hover_point = LatitudeLongitude::new(50.0, 7.05);
-    /// let location = system.get_path_system().closest_point_on_path(path_key, hover_point).expect("present");
+    /// let location = system.paths().closest_point_on_path(path_key, hover_point).expect("present");
     /// let text = system.distance_units().distance_text(location.distance_from_start_meter);
     /// assert!(system.update_description(key, Some(format!("{text} from the start"))).is_ok());
     ///
-    /// system.get_path_system_as_mut().delete_path(path_key).expect("present");
+    /// system.paths_mut().delete_path(path_key).expect("present");
     /// assert_eq!(system.update_description(key, None), Err(AnnotationError::KeyNotContained));
     /// ```
     pub fn update_description(
@@ -401,8 +407,8 @@ impl MapWidgetSystem {
         Ok(())
     }
 
-    /// Gets a read-only access for the region system, to query things without the
-    /// widget reset that comes with [`Self::get_region_system_as_mut`].
+    /// Read-only access to the region system, to query things without the widget
+    /// reset that comes with [`Self::regions_mut`].
     ///
     /// # Example
     /// ```
@@ -421,15 +427,15 @@ impl MapWidgetSystem {
     /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
-    /// let key = system.get_region_system_as_mut().add_region(circle, style, None).expect("a valid circle");
-    /// assert!(matches!(system.get_region_system().shape(key), Ok(RegionShape::Circle { .. })));
+    /// let key = system.regions_mut().add_region(circle, style, None).expect("a valid circle");
+    /// assert!(matches!(system.regions().shape(key), Ok(RegionShape::Circle { .. })));
     /// ```
-    pub fn get_region_system(&self) -> &RegionSystem {
+    pub fn regions(&self) -> &RegionSystem {
         &self.annotation_system.region_system
     }
 
-    /// Gets a read-only access for the path system, to query things without the
-    /// widget reset that comes with [`Self::get_path_system_as_mut`].
+    /// Read-only access to the path system, to query things without the widget
+    /// reset that comes with [`Self::paths_mut`].
     ///
     /// # Example
     /// ```
@@ -446,11 +452,68 @@ impl MapWidgetSystem {
     /// # let _guard = runtime.enter();
     /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
     /// let track = vec![LatitudeLongitude::new(49.75, 6.63), LatitudeLongitude::new(49.76, 6.64)];
-    /// let key = system.get_path_system_as_mut().add_path(track.clone(), Color::BLACK, None).expect("two positions");
-    /// assert_eq!(system.get_path_system().positions(key), Ok(track.as_slice()));
+    /// let key = system.paths_mut().add_path(track.clone(), Color::BLACK, None).expect("two positions");
+    /// assert_eq!(system.paths().positions(key), Ok(track.as_slice()));
     /// ```
-    pub fn get_path_system(&self) -> &PathSystem {
+    pub fn paths(&self) -> &PathSystem {
         &self.annotation_system.path_system
+    }
+
+    /// Read-only access to the way point system, to query things without the widget
+    /// reset that comes with [`Self::waypoints_mut`], e.g. the way point behind a
+    /// [`MapEvent::AnnotationSelected`].
+    ///
+    /// # Example
+    /// ```
+    /// use iced::Color;
+    /// use map_iced::annotation_system::waypoint_system::WaypointSymbol;
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// use map_iced::gui_system::map_widget_system::MapWidgetSystem;
+    /// # let cache = tempfile::tempdir().unwrap();
+    /// # let config = map_iced::gui_system::tile_cache_construction::TileCacheConfig::new(
+    /// #     map_iced::gui_system::tile_cache_construction::TileSource::TestPattern,
+    /// #     map_iced::gui_system::tile_cache_construction::CachingDirectory::FullyConstructed(cache.path().into()),
+    /// #     30_000,
+    /// # );
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let _guard = runtime.enter();
+    /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
+    /// let porta_nigra = LatitudeLongitude::new(49.7499, 6.6371);
+    /// let key = system.waypoints_mut().add_way_point(WaypointSymbol::cross(Color::WHITE), porta_nigra, None);
+    /// assert_eq!(system.waypoints().position(key), Ok(porta_nigra));
+    /// ```
+    pub fn waypoints(&self) -> &WaypointSystem {
+        &self.annotation_system.waypoint_system
+    }
+
+    /// Renamed to [`Self::waypoints_mut`].
+    #[deprecated(since = "0.2.0", note = "renamed to `waypoints_mut`")]
+    pub fn get_waypoint_system_as_mut(&mut self) -> &mut WaypointSystem {
+        self.waypoints_mut()
+    }
+
+    /// Renamed to [`Self::regions_mut`].
+    #[deprecated(since = "0.2.0", note = "renamed to `regions_mut`")]
+    pub fn get_region_system_as_mut(&mut self) -> &mut RegionSystem {
+        self.regions_mut()
+    }
+
+    /// Renamed to [`Self::paths_mut`].
+    #[deprecated(since = "0.2.0", note = "renamed to `paths_mut`")]
+    pub fn get_path_system_as_mut(&mut self) -> &mut PathSystem {
+        self.paths_mut()
+    }
+
+    /// Renamed to [`Self::regions`].
+    #[deprecated(since = "0.2.0", note = "renamed to `regions`")]
+    pub fn get_region_system(&self) -> &RegionSystem {
+        self.regions()
+    }
+
+    /// Renamed to [`Self::paths`].
+    #[deprecated(since = "0.2.0", note = "renamed to `paths`")]
+    pub fn get_path_system(&self) -> &PathSystem {
+        self.paths()
     }
 
     ///  The messages going into the caching system are processed here.
@@ -737,7 +800,7 @@ impl MapWidgetSystem {
     /// let (mut system, _task) = MapWidgetSystem::boot(config).expect("tile cache set up");
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let circle = RegionShape::Circle { center: LatitudeLongitude::new(49.75, 6.63), radius_meter: 2_000.0 };
-    /// let key = system.get_region_system_as_mut().add_region(circle, style, None).expect("a valid circle");
+    /// let key = system.regions_mut().add_region(circle, style, None).expect("a valid circle");
     /// let widget = system.request_new_widget();
     ///
     /// // The circle fills half the widget, with plenty of surroundings.
@@ -779,7 +842,7 @@ impl MapWidgetSystem {
     /// let style = RegionStyle { fill: Color::WHITE, border: Color::BLACK };
     /// let apex = LatitudeLongitude::new(49.75, 6.63);
     /// let sector = RegionShape::Sector { apex, radius_meter: 5_000.0, heading_degree: 90.0, opening_degree: 60.0 };
-    /// let key = system.get_region_system_as_mut().add_region(sector, style, None).expect("a valid sector");
+    /// let key = system.regions_mut().add_region(sector, style, None).expect("a valid sector");
     /// // A sector stands for its apex, the source of the plume.
     /// assert_eq!(system.center(key.into()), Ok(apex));
     /// ```

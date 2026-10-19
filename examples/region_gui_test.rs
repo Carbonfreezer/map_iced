@@ -120,7 +120,7 @@ impl RegionApplication {
     fn register_elements(widget_system: &mut MapWidgetSystem) -> Vec<Entry> {
         let mut entries = Vec::new();
 
-        let waypoints = widget_system.get_waypoint_system_as_mut();
+        let waypoints = widget_system.waypoints_mut();
         for (name, position, symbol) in [
             (
                 "Trier Cathedral",
@@ -140,7 +140,7 @@ impl RegionApplication {
             });
         }
 
-        let regions = widget_system.get_region_system_as_mut();
+        let regions = widget_system.regions_mut();
         let red = RegionStyle {
             fill: Color::from_rgba(0.9, 0.15, 0.15, 0.25),
             border: Color::from_rgb(0.9, 0.15, 0.15),
@@ -206,7 +206,7 @@ impl RegionApplication {
             .set_flag(circle_key, Some(FLAG))
             .expect("The circle was just added");
 
-        let paths = widget_system.get_path_system_as_mut();
+        let paths = widget_system.paths_mut();
         for (data, color) in TRACKS {
             let (name, positions) = read_track(data);
             let key = paths
@@ -285,7 +285,7 @@ impl RegionApplication {
             },
             AnnotationKey::Path(path_key) => match self
                 .widget_system
-                .get_path_system()
+                .paths()
                 .closest_point_on_path(path_key, click_point)
             {
                 Ok(location) => format!(
