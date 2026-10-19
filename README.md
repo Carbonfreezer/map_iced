@@ -45,7 +45,7 @@ Add map_iced and iced to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-map_iced = "0.1"
+map_iced = "0.2"
 iced = "0.14"
 ```
 
@@ -53,7 +53,10 @@ A minimal application with one map:
 
 ```rust
 use iced::{Element, Task};
-use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
+use map_iced::gui_system::LatitudeLongitude;
+use map_iced::gui_system::map_widget_system::{
+    FocusTarget, MapEvent, MapWidgetMessage, MapWidgetSystem,
+};
 use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
 
 struct Application {
@@ -72,6 +75,9 @@ impl Application {
         let config = TileCacheConfig::open_street_map("PlaceholderMapping");
         let (mut map, task) = MapWidgetSystem::boot(config).expect("tile cache set up");
         let widget_id = map.request_new_widget();
+        // Central Park, New York, with a kilometre around it.
+        let central_park = LatitudeLongitude::new(40.7829, -73.9654);
+        map.jump_to(widget_id, FocusTarget::around(central_park, 1_000.0));
         (Self { map, widget_id }, task.map(Message::Map))
     }
 
@@ -93,6 +99,14 @@ fn main() -> iced::Result {
     iced::application(Application::boot, Application::update, Application::view).run()
 }
 ```
+
+The `jump_to` in `boot()` sets the start view. An area like the one from
+`FocusTarget::around` is fitted into the widget once it is laid out; a bare
+`LatitudeLongitude` works as well and keeps the zoom level, city level by default.
+Since tiles are only requested after the first layout, the map loads no tiles for
+any other place first.
+
+Pan the map by dragging with the middle mouse button, zoom with the mouse wheel.
 
 The tile source can also come from a JSON file, which keeps API keys out of the
 source code. The module documentation of `tile_cache_construction` describes the
