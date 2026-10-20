@@ -1,6 +1,6 @@
 [package]
 name = "map_iced"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "A map widget for iced with tile caching and interactive way points, regions and paths."
 repository = "https://github.com/Carbonfreezer/map_iced"
