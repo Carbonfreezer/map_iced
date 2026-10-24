@@ -219,8 +219,8 @@ impl LatitudeLongitude {
         2.0 * EARTH_RADIUS * h.sqrt().min(1.0).asin()
     }
 
-    /// Returns the bearing to another point in radians.
-    /// 
+    /// Returns the bearing to another point in radians in the range of -PI..PI.
+    ///
     /// # Example
     /// ```
     /// use map_iced::gui_system::LatitudeLongitude;
@@ -234,7 +234,7 @@ impl LatitudeLongitude {
         let lat_b = other_point.latitude.to_radians();
         let s = lat_b.cos() * delta_long.sin();
         let c = lat_a.cos() * lat_b.sin() - lat_a.sin() * lat_b.cos() * delta_long.cos();
-        f64::atan2(s, c).rem_euclid(2.0 * PI)
+        f64::atan2(s, c)
     }
 }
 
@@ -245,13 +245,12 @@ mod tests {
 
     proptest! {
         #[test]
-        fn bearing_test(latitude in -80.0f64..80.0, longitude in -177.0f64..177.0, radius in 0.1 .. 50_000.0, bearing in 0.0..2.0*PI) {
+        fn bearing_test(latitude in -80.0f64..80.0, longitude in -177.0f64..177.0, radius in 0.1 .. 50_000.0, bearing in -PI..PI) {
             // Get the test point.
             let origin = LatitudeLongitude::new(latitude, longitude);
             let destination = origin.destinations(radius,[bearing].into_iter()).take(1).collect::<Vec<_>>()[0];
             let new_bearing = origin.get_bearing_to(destination);
-            let diff = (new_bearing - bearing).rem_euclid(2.0 * PI);
-            prop_assert!(diff.min(2.0 * PI - diff) < 1e-6, "Original and calculated bearing do not match.");
+            prop_assert!(f64::abs(new_bearing - bearing) < 1e-6, "Original and calculated bearing do not match.");
         }
     }
 
