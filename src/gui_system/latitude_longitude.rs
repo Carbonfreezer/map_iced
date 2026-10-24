@@ -220,6 +220,7 @@ impl LatitudeLongitude {
     }
 
     /// Returns the bearing to another point in radians.
+    /// 
     /// # Example
     /// ```
     /// use map_iced::gui_system::LatitudeLongitude;
