@@ -218,12 +218,41 @@ impl LatitudeLongitude {
         // Rounding can push h just above 1 for near-antipodal points, where asin gives NaN.
         2.0 * EARTH_RADIUS * h.sqrt().min(1.0).asin()
     }
+
+    /// Returns the bearing to another point in radians.
+    /// # Example
+    /// ```
+    /// use map_iced::gui_system::LatitudeLongitude;
+    /// let first_point = LatitudeLongitude::new(49.7554, 6.6436);
+    /// let second_point = LatitudeLongitude::new( 49.7540, 6.6100);
+    /// let bearing = first_point.get_bearing_to(second_point);
+    /// ```
+    pub fn get_bearing_to(&self, other_point: Self) -> f64 {
+        let delta_long = (other_point.longitude - self.longitude).to_radians();
+        let lat_a = self.latitude.to_radians();
+        let lat_b = other_point.latitude.to_radians();
+        let s = lat_b.cos() * delta_long.sin();
+        let c = lat_a.cos() * lat_b.sin() - lat_a.sin() * lat_b.cos() * delta_long.cos();
+        f64::atan2(s, c).rem_euclid(2.0 * PI)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use proptest::{prop_assert, proptest};
+
+    proptest! {
+        #[test]
+        fn bearing_test(latitude in -80.0f64..80.0, longitude in -177.0f64..177.0, radius in 0.1 .. 50_000.0, bearing in 0.0..2.0*PI) {
+            // Get the test point.
+            let origin = LatitudeLongitude::new(latitude, longitude);
+            let destination = origin.destinations(radius,[bearing].into_iter()).take(1).collect::<Vec<_>>()[0];
+            let new_bearing = origin.get_bearing_to(destination);
+            let diff = (new_bearing - bearing).rem_euclid(2.0 * PI);
+            prop_assert!(diff.min(2.0 * PI - diff) < 1e-6, "Original and calculated bearing do not match.");
+        }
+    }
 
     proptest! {
         #[test]
