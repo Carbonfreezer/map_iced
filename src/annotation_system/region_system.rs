@@ -134,7 +134,11 @@ pub struct RegionStyle {
 ///
 /// All rings built from it run counter-clockwise with longitude as x and latitude as
 /// y, see `RenderingClosedShape`.
+///
+/// Further shapes may come without a breaking release, so a `match` on it outside
+/// this crate needs a wildcard arm.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum RegionShape {
     /// A circle of `radius_meter` around `center`, measured along great circles. The
     /// region reports `center` as its centre.
