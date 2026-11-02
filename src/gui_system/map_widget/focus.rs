@@ -25,6 +25,10 @@ pub(crate) struct FocalPoint {
 
 /// What a focus aims at. Turned into a `FocalPoint` by the widget itself, since
 /// only the widget knows its size at that moment.
+///
+/// [`FocusTarget::CompleteMap`] and [`FocusTarget::Area`] keep fitting: the widget
+/// fits them again whenever its size changes, until the user pans or zooms or the
+/// next focus arrives.
 #[derive(Debug, Clone)]
 pub enum FocusTarget {
     /// The complete map, centred and scaled so that it fits the widget's shorter
@@ -48,6 +52,15 @@ impl From<LatitudeLongitude> for FocusTarget {
 }
 
 impl FocusTarget {
+    /// Whether the target is fitted to the widget's size, and so is fitted again
+    /// after a resize.
+    pub(crate) fn fits_view(&self) -> bool {
+        match self {
+            FocusTarget::CompleteMap | FocusTarget::Area { .. } => true,
+            FocusTarget::Position(_) => false,
+        }
+    }
+
     /// The area within `radius_meter` around `center`, e.g. 200 m around a vehicle
     /// to keep in view. The circle covers the share
     /// [`MapWidgetSystem::DEFAULT_FOCUS_FILL`] of the widget's shorter side, so a bit

@@ -58,6 +58,8 @@ pub struct MapInteractionCommand {
 pub(crate) enum SpecificInteractionCommand {
     /// We want to set the focal point as latitude longitude and the zoom level.
     SetFocalPoint(FocalPoint, Rectangle),
+    /// The user panned or zoomed to this view, which ends a fitted focus.
+    UserMoved(FocalPoint, Rectangle),
     /// A left click landed on the given annotation element with the click point handed over as latitude, longitude.
     AnnotationClicked(AnnotationKey, LatitudeLongitude),
     /// The hover moved onto the given annotation element, with the cursor position
@@ -146,7 +148,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
             }) if cursor.is_over(bounds) => {
                 let zoom = (self.focal_point.continuous_zoom_level + y * SCROLLING_SPEED)
                     .clamp(0.0, MAXIMUM_ZOOM_LEVEL as f32);
-                self.publish(
+                self.publish_user_move(
                     FocalPoint {
                         continuous_zoom_level: zoom,
                         ..self.focal_point
@@ -174,7 +176,7 @@ impl canvas::Program<MapInteractionCommand> for MapWidget {
                     return None;
                 }
                 state.drag_origin = Some(now);
-                self.publish(
+                self.publish_user_move(
                     FocalPoint {
                         position: converter.get_new_coord_for_mouse_delta(delta),
                         ..self.focal_point

@@ -65,6 +65,10 @@ pub(crate) struct MapWidget {
     /// The view still to be published, a hard focus or a republish of the current
     /// one after annotation changes from the outside.
     pub(crate) focus_request: FocusRequest,
+    /// The last focus that is fitted to the widget's size, see
+    /// [`FocusTarget::fits_view`]. It is fitted again on every resize, until the user
+    /// pans or zooms or another focus replaces it.
+    pub(crate) fit: Option<FocusTarget>,
     /// The soft focus currently running, if any.
     pub(crate) animation: Option<FocusAnimation>,
     /// Counts the animations started, so that a frame published for an animation
@@ -103,6 +107,7 @@ impl MapWidget {
             annotation_info: Default::default(),
             arrows: vec![],
             focus_request: FocusRequest::Republish,
+            fit: None,
             animation: None,
             animation_generation: 0,
         }
@@ -129,6 +134,7 @@ impl MapWidget {
     /// an area focus right after creating the widget work.
     pub(crate) fn jump_to(&mut self, target: &FocusTarget) {
         self.cancel_animation();
+        self.fit = target.fits_view().then(|| target.clone());
         self.focus_request = FocusRequest::Target(target.clone());
     }
 
@@ -145,6 +151,8 @@ impl MapWidget {
         let request = std::mem::replace(&mut self.focus_request, FocusRequest::None);
         self.focal_point = request.focal_point(self.focal_point, view_size);
         let end = resolve_target(target, self.focal_point, view_size);
+        // Only fitted again once the animation is over, see `fitted_view`.
+        self.fit = target.fits_view().then(|| target.clone());
         self.animation_generation += 1;
         self.animation = Some(FocusAnimation::new(
             self.focal_point,
@@ -165,10 +173,31 @@ impl MapWidget {
         self.animation = None;
     }
 
-    /// The view to publish with `bounds`, see [`FocusRequest::focal_point`].
+    /// The user took the view over, a resize keeps the zoom level from now on.
+    pub(crate) fn release_fit(&mut self) {
+        self.fit = None;
+    }
+
+    /// The current fit resolved for `size`, `None` without one or while an
+    /// animation is running, whose frames are what gets shown then.
+    pub(crate) fn fitted_view(&self, size: Size) -> Option<FocalPoint> {
+        if self.animation.is_some() {
+            return None;
+        }
+        let fit = self.fit.as_ref()?;
+        Some(resolve_target(fit, self.focal_point, size))
+    }
+
+    /// The view to publish with `bounds`: a waiting target, see
+    /// [`FocusRequest::focal_point`], otherwise the fit for these bounds, otherwise
+    /// the current view.
     pub(crate) fn focal_point_to_publish(&self, bounds: Rectangle) -> FocalPoint {
-        self.focus_request
-            .focal_point(self.focal_point, bounds.size())
+        if let FocusRequest::Target(_) = self.focus_request {
+            return self
+                .focus_request
+                .focal_point(self.focal_point, bounds.size());
+        }
+        self.fitted_view(bounds.size()).unwrap_or(self.focal_point)
     }
 
     /// Rebuilds the converter for a new view and reports the tiles it needs.
@@ -297,6 +326,19 @@ impl MapWidget {
         Some(Action::publish(MapInteractionCommand {
             client_id: self.client_id,
             command: SpecificInteractionCommand::SetFocalPoint(focal_point, bounds),
+        }))
+    }
+
+    /// Like [`Self::publish`], for a view the user panned or zoomed to. It ends the
+    /// current fit.
+    pub(crate) fn publish_user_move(
+        &self,
+        focal_point: FocalPoint,
+        bounds: Rectangle,
+    ) -> Option<Action<MapInteractionCommand>> {
+        Some(Action::publish(MapInteractionCommand {
+            client_id: self.client_id,
+            command: SpecificInteractionCommand::UserMoved(focal_point, bounds),
         }))
     }
 
@@ -634,6 +676,71 @@ mod tests {
         widget.request_focal_reset();
         let published = widget.focal_point_to_publish(bounds(594.0, 492.0));
         assert_ne!(published.continuous_zoom_level, 12.0);
+    }
+
+    /// A widget that has been laid out once at 594 x 492 after `target`.
+    fn fitted_widget(target: &FocusTarget) -> MapWidget {
+        let mut widget = MapWidget::new(0, String::new(), trier(), DistanceUnits::Metric);
+        widget.jump_to(target);
+        let start = bounds(594.0, 492.0);
+        widget.apply_focal_point(widget.focal_point_to_publish(start), start);
+        widget
+    }
+
+    #[test]
+    fn fitted_targets_follow_a_resize() {
+        for target in [
+            FocusTarget::CompleteMap,
+            FocusTarget::around(trier().position, 1_000.0),
+        ] {
+            let widget = fitted_widget(&target);
+            let before = widget.focal_point.continuous_zoom_level;
+            // Twice the size in both directions is one level closer.
+            let after = widget
+                .focal_point_to_publish(bounds(1188.0, 984.0))
+                .continuous_zoom_level;
+            assert!(
+                (after - before - 1.0).abs() < 1e-4,
+                "{target:?}: {before} -> {after}"
+            );
+        }
+    }
+
+    #[test]
+    fn user_move_ends_the_fit() {
+        let mut widget = fitted_widget(&FocusTarget::CompleteMap);
+        let before = widget.focal_point.continuous_zoom_level;
+        widget.release_fit();
+        let after = widget.focal_point_to_publish(bounds(1188.0, 984.0));
+        assert_eq!(after.continuous_zoom_level, before);
+    }
+
+    #[test]
+    fn position_jump_ends_the_fit() {
+        let mut widget = fitted_widget(&FocusTarget::CompleteMap);
+        widget.jump_to(&FocusTarget::Position(trier().position));
+        let start = bounds(594.0, 492.0);
+        widget.apply_focal_point(widget.focal_point_to_publish(start), start);
+        let before = widget.focal_point.continuous_zoom_level;
+        let after = widget.focal_point_to_publish(bounds(1188.0, 984.0));
+        assert_eq!(after.continuous_zoom_level, before);
+    }
+
+    #[test]
+    fn running_animation_is_not_cut_short_by_its_fit() {
+        let mut widget = MapWidget::new(0, String::new(), trier(), DistanceUnits::Metric);
+        widget.apply_focal_point(trier(), bounds(594.0, 492.0));
+        widget.animate_to(&FocusTarget::CompleteMap);
+        // An annotation change during the animation republishes the current view.
+        widget.request_focal_reset();
+        let published = widget.focal_point_to_publish(bounds(594.0, 492.0));
+        assert_eq!(published.continuous_zoom_level, 12.0);
+        // Once over, the fit takes over again.
+        widget.cancel_animation();
+        let fitted = widget
+            .fitted_view(Size::new(594.0, 492.0))
+            .expect("fit kept");
+        assert_ne!(fitted.continuous_zoom_level, 12.0);
     }
 
     #[test]

@@ -531,6 +531,12 @@ impl MapWidgetSystem {
                 None
             }
 
+            SpecificInteractionCommand::UserMoved(point, rectangle) => {
+                self.widget_collection[client_id as usize].release_fit();
+                self.apply_focal_point(client_id, point, rectangle);
+                None
+            }
+
             SpecificInteractionCommand::AnimationFrame {
                 focal_point,
                 bounds,
@@ -543,9 +549,15 @@ impl MapWidgetSystem {
                 if !widget.is_current_animation(generation) {
                     return None;
                 }
-                if finished {
-                    widget.cancel_animation();
-                }
+                let focal_point = match finished {
+                    // The widget may have been resized during the animation, whose
+                    // end was planned with the old size.
+                    true => {
+                        widget.cancel_animation();
+                        widget.fitted_view(bounds.size()).unwrap_or(focal_point)
+                    }
+                    false => focal_point,
+                };
                 // Setting the focal point initiates the redraw which itself generates an animation
                 // frame command.
                 self.apply_focal_point(client_id, focal_point, bounds);
@@ -668,10 +680,11 @@ impl MapWidgetSystem {
     }
 
     /// The hard focus on a [`FocusTarget`]: a position keeps the zoom level, an area
-    /// is fitted into the widget. A soft focus still running on that widget is
-    /// cancelled. Right after [`Self::request_new_widget`] the widget has no size yet;
-    /// an area is then fitted with the first layout, so a start view can be set up
-    /// this way.
+    /// or the complete map is fitted into the widget, and fitted again whenever the
+    /// widget is resized, until the user pans or zooms or the next focus arrives. A
+    /// soft focus still running on that widget is cancelled. Right after
+    /// [`Self::request_new_widget`] the widget has no size yet; an area is then fitted
+    /// with the first layout, so a start view can be set up this way.
     ///
     /// # Example
     /// ```
@@ -698,7 +711,8 @@ impl MapWidgetSystem {
     /// level the widget started with, an area at the level that fits it. Close
     /// targets are reached by a pan, far ones by zooming out, panning and zooming in.
     /// User panning and zooming is suspended meanwhile, and
-    /// [`MapEvent::FocusReached`] reports the arrival. A widget that has not been laid
+    /// [`MapEvent::FocusReached`] reports the arrival. From then on an area or the
+    /// complete map keeps fitting as with [`Self::jump_to`]. A widget that has not been laid
     /// out yet has no view to animate from, it does a [`Self::jump_to`] instead. A
     /// [`Self::jump_to`] right before starts the animation from its view, so a cut
     /// followed by a move plays as such.
