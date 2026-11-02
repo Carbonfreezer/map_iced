@@ -45,7 +45,7 @@ Add map_iced and iced to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-map_iced = "0.2"
+map_iced = "0.3"
 iced = "0.14"
 ```
 
