@@ -27,7 +27,8 @@ pub(crate) struct FocalPoint {
 /// only the widget knows its size at that moment.
 #[derive(Debug, Clone)]
 pub enum FocusTarget {
-    /// The center of the complete map at tile level 0.
+    /// The complete map, centred and scaled so that it fits the widget's shorter
+    /// side. A widget smaller than one tile shows the map at zoom level 0.
     CompleteMap,
     /// A single position, the zoom level stays as it is.
     Position(LatitudeLongitude),
@@ -135,9 +136,12 @@ pub(crate) fn resolve_target(
     let (bounds, fill) = match target {
         FocusTarget::CompleteMap => {
             return FocalPoint {
-                position: LatitudeLongitude{latitude: 0.0, longitude: 0.0},
-                continuous_zoom_level: 1.0
-            }
+                position: LatitudeLongitude {
+                    latitude: 0.0,
+                    longitude: 0.0,
+                },
+                continuous_zoom_level: complete_map_zoom_level(view_size),
+            };
         }
         FocusTarget::Position(position) => {
             return FocalPoint {
@@ -176,6 +180,13 @@ pub(crate) fn resolve_target(
         position,
         continuous_zoom_level: (zoom as f32).clamp(0.0, MAXIMUM_AREA_ZOOM_LEVEL),
     }
+}
+
+/// The zoom level at which the complete map, `TILE_SIZE_PIXEL * 2^zoom` pixels on
+/// each side, is as wide as the shorter side of `view_size`.
+fn complete_map_zoom_level(view_size: Size) -> f32 {
+    let shorter_side = view_size.width.min(view_size.height);
+    f32::log2(shorter_side / TILE_SIZE_PIXEL as f32).clamp(0.0, MAXIMUM_AREA_ZOOM_LEVEL)
 }
 
 #[cfg(test)]
@@ -263,6 +274,28 @@ mod tests {
         assert!((width - height).abs() < 0.5, "width {width}");
         assert!((end.position.latitude - 49.75).abs() < 1e-6);
         assert!((end.position.longitude - 6.63).abs() < 1e-9);
+    }
+
+    #[test]
+    fn complete_map_fits_the_shorter_side() {
+        let views = [VIEW, Size::new(1600.0, 1000.0), Size::new(700.0, 2000.0)];
+        for view in views {
+            let end = resolve_target(&FocusTarget::CompleteMap, trier(), view);
+            let world = TILE_SIZE_PIXEL as f64 * f64::exp2(end.continuous_zoom_level as f64);
+            let shorter_side = view.width.min(view.height) as f64;
+            assert!(
+                (world - shorter_side).abs() < 0.5,
+                "world {world} in view {view:?}"
+            );
+            assert_eq!(end.position.latitude, 0.0);
+            assert_eq!(end.position.longitude, 0.0);
+        }
+    }
+
+    #[test]
+    fn complete_map_in_a_small_view_stays_at_level_zero() {
+        let end = resolve_target(&FocusTarget::CompleteMap, trier(), Size::new(200.0, 100.0));
+        assert_eq!(end.continuous_zoom_level, 0.0);
     }
 
     #[test]
