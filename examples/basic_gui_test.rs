@@ -2,9 +2,7 @@ use iced::widget::space::vertical;
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Element, Fill, FillPortion, Size, Task, Theme};
-use map_iced::gui_system::map_widget_system::{
-    CacheClearing, MapEvent, MapWidgetMessage, MapWidgetSystem,
-};
+use map_iced::gui_system::map_widget_system::{CacheClearing, FocusTarget, MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
 
 struct BasicApplication {
@@ -38,6 +36,10 @@ impl BasicApplication {
             widget_system.request_new_widget(),
             widget_system.request_new_widget(),
         ];
+        // Reset both widgets to complete world.
+        for widget_id in widget_ids {
+            widget_system.jump_to(widget_id, FocusTarget::CompleteMap);
+        }
         (
             Self {
                 widget_system,

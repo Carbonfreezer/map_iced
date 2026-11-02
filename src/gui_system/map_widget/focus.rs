@@ -27,6 +27,8 @@ pub(crate) struct FocalPoint {
 /// only the widget knows its size at that moment.
 #[derive(Debug, Clone)]
 pub enum FocusTarget {
+    /// The center of the complete map at tile level 0.
+    CompleteMap,
     /// A single position, the zoom level stays as it is.
     Position(LatitudeLongitude),
     /// An area, typically the bounds of a region. It gets centred and zoomed so that
@@ -131,6 +133,12 @@ pub(crate) fn resolve_target(
     view_size: Size,
 ) -> FocalPoint {
     let (bounds, fill) = match target {
+        FocusTarget::CompleteMap => {
+            return FocalPoint {
+                position: LatitudeLongitude{latitude: 0.0, longitude: 0.0},
+                continuous_zoom_level: 1.0
+            }
+        }
         FocusTarget::Position(position) => {
             return FocalPoint {
                 position: *position,
