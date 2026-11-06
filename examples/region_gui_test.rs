@@ -154,8 +154,6 @@ impl RegionApplication {
             border: Color::from_rgb(0.95, 0.7, 0.1),
         };
         let shapes = [
-            // The centre is a little off the cathedral, so that a click on the way
-            // point and one next to it in the circle are told apart.
             (
                 "Cathedral cordon",
                 RegionShape::Circle {
