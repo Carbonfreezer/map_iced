@@ -52,7 +52,7 @@ impl From<LatitudeLongitude> for FocusTarget {
 }
 
 impl FocusTarget {
-    /// The target as a fit. This function returns a value, if it is refitted to the boundary if 
+    /// The target as a fit. This function returns a value, if it is refitted to the boundary if
     /// no user interaction occurred.  A refit is not done if the target is a position.
     pub(crate) fn to_fit(&self) -> Option<FocusTarget> {
         match self {
