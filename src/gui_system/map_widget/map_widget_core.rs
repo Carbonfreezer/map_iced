@@ -66,7 +66,7 @@ pub(crate) struct MapWidget {
     /// one after annotation changes from the outside.
     pub(crate) focus_request: FocusRequest,
     /// The last focus that is fitted to the widget's size, see
-    /// [`FocusTarget::fits_view`]. It is fitted again on every resize, until the user
+    /// [`FocusTarget::to_fit`]. It is fitted again on every resize, until the user
     /// pans or zooms or another focus replaces it.
     pub(crate) fit: Option<FocusTarget>,
     /// The soft focus currently running, if any.
@@ -134,7 +134,7 @@ impl MapWidget {
     /// an area focus right after creating the widget work.
     pub(crate) fn jump_to(&mut self, target: &FocusTarget) {
         self.cancel_animation();
-        self.fit = target.fits_view().then(|| target.clone());
+        self.fit = target.to_fit();
         self.focus_request = FocusRequest::Target(target.clone());
     }
 
@@ -152,7 +152,7 @@ impl MapWidget {
         self.focal_point = request.focal_point(self.focal_point, view_size);
         let end = resolve_target(target, self.focal_point, view_size);
         // Only fitted again once the animation is over, see `fitted_view`.
-        self.fit = target.fits_view().then(|| target.clone());
+        self.fit = target.to_fit();
         self.animation_generation += 1;
         self.animation = Some(FocusAnimation::new(
             self.focal_point,

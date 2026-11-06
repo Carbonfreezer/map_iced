@@ -52,12 +52,12 @@ impl From<LatitudeLongitude> for FocusTarget {
 }
 
 impl FocusTarget {
-    /// Whether the target is fitted to the widget's size, and so is fitted again
-    /// after a resize.
-    pub(crate) fn fits_view(&self) -> bool {
+    /// The target as a fit, if it is fitted to the widget's size and so is fitted
+    /// again after a resize, as long as the user has not panned or zoomed meanwhile.
+    pub(crate) fn to_fit(&self) -> Option<FocusTarget> {
         match self {
-            FocusTarget::CompleteMap | FocusTarget::Area { .. } => true,
-            FocusTarget::Position(_) => false,
+            FocusTarget::CompleteMap | FocusTarget::Area { .. } => Some(self.clone()),
+            FocusTarget::Position(_) => None,
         }
     }
 
