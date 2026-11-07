@@ -363,9 +363,9 @@ mod tests {
         }
 
         #[test]
-        fn destinations_match_geo(latitude in -80.0f64..80.0, longitude in -170.0f64..170.0, radius in 0.0 .. 500_000.0, bearing in -PI..PI) {
+        fn destinations_match_geo(latitude in -80.0f64..80.0, longitude in -177.0f64..177.0, radius in 0.0 .. 50_000.0, bearing in -PI..PI) {
             use geo::{Destination, Haversine, point};
-            // 500 km is at most ~4.5 degrees of longitude at 80 degrees, short of the date line.
+            // 50 km is at most ~2.6 degrees of longitude at 80 degrees, short of the date line.
             let origin = LatitudeLongitude::new(latitude, longitude);
             let own = origin.destinations(radius, std::iter::once(bearing)).next().expect("one bearing");
             let reference = Haversine.destination(point!(x: longitude, y: latitude), bearing.to_degrees(), radius);
