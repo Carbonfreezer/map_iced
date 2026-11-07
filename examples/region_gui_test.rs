@@ -395,9 +395,7 @@ impl RegionApplication {
     }
 
     fn middle_column(&self) -> Element<'_, Message> {
-        let unit_line = text("Unit System:")
-            .width(Fill)
-            .align_x(Alignment::Start);
+        let unit_line = text("Unit System:").width(Fill).align_x(Alignment::Start);
         let units = match self.widget_system.distance_units() {
             DistanceUnits::Metric => "Imperial units",
             DistanceUnits::Imperial => "Metric units",
