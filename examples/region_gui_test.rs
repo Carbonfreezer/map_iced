@@ -30,6 +30,8 @@ use map_iced::annotation_system::waypoint_system::WaypointSymbol;
 use map_iced::gui_system::map_widget_system::{MapEvent, MapWidgetMessage, MapWidgetSystem};
 use map_iced::gui_system::tile_cache_construction::TileCacheConfig;
 use map_iced::gui_system::{DistanceUnits, LatitudeLongitude};
+use std::convert::Into;
+use std::string::ToString;
 
 /// The configuration data to load.
 const CONFIG_DATA: &str = include_str!("assets/osm.json");
@@ -49,6 +51,27 @@ const TRACKS: [(&[u8], Color); 2] = [
     ),
 ];
 
+/// A track with a simple connection consisting of two points only.
+struct SimpleConnection {
+    /// The start and the end point.
+    positions: [LatitudeLongitude; 2],
+    /// The color with which the point is painted.
+    color: Color,
+    /// The name of the track.
+    name: &'static str,
+}
+
+/// The special track from Trier to Montreal to show the generation of the
+/// shortest line on the mercator projection map.
+const TRACK_TRIER_MONTREAL: SimpleConnection = SimpleConnection {
+    positions: [
+        DOME_POSITION,
+        LatitudeLongitude::new(45.5017, -73.5673), // The position of Montreal.
+    ],
+    color: Color::from_rgb(0.2, 0.2, 0.8),
+    name: "Trier - Montreal",
+};
+
 /// The share of the map a focused region covers.
 const REGION_FILL: f32 = 0.8;
 
@@ -63,6 +86,9 @@ const FIRE_STATION_COLOR: Color = Color::from_rgb(0.8, 0.3, 0.3);
 
 /// The position of the dome.
 const DOME_POSITION: LatitudeLongitude = LatitudeLongitude::new(49.7554, 6.6436);
+
+/// The position of montreal.
+const MONTREAL_POSITION: LatitudeLongitude = LatitudeLongitude::new(45.5017, -73.5673);
 
 /// One row of the list.
 struct Entry {
@@ -186,6 +212,15 @@ impl RegionApplication {
                 },
                 yellow,
             ),
+            // The large region of Montreal to show the circle distortion of the mercator map.
+            (
+                "Montreal Area",
+                RegionShape::Circle {
+                    center: MONTREAL_POSITION,
+                    radius_meter: 2000_000.0,
+                },
+                blue,
+            ),
         ];
         for (name, shape, style) in shapes {
             let key = regions
@@ -215,6 +250,19 @@ impl RegionApplication {
                 key: key.into(),
             });
         }
+
+        // The special entry for the long path.
+        let key = paths
+            .add_path(
+                TRACK_TRIER_MONTREAL.positions.to_vec(),
+                TRACK_TRIER_MONTREAL.color,
+                Some(TRACK_TRIER_MONTREAL.name.to_string()),
+            )
+            .expect("Two positions have been explicitly handed over");
+        entries.push(Entry {
+            name: TRACK_TRIER_MONTREAL.name.to_string(),
+            key: key.into(),
+        });
 
         entries
     }
