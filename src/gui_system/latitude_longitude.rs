@@ -12,8 +12,9 @@ pub(crate) const BOUNDARY_LATITUDE: f64 = 85.05112878;
 pub(crate) const BOUNDARY_LONGITUDE: f64 = 180.0;
 
 /// The radius of the sphere Web Mercator is defined on, in metres.
-/// Defined consistently with the geo package as earth mean radius.
-const EARTH_RADIUS: f64 = 6_371_008.8;
+/// Taken from the geo package, the GRS80 mean radius, so that the distances here and
+/// the paths densified with [`geo::Haversine`] use the same sphere.
+const EARTH_RADIUS: f64 = geo::Haversine.radius();
 
 /// The circumference of the earth in meters for mercator calculations..
 pub(crate) const EARTH_CIRCUMFERENCE: f64 = 2.0 * PI * EARTH_RADIUS;
@@ -241,7 +242,7 @@ impl LatitudeLongitude {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::{prop_assert, proptest};
+    use proptest::{prop_assert, prop_assume, proptest};
 
     proptest! {
         #[test]
@@ -330,6 +331,46 @@ mod tests {
             let antipode = LatitudeLongitude::new(-latitude, longitude + 180.0);
             let distance = point.get_distance_to(antipode);
             prop_assert!((distance - PI * EARTH_RADIUS).abs() < 1.0, "{latitude}, {longitude}: {distance}");
+        }
+    }
+
+    // geo serves as an oracle for the spherical formulas. The ranges stay away from the
+    // date line, where geo wraps the longitude and this module clamps it, and from
+    // antipodal pairs, where geo's haversine can give NaN and this module clamps.
+    proptest! {
+        #[test]
+        fn distance_matches_geo(lat_a in -80.0f64..80.0, long_a in -170.0f64..170.0, lat_b in -80.0f64..80.0, long_b in -170.0f64..170.0) {
+            use geo::{Distance, Haversine, point};
+            let a = LatitudeLongitude::new(lat_a, long_a);
+            let b = LatitudeLongitude::new(lat_b, long_b);
+            let own = a.get_distance_to(b);
+            let reference = Haversine.distance(point!(x: long_a, y: lat_a), point!(x: long_b, y: lat_b));
+            // Both are the same formula; the margin covers ordering of the float operations.
+            prop_assert!((own - reference).abs() < 1e-6, "{own} vs {reference}");
+        }
+
+        #[test]
+        fn bearing_matches_geo(lat_a in -80.0f64..80.0, long_a in -170.0f64..170.0, lat_b in -80.0f64..80.0, long_b in -170.0f64..170.0) {
+            use geo::{Bearing, Haversine, point};
+            let a = LatitudeLongitude::new(lat_a, long_a);
+            let b = LatitudeLongitude::new(lat_b, long_b);
+            prop_assume!(a.get_distance_to(b) > 1.0);
+            let own = a.get_bearing_to(b).to_degrees().rem_euclid(360.0);
+            let reference = Haversine.bearing(point!(x: long_a, y: lat_a), point!(x: long_b, y: lat_b));
+            // Compared on the circle, so that 359.9999° and 0° count as equal.
+            let difference = (own - reference).rem_euclid(360.0);
+            prop_assert!(difference.min(360.0 - difference) < 1e-9, "{own} vs {reference}");
+        }
+
+        #[test]
+        fn destinations_match_geo(latitude in -80.0f64..80.0, longitude in -170.0f64..170.0, radius in 0.0 .. 500_000.0, bearing in -PI..PI) {
+            use geo::{Destination, Haversine, point};
+            // 500 km is at most ~4.5 degrees of longitude at 80 degrees, short of the date line.
+            let origin = LatitudeLongitude::new(latitude, longitude);
+            let own = origin.destinations(radius, std::iter::once(bearing)).next().expect("one bearing");
+            let reference = Haversine.destination(point!(x: longitude, y: latitude), bearing.to_degrees(), radius);
+            prop_assert!((own.latitude - reference.y()).abs() < 1e-9, "{own:?} vs {reference:?}");
+            prop_assert!((own.longitude - reference.x()).abs() < 1e-9, "{own:?} vs {reference:?}");
         }
     }
 
