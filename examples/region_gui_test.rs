@@ -217,7 +217,7 @@ impl RegionApplication {
                 "Montreal Area",
                 RegionShape::Circle {
                     center: MONTREAL_POSITION,
-                    radius_meter: 2000_000.0,
+                    radius_meter: 2_000_000.0,
                 },
                 blue,
             ),
