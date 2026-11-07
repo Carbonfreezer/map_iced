@@ -22,7 +22,7 @@
 
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, scrollable, text};
-use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
+use iced::{Alignment, Color, Element, Fill, FillPortion, Padding, Size, Task, Theme};
 use map_iced::annotation_system::annotation_support::{AnnotationKey, DirectionFlag};
 use map_iced::annotation_system::path_system::PathError;
 use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
@@ -398,18 +398,19 @@ impl RegionApplication {
         let head_line = text("Elements:")
             .style(text::primary)
             .width(Fill)
-            .align_x(Alignment::Center);
+            .align_x(Alignment::Start);
         let units = match self.widget_system.distance_units() {
             DistanceUnits::Metric => "Imperial units",
             DistanceUnits::Imperial => "Metric units",
         };
-        let head_container = column![
+        let head_container = row![
             head_line,
             button(text(units)).on_press(Message::ToggleUnits)
         ]
-        .align_x(Alignment::Center)
-        .spacing(10)
-        .padding(20);
+        .padding(Padding {
+            bottom: 20.0,
+            ..Padding::ZERO
+        });
 
         let list = self
             .entries
