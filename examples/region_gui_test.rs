@@ -21,8 +21,8 @@
 //! after focusing the harbour of Mertert. Clicking the arrow focuses all maps on it.
 
 use iced::widget::text::Wrapping;
-use iced::widget::{button, column, container, row, scrollable, text};
-use iced::{Alignment, Color, Element, Fill, FillPortion, Padding, Size, Task, Theme};
+use iced::widget::{button, column, container, row, rule, scrollable, text};
+use iced::{Alignment, Color, Element, Fill, FillPortion, Size, Task, Theme};
 use map_iced::annotation_system::annotation_support::{AnnotationKey, DirectionFlag};
 use map_iced::annotation_system::path_system::PathError;
 use map_iced::annotation_system::region_system::{RegionShape, RegionStyle};
@@ -395,22 +395,17 @@ impl RegionApplication {
     }
 
     fn middle_column(&self) -> Element<'_, Message> {
-        let head_line = text("Elements:")
-            .style(text::primary)
+        let unit_line = text("Unit System:")
             .width(Fill)
             .align_x(Alignment::Start);
         let units = match self.widget_system.distance_units() {
             DistanceUnits::Metric => "Imperial units",
             DistanceUnits::Imperial => "Metric units",
         };
-        let head_container = row![
-            head_line,
+        let unit_container = row![
+            unit_line,
             button(text(units)).on_press(Message::ToggleUnits)
-        ]
-        .padding(Padding {
-            bottom: 20.0,
-            ..Padding::ZERO
-        });
+        ];
 
         let list = self
             .entries
@@ -426,10 +421,11 @@ impl RegionApplication {
             .style(container::bordered_box);
 
         column![
-            head_container,
             // The list scrolls rather than run into the report box on a small window.
             scrollable(list).height(FillPortion(7)),
-            container(report).height(FillPortion(3))
+            container(report).height(FillPortion(3)),
+            rule::horizontal(1),
+            unit_container
         ]
         .padding(10)
         .spacing(10)
