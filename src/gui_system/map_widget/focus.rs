@@ -8,7 +8,6 @@
 use crate::annotation_system::annotation_support::MercatorRectangle;
 use crate::gui_system::internal_math::{TILE_SIZE_PIXEL, TileCoordinates};
 use crate::gui_system::latitude_longitude::LatitudeLongitude;
-use crate::gui_system::map_widget_system::MapWidgetSystem;
 use iced::Size;
 
 /// The closest an area focus zooms in. A tiny region, or one of a single point,
@@ -62,13 +61,15 @@ impl FocusTarget {
     }
 
     /// The area within `radius_meter` around `center`, e.g. 200 m around a vehicle
-    /// to keep in view. The circle covers the share
-    /// [`MapWidgetSystem::DEFAULT_FOCUS_FILL`] of the widget's shorter side, so a bit
-    /// more than the radius stays visible to every side.
+    /// to keep in view. The circle spans the widget's shorter side exactly, so the
+    /// radius is what stays visible to that side; pass a larger radius for a margin.
     ///
     /// To follow a moving vehicle, call [`MapWidgetSystem::jump_to`] with each new
     /// position. [`MapWidgetSystem::animate_to`] starts its pan and zoom anew on every
     /// call, which suits single moves rather than a stream of them.
+    ///
+    /// [`MapWidgetSystem::jump_to`]: crate::gui_system::map_widget_system::MapWidgetSystem::jump_to
+    /// [`MapWidgetSystem::animate_to`]: crate::gui_system::map_widget_system::MapWidgetSystem::animate_to
     ///
     /// # Example
     /// ```
@@ -91,7 +92,7 @@ impl FocusTarget {
     pub fn around(center: LatitudeLongitude, radius_meter: f64) -> Self {
         FocusTarget::Area {
             bounds: MercatorRectangle::create_around(center, radius_meter, 0.0),
-            fill: MapWidgetSystem::DEFAULT_FOCUS_FILL,
+            fill: 1.0,
         }
     }
 }
@@ -282,7 +283,7 @@ mod tests {
         let target = FocusTarget::around(LatitudeLongitude::new(49.75, 6.63), 200.0);
         let end = resolve_target(&target, trier(), VIEW);
         let (width, height) = extent_in_pixels(&target, &end);
-        let expected = VIEW.height as f64 * MapWidgetSystem::DEFAULT_FOCUS_FILL as f64;
+        let expected = VIEW.height as f64;
         assert!((height - expected).abs() < 0.5, "height {height}");
         assert!((width - height).abs() < 0.5, "width {width}");
         assert!((end.position.latitude - 49.75).abs() < 1e-6);

@@ -654,10 +654,12 @@ mod tests {
                 .focal_point_to_publish(bounds(size.width, size.height))
                 .continuous_zoom_level
         };
-        // A tenth of the radius is about 3.3 levels closer, still below the cap.
         let wide = fitted_zoom(1_000.0);
-        let close = fitted_zoom(150.0);
-        assert!(close - wide > 2.5, "{wide} vs {close}");
+        let close = fitted_zoom(300.0);
+        // Both stay below MAXIMUM_AREA_ZOOM_LEVEL, so the zoom follows the radius
+        // exactly: log2 of the ratio.
+        let expected = (1_000.0f32 / 300.0).log2();
+        assert!((close - wide - expected).abs() < 0.01, "{wide} vs {close}");
     }
 
     #[test]
